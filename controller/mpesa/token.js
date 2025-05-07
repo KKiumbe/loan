@@ -2,13 +2,13 @@
 const axios = require('axios');
 require('dotenv').config();
 
-const getMpesaAccessToken = async () => {
-  const consumerKey = process.env.MPESA_CONSUMER_KEY;
-  const consumerSecret = process.env.MPESA_CONSUMER_SECRET;
-  const oauthUrl = process.env.MPESA_OAUTH_URL;
+
+
+const getMpesaAccessToken = async (consumerKey, consumerSecret) => {
+  const oauthUrl = process.env.MPESA_OAUTH_URL || 'https://sandbox.safaricom.co.ke/oauth/v1/generate?grant_type=client_credentials';
 
   if (!consumerKey || !consumerSecret || !oauthUrl) {
-    throw new Error('Missing M-Pesa configuration in environment variables');
+    throw new Error('Missing M-Pesa OAuth configuration');
   }
 
   const auth = Buffer.from(`${consumerKey}:${consumerSecret}`).toString('base64');
@@ -19,7 +19,7 @@ const getMpesaAccessToken = async () => {
       headers: {
         Authorization: `Basic ${auth}`,
       },
-      timeout: 10000, // 10 seconds timeout
+      timeout: 10000,
     });
     console.timeEnd('mpesaOAuthQuery');
     return response.data.access_token;
@@ -28,5 +28,6 @@ const getMpesaAccessToken = async () => {
     throw new Error('Failed to fetch M-Pesa access token');
   }
 };
+
 
 module.exports = { getMpesaAccessToken };

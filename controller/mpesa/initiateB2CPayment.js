@@ -1,24 +1,61 @@
 // src/utils/mpesaB2C.js
+//prismaClient.js
+
+const { PrismaClient } = require('@prisma/client');
+const prisma = new PrismaClient();
 const axios = require('axios');
 const { getMpesaAccessToken } = require('./token');
+const { getTenantSettings } = require('./mpesaConfig');
 
 require('dotenv').config();
 
-// Existing initiateB2CPayment function
+
+
+
+
+
+
+// const getMpesaAccessToken = async (consumerKey, consumerSecret) => {
+//   const oauthUrl = process.env.MPESA_OAUTH_URL || 'https://sandbox.safaricom.co.ke/oauth/v1/generate?grant_type=client_credentials';
+
+//   if (!consumerKey || !consumerSecret || !oauthUrl) {
+//     throw new Error('Missing M-Pesa OAuth configuration');
+//   }
+
+//   const auth = Buffer.from(`${consumerKey}:${consumerSecret}`).toString('base64');
+
+//   try {
+//     console.time('mpesaOAuthQuery');
+//     const response = await axios.get(oauthUrl, {
+//       headers: {
+//         Authorization: `Basic ${auth}`,
+//       },
+//       timeout: 10000,
+//     });
+//     console.timeEnd('mpesaOAuthQuery');
+//     return response.data.access_token;
+//   } catch (error) {
+//     console.error('Error fetching M-Pesa access token:', error.response?.data || error.message);
+//     throw new Error('Failed to fetch M-Pesa access token');
+//   }
+// };
+
 const initiateB2CPayment = async ({
   amount,
   phoneNumber,
   queueTimeoutUrl,
   resultUrl,
+  b2cShortCode,
+  initiatorName,
+  securityCredential,
+  consumerKey,
+  consumerSecret,
   remarks = 'Loan Disbursement',
 }) => {
-  const b2cUrl = process.env.MPESA_B2C_URL;
-  const shortcode = process.env.MPESA_B2C_SHORTCODE;
-  const initiatorName = process.env.MPESA_INITIATOR_NAME;
-  const securityCredential = process.env.MPESA_SECURITY_CREDENTIAL;
+  const b2cUrl = process.env.MPESA_B2C_URL || 'https://sandbox.safaricom.co.ke/mpesa/b2c/v1/paymentrequest';
 
-  if (!b2cUrl || !shortcode || !initiatorName || !securityCredential) {
-    throw new Error('Missing M-Pesa B2C configuration in environment variables');
+  if (!b2cUrl || !b2cShortCode || !initiatorName || !securityCredential || !consumerKey || !consumerSecret) {
+    throw new Error('Missing M-Pesa B2C configuration');
   }
 
   if (!amount || amount <= 0) {
@@ -31,14 +68,14 @@ const initiateB2CPayment = async ({
     throw new Error('Missing webhook URLs');
   }
 
-  const accessToken = await getMpesaAccessToken();
+  const accessToken = await getMpesaAccessToken(consumerKey, consumerSecret);
 
   const payload = {
     InitiatorName: initiatorName,
     SecurityCredential: securityCredential,
     CommandID: 'BusinessPayment',
     Amount: amount,
-    PartyA: shortcode,
+    PartyA: b2cShortCode,
     PartyB: phoneNumber,
     Remarks: remarks,
     QueueTimeOutURL: queueTimeoutUrl,
@@ -63,14 +100,27 @@ const initiateB2CPayment = async ({
   }
 };
 
-// New simplified disbursement function
-const disburseB2CPayment = async ({ phoneNumber, amount }) => {
+const disburseB2CPayment = async ({ phoneNumber, amount, loanId, userId, tenantId }) => {
   if (!amount || amount <= 0) {
     throw new Error('Invalid amount');
   }
   if (!phoneNumber.match(/^2547\d{8}$/)) {
     throw new Error('Invalid phone number format');
   }
+  if (!loanId || !userId || !tenantId) {
+    throw new Error('Missing loanId, userId, or tenantId');
+  }
+
+  // Fetch tenant-specific M-Pesa configuration
+  console.time('getTenantSettingsQuery');
+  const settingsResponse = await getTenantSettings(tenantId);
+  console.timeEnd('getTenantSettingsQuery');
+
+  if (!settingsResponse.success) {
+    throw new Error(settingsResponse.message || 'Failed to fetch tenant M-Pesa settings');
+  }
+
+  const mpesaConfig = settingsResponse.mpesaConfig;
 
   const resultUrl = `${process.env.APP_BASE_URL}/api/mpesa/b2c-result`;
   const queueTimeoutUrl = `${process.env.APP_BASE_URL}/api/mpesa/b2c-timeout`;
@@ -81,11 +131,65 @@ const disburseB2CPayment = async ({ phoneNumber, amount }) => {
     phoneNumber,
     queueTimeoutUrl,
     resultUrl,
-    remarks: 'Loan disbursement',
+    b2cShortCode: mpesaConfig.b2cShortCode,
+    initiatorName: mpesaConfig.initiatorName,
+    securityCredential: mpesaConfig.securityCredential,
+    consumerKey: mpesaConfig.consumerKey,
+    consumerSecret: mpesaConfig.consumerSecret,
+    remarks: `Loan ${loanId} disbursement`,
   });
   console.timeEnd('mpesaPayment');
 
-  return mpesaResponse;
+  const transactionId = mpesaResponse.ConversationID || mpesaResponse.OriginatorConversationID;
+  const isSuccess = mpesaResponse.ResponseCode === '0';
+
+  try {
+    // Update loan immediately
+    console.time('loanDisburseUpdateQuery');
+    const updatedLoan = await prisma.loan.update({
+      where: { id: parseInt(loanId) },
+      data: {
+        disbursedAt: new Date(),
+        mpesaTransactionId: transactionId,
+        mpesaStatus: isSuccess ? 'SUCCESS' : 'FAILED',
+        status: isSuccess ? 'DISBURSED' : 'APPROVED',
+      },
+    });
+    console.timeEnd('loanDisburseUpdateQuery');
+
+    // Log the disbursement
+    console.time('auditLogDisburseQuery');
+    await prisma.auditLog.create({
+      data: {
+        tenant: { connect: { id: tenantId } },
+        user: { connect: { id: userId } },
+        action: isSuccess ? 'DISBURSE' : 'DISBURSE_ERROR',
+        resource: 'LOAN',
+        details: {
+          loanId,
+          amount,
+          phoneNumber,
+          mpesaTransactionId: transactionId,
+          mpesaResponse,
+          message: isSuccess
+            ? `Loan ${loanId} disbursed to ${phoneNumber}`
+            : `Failed to disburse loan ${loanId}: ${mpesaResponse.ResponseDescription || 'Unknown error'}`,
+        },
+      },
+    });
+    console.timeEnd('auditLogDisburseQuery');
+
+    return { loan: updatedLoan, mpesaResponse };
+  } catch (error) {
+    console.error('Error updating loan after disbursement:', error);
+    throw new Error('Failed to update loan after disbursement');
+  } finally {
+    await prisma.$disconnect();
+  }
 };
+
+
+
+
 
 module.exports = { initiateB2CPayment, disburseB2CPayment };
