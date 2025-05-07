@@ -1,0 +1,340 @@
+firstName,lastName,email,phoneNumber,secondaryPhoneNumber,gender,county,town,location,estateName,building,houseNumber,category,monthlyCharge,status,garbageCollectionDay,collected,closingBalance
+Amat ,Properties,,0720765140,,,,Agent,,,,,,15000,,MONDAY,,1000
+Titus,Njuguna,,0722751931,,,,Oasis,,,,,,1500,,TUESDAY,,1500
+PAULINE, MUTHIKE,,0710308496,,,,Joyland Down,,,,,,600,,WEDNESDAY,,7200
+Benard, Kabubi,,0720832653,,,,Bakita,,,,,,1400,,THURSDAY,,1400
+Joan ,Njenga,,0723510935,,,,Bakita,,,,,,300,,FRIDAY,,300
+Morris ,Morris,,0720819418,,,,Bakita,,,,,,1200,,SATURDAY,,1200
+James ,Nabea,,0724471885,,,,Bakita,,,,,,300,,MONDAY,,300
+Lucy ,Maina,,0724487667,,,,Bakita,,,,,,300,,MONDAY,,300
+Peter Mwangi, Njoroge,,0722407124,,,,Bakita,,,,,,1200,,TUESDAY,,1200
+Rodgers, Kagwi,,0722710783,,,,Bakita,,,,,,300,,WEDNESDAY,,300
+Irene ,Shironya,,0723066999,,,,Bakita,,,,,,300,,THURSDAY,,300
+John , Kiboro,,0705483044,,,,Bakita,,,,,,600,,FRIDAY,,600
+Kennedy ,Ndungu,,0725239077,,,,Gachororo,,,,,,4000,,SATURDAY,,0
+Robert ,Kennedy,,0727498830,0722885257,,,Bakita,,,,,,300,,MONDAY,,300
+Rosemary ,Karimi,,0722874461,,,,Superhighway,,,,,,200,,MONDAY,,200
+Agatha ,Thamaini,,0713052577,,,,Gachororo,,,,,,1400,,TUESDAY,,1400
+Anthony ,Gichuhi,,0704447775,,,,Gachororo,,,,,,1000,,WEDNESDAY,,1000
+Ann ,Njeri ,,0716167584,,,,Gachororo,,,,,,1500,,THURSDAY,,0
+Anne ,Njoki,,0721406122,,,,Gachororo,,,,,,1200,,FRIDAY,,0
+Elizabeth, Mahui,,0718135143,,,,Gachororo,,,,,,1500,,SATURDAY,,1500
+John ,Muigai ,,0733780851,,,,Gachororo,,,,,,4000,,MONDAY,,4000
+John,Njugia,,0722594981,,,,Gachororo,,,,,,1300,,MONDAY,,0
+Henry , Mwangi ,,0798288469,,,,Gachororo,,,,,,600,,TUESDAY,,600
+George ,Mungai,,0722613922,,,,Gachororo,,,,,,3000,,WEDNESDAY,,2800
+Bernerd ,Kiruki,,0721372615,,,,Gachororo,,,,,,900,,THURSDAY,,900
+Fredrick ,Njuguna_Muchina,,0729446472,,,,Gachororo,,,,,,300,,FRIDAY,,300
+Martin,Njenga,,0713313901,,,,Gachororo,,,,,,1400,,SATURDAY,,1400
+Gabriel,Kimondo,,0712372247,,,,Gachororo,,,,,,1000,,MONDAY,,1000
+Samuel ,Muchiri,,0722353834,,,,Gachororo,,,,,,1200,,MONDAY,,1200
+Benson,Kunga,,0707558172,,,,Gachororo,,,,,,1200,,TUESDAY,,1200
+Elias ,Waithaka,,0721334554,,,,Gachororo,,,,,,700,,WEDNESDAY,,700
+Ephantus ,Waweru,,0725113270,,,,Gachororo,,,,,,800,,THURSDAY,,800
+Eudias ,Mwangi,,0723415519,,,,Gachororo,,,,,,600,,FRIDAY,,600
+Anthony ,Ngunyi,,0721642862,,,,Gachororo,,,,,,300,,SATURDAY,,300
+Mr Koigi ,Gichia,,0715839858,,,,Gachororo,,,,,,500,,MONDAY,,500
+Hannah ,Mwaura,,0700500870,,,,Gachororo,,,,,,300,,MONDAY,,300
+James ,Njuguna,,0723405859,,,,Gachororo,,,,,,1000,,TUESDAY,,0
+Jane ,GIchingiri,,0723106001,,,,Gachororo,,,,,,1000,,WEDNESDAY,,1000
+Jecinta ,Kyenze,,0722457690,,,,Gachororo,,,,,,800,,THURSDAY,,800
+John ,Mboya,,0727420132,,,,Gachororo,,,,,,300,,FRIDAY,,300
+Raphael ,Ndiritu,,0725391843,,,,Gachororo,,,,,,1000,,SATURDAY,,1000
+Michael ,Ruru,,0722772763,,,,Gachororo,,,,,,1000,,MONDAY,,1000
+Leah ,Wanjiru ,,0720233600,,,,Gachororo,,,,,,300,,MONDAY,,300
+Lillian,Kimani,,0710808184,,,,Gachororo,,,,,,1000,,TUESDAY,,1000
+Lucy ,Ruguru,,0729060360,,,,Gachororo,,,,,,350,,WEDNESDAY,,350
+George, Gitau,,0721328331,,,,Gachororo,,,,,,4000,,THURSDAY,,28000
+Esther,Njoroge,,0720461478,,,,Gachororo,,,,,,700,,FRIDAY,,700
+Christine,Wanjiru,,0715260107,,,,Gachororo,,,,,,1000,,SATURDAY,,1000
+Hellen ,Karimi,,0727829341,,,,Gachororo,,,,,,700,,MONDAY,,700
+Mary ,Njeri,,0724355347,,,,Gachororo,,,,,,400,,MONDAY,,400
+Charles,Kigwe,,0722392212,,,,Gachororo,,,,,,3000,,TUESDAY,,3000
+Margaret ,Kamami,,0721202607,,,,Gachororo,,,,,,600,,WEDNESDAY,,600
+Mary ,Gathogo,,0721385115,,,,Gachororo,,,,,,300,,THURSDAY,,300
+Susan ,Mburu,,0725628291,,,,Gachororo,,,,,,2000,,FRIDAY,,2000
+Michael ,Kabai,,0711102891,,,,Gachororo,,,,,,1000,,SATURDAY,,1000
+Monica ,Mburu,,0706924324,,,,Gachororo,,,,,,500,,MONDAY,,500
+Robinson,Muhenia,,0721364662,,,,Gachororo,,,,,,300,,MONDAY,,300
+Francis,Wairimu,,071916999,,,,Gachororo,,,,,,700,,TUESDAY,,700
+John ,Waruguru,,0701416730,,,,Gachororo,,,,,,500,,WEDNESDAY,,500
+Nancy ,Ambuki,,0799925763,,,,Gachororo,,,,,,1000,,THURSDAY,,1000
+Naomy ,Muturi,,0721266998,,,,Gachororo,,,,,,1600,,FRIDAY,,1600
+Pauline ,Anunda,,0725938373,,,,Gachororo,,,,,,500,,SATURDAY,,500
+Edward ,Muraya,,0725653572,,,,Gachororo,,,,,,700,,MONDAY,,700
+Salome ,Karanja,,0716030788,,,,Joyland Down,,,,,,500,,MONDAY,,500
+Anne ,Wamuyu,,0722891476,,,,Gachororo,,,,,,1000,,TUESDAY,,1000
+Anne ,Wamwangi,,0727485483,,,,Gachororo,,,,,,400,,WEDNESDAY,,400
+Patrick ,Wanyaga,,0711478188,,,,Gachororo,,,,,,300,,THURSDAY,,300
+Peter ,Muiru,,0722311660,,,,Gachororo,,,,,,4500,,FRIDAY,,4500
+Phillip ,Wandeto,,0722274109,,,,Gachororo,,,,,,1050,,SATURDAY,,1050
+Moses, Kamau,,0713893611,,,,Gachororo,,,,,,11000,,MONDAY,,11000
+Rose ,Njogu,,0720677171,,,,Gachororo,,,,,,250,,MONDAY,,250
+Salome ,Wanjiru,,0722464039,,,,Gachororo,,,,,,1500,,TUESDAY,,1500
+Mary,Gachiki,,0711221573,,,,Gachororo,,,,,,500,,WEDNESDAY,,500
+Stephen ,Wainaina,,0722400017,,,,Gachororo,,,,,,500,,THURSDAY,,500
+Sammy ,Mwangi,,0722762724,,,,Gachororo,,,,,,500,,FRIDAY,,500
+Francis ,Gatume,,0711414352,,,,Gachororo,,,,,,1500,,SATURDAY,,1500
+Peter ,Mwaura ,,0718352830,,,,Gachororo,,,,,,2000,,MONDAY,,2000
+Jane,Mutonga,,0726493665,,,,Gachororo,,,,,,2000,,MONDAY,,2000
+Theresia ,Njoroge,,0722828432,,,,Gachororo,,,,,,500,,TUESDAY,,500
+Veronica ,Muigai,,0722395868,,,,Gachororo,,,,,,1400,,WEDNESDAY,,1400
+Antony ,Thimo,,0716875314,,,,Mungetho,,,,,,800,,THURSDAY,,800
+Stephen, Karanja,,0721575112,,,,Gachororo,,,,,,4000,,FRIDAY,,4000
+Faith,Gichane,,0722725751,,,,ST Paul,,,,,,600,,SATURDAY,,600
+Anne, Wamuyu ,,0722891476,,,,Greenfield,,,,,,2000,,MONDAY,,2000
+James ,Mwangi,,0723405859,,,,Greenfield,,,,,,500,,MONDAY,,500
+BONFACE,MUTUNGA,,0717913539,,,,Greenfield,,,,,,500,,TUESDAY,,500
+Isabellah ,Nyangeri,,0717100099,,,,Greenfield,,,,,,3200,,WEDNESDAY,,0
+Jackson ,Kioko,,0713392000,,,,Greenfield,,,,,,1000,,THURSDAY,,0
+Simon ,Kariuki,,0729267363,,,,Greenfield,,,,,,1000,,FRIDAY,,1000
+Mary ,Njoroge,,0702977467,,,,,,,,,,500,,SATURDAY,,500
+Joseph ,Kinyanjui,,0727494183,,,,Gachororo,,,,,,800,,MONDAY,,800
+Elias ,Ireri,,0721839266,,,,Greenfield,,,,,,500,,MONDAY,,500
+Florence ,Ndichu,,0738497473,,,,Greenfield,,,,,,250,,TUESDAY,,250
+Fracia,Njoroge,,0725881702,,,,Greenfield,,,,,,900,,WEDNESDAY,,900
+Francis ,Mbugua,,0710259391,,,,Greenfield,,,,,,400,,THURSDAY,,400
+George ,Muchai,,0702731173,,,,Greenfield,,,,,,500,,FRIDAY,,500
+John,John ,,0722282679,,,,Greenfield,,,,,,5000,,SATURDAY,,5000
+Caroline ,Nganga,,0722737362,,,,Greenfield,,,,,,5000,,MONDAY,,5000
+Anne, Wanjiru ,,0722425608,,,,Greenfield,,,,,,2500,,MONDAY,,2500
+Jane ,Gachie,,0722410414,,,,Greenfield,,,,,,1000,,TUESDAY,,0
+John, Kimani,,0721581318,,,,Greenfield,,,,,,2000,,WEDNESDAY,,2000
+Anne, Wanjiru,,0722425608,,,,Greenfield,,,,,,1000,,THURSDAY,,1000
+Tabitha, Njeri ,,0725478061,,,,Greenfield,,,,,,2500,,FRIDAY,,2500
+Susan, Kiarie,,0713856900,,,,Greenfield,,,,,,500,,SATURDAY,,500
+Susan ,Nderitu,,0722214796,,,,Greenfield,,,,,,400,,MONDAY,,400
+Simon ,Mburu ,,0714510383,,,,Greenfield,,,,,,1000,,MONDAY,,1000
+Mike ,Kinisu,,0720216129,,,,Greenfield,,,,,,5400,,TUESDAY,,5400
+Milkah ,Wambui,,0725672385,,,,Greenfield,,,,,,300,,WEDNESDAY,,300
+Jane ,Githuku,,0721890167,,,,Greenfield,,,,,,700,,THURSDAY,,700
+Abraham,Abraham,,0708672366,,,,Greenfield,,,,,,500,,FRIDAY,,500
+Peter ,Chege,,0725109868,783109868,,,Mungetho,,,,,,2000,,SATURDAY,,2000
+Mary, Karanja,,0720549397,,,,Greenfield,,,,,,1000,,MONDAY,,1000
+Margaret,Njeri,,0721490399,,,,Greenfield,,,,,,2800,,MONDAY,,2800
+John, Mbuthia,,0726178729,,,,Greenfield,,,,,,500,,TUESDAY,,500
+Charles ,Mosoti,,0728761014,,,,Greenfield,,,,,,500,,WEDNESDAY,,500
+Paul, Njuri,,0723116104,,,,Greenfield,,,,,,,,THURSDAY,,0
+Paul ,Mwangi ,,0710386976,,,,Greenfield,,,,,,500,,FRIDAY,,500
+Peter ,Kinuthia ,,0721991336,,,,Greenfield,,,,,,500,,SATURDAY,,500
+John ,Muchiri,,0724955579,,,,,,,,,,2500,,MONDAY,,2500
+Jackson ,Muguro,,0721588376,,,,Greenfield,,,,,,800,,MONDAY,,800
+Muchoki ,Mwangi,,0722747760,,,,Greenfield,,,,,,1000,,TUESDAY,,1000
+Paul ,Gichuru,,0708852905,,,,,,,,,,300,,WEDNESDAY,,300
+Susan ,Mwangi,,0726112248,,,,Greenfield,,,,,,500,,THURSDAY,,500
+John, Kimari,,0722343406,,,,Greenfield,,,,,,3000,,FRIDAY,,0
+Juliah ,Maina,,0728817137,,,,Ithuri,,,,,,500,,SATURDAY,,500
+Wagathua,Wagathua,,0710646415,,,,Greenfield,,,,,,500,,MONDAY,,500
+Jane, Wahome,,0722602720,,,,Greenfield,,,,,,2000,,MONDAY,,2000
+Mary, Wambui,,0720817219,,,,Greenfield,,,,,,600,,TUESDAY,,600
+ACK ,St Mathews,,0723941487,,,,Ithuri,,,,,,4500,,WEDNESDAY,,0
+Teresiah, Ngaruiya,,0795305044,,,,Ithuri,,,,,,1000,,THURSDAY,,1000
+Bernadict, Kamau,,0724455764,,,,Ithuri,,,,,,700,,FRIDAY,,700
+Ann, Ndichu,,0796465385,,,,Ithuri,,,,,,1000,,SATURDAY,,1000
+Charles ,Wafula,,0722508563,,,,Ithuri,,,,,,500,,MONDAY,,500
+Christopher ,Wainaina,,0722321736,,,,Ithuri,,,,,,3000,,MONDAY,,3000
+Mary Mbote,Mbote,,0705197298,,,,Ithuri,,,,,,7500,,TUESDAY,,7500
+Kepha Mbote,Mbote,,0700216154,,,,Ithuri,,,,,,6000,,WEDNESDAY,,6000
+Daniel ,Gaiti,,0714974970,,,,Ithuri,,,,,,14200,,THURSDAY,,0
+David, Cheror,,0722687774,,,,Ithuri,,,,,,300,,FRIDAY,,300
+Elizabeth ,Mwau,,0722381103,,,,Ithuri,,,,,,200,,SATURDAY,,200
+Evans ,Kibiro,,0722261044,,,,Ithuri,,,,,,1000,,MONDAY,,1000
+Francis,Njoroge,,0723289676,,,,Ithuri,,,,,,3000,,MONDAY,,3000
+Noel,Ngigi,,0729766992,,,,Ithuri,,,,,,1200,,TUESDAY,,1200
+Alice, Muchiri,,0722348790,,,,Ithuri,,,,,,1000,,WEDNESDAY,,1000
+Susan ,Waititu,,0717592059,,,,Ithuri,,,,,,3000,,THURSDAY,,3000
+Jane ,Midecha,,0705387245,,,,Ithuri,,,,,,700,,FRIDAY,,700
+Jane ,Muniu,,0710346294,,,,Ithuri,,,,,,400,,SATURDAY,,400
+Jane ,Waceke,,0728029068,,,,Ithuri,,,,,,500,,MONDAY,,500
+Jane, Kanyari,,0733373810,,,,Ithuri,,,,,,1500,,MONDAY,,1500
+Joseph ,Mwangi,,0716089388,,,,Ithuri,,,,,,800,,TUESDAY,,800
+Eliud ,Karanja,,0729954734,,,,Ithuri,,,,,,3000,,WEDNESDAY,,3000
+Lucy ,Muthoni,,0720001726,,,,Ithuri,,,,,,500,,THURSDAY,,500
+Stephen,Nganga,,0721830647,,,,Ithuri,,,,,,3500,,FRIDAY,,3500
+Rachael ,Mwangi,,0733840640,,,,Ithuri,,,,,,300,,SATURDAY,,300
+Maria ,Wanjiku,,0727585588,,,,Ithuri,,,,,,500,,MONDAY,,500
+Denis ,Masio,,0745673961,,,,Ithuri,,,,,,300,,MONDAY,,300
+Mary ,Njeri,,0724355347,,,,Ithuri,,,,,,500,,TUESDAY,,500
+Mary,Muchaba,,0722614178,,,,Ithuri,,,,,,1000,,WEDNESDAY,,1000
+Mercy ,Njoroge,,0714092208,,,,Ithuri,,,,,,12000,,THURSDAY,,12000
+Jane ,Kioni,,0720516747,,,,Ithuri,,,,,,2800,,FRIDAY,,2800
+Mrs ,Githinji,,0798159458,,,,Ithuri,,,,,,600,,SATURDAY,,600
+PETER ,WANJIRU,,0719800553,,,,Ithuri,,,,,,1000,,MONDAY,,1000
+Josephat ,Thuo,,0713949501,,,,,,,,,,1000,,MONDAY,,1000
+Nganga, Kahuko,,0724325694,,,,Ithuri,,,,,,7000,,TUESDAY,,7000
+Ngunge , Kameri,,0728619134,,,,Ithuri,,,,,,1000,,WEDNESDAY,,1000
+James ,Njiiri,,0722314792,,,,Ithuri,,,,,,1500,,THURSDAY,,1500
+Zipporah, Muchai,,0727139100,,,,Ithuri,,,,,,700,,FRIDAY,,700
+Peter ,Karanja,,0727257359,,,,Ithuri,,,,,,2000,,SATURDAY,,2000
+Peter ,Mukami,,0722782558,,,,Ithuri,,,,,,12500,,MONDAY,,12500
+Paul ,Nganga,,0703988471,,,,Ithuri,,,,,,7500,,MONDAY,,0
+Rose ,Gateru,,0722376550,,,,Ithuri,,,,,,1250,,TUESDAY,,1250
+Valentine,Valentine,,0712730197,,,,Ithuri,,,,,,1000,,WEDNESDAY,,1000
+Ruth,ruth,,0724811603,,,,Ithuri,,,,,,29000,,THURSDAY,,29000
+Susan ,Wanjiru,,0720347897,,,,Ithuri,,,,,,300,,FRIDAY,,300
+The Icon, Juja,,0727955844,,,,Ithuri,,,,,,10000,,SATURDAY,,10000
+Professor ,Wachira,,0722802099,,,,Ithuri,,,,,,2500,,MONDAY,,2500
+Daniel ,Muiruri,,0712108251,,,,Ithuri,,,,,,2000,,MONDAY,,0
+Veronica ,Wangui,,0723685531,,,,Ithuri,,,,,,1300,,TUESDAY,,1300
+Lucy ,Kamau,,0719363329,,,,Ithuri,,,,,,1000,,WEDNESDAY,,1000
+George ,Wairagu,,0746684667,,,,,,,,,,2000,,THURSDAY,,2000
+Sylvia ,Wanjiru,,0721158030,,,,Joyland Down,,,,,,500,,FRIDAY,,500
+Gilbert ,Kamanja,,0728983277,,,,Joyland Down,,,,,,200,,SATURDAY,,0
+John ,Njoroge,,0722832598,,,,Joyland Down,,,,,,300,,MONDAY,,300
+John ,Gitau ,,0711250236,,,,Joyland Down,,,,,,1000,,MONDAY,,0
+Elizabeth ,wangeci,, 0720223792,,,,Joyland Down,,,,,,1000,,TUESDAY,,0
+David ,Kiarie,,0720673569,,,,Joyland Down,,,,,,300,,WEDNESDAY,,0
+David,Muchai,,0722439396,,,,Joyland Down,,,,,,2000,,THURSDAY,,2000
+Hilda ,Kebeya,,0722311064,,,,Joyland Down,,,,,,2250,,FRIDAY,,0
+Abraham, Muchuku,,0727640443,,,,Joyland Down,,,,,,3000,,SATURDAY,,0
+Isaac ,Njoroge,,0723471682,,,,Joyland Down,,,,,,500,,MONDAY,,0
+Josephat ,Njuguna,,0705580439,,,,Joyland Down,,,,,,700,,MONDAY,,700
+Ken ,Marata,,0725580604,,,,Joyland Down,,,,,,3000,,TUESDAY,,0
+Minnie ,Muiruri,,0799453246,,,,Joyland Down,,,,,,300,,WEDNESDAY,,0
+Patrick, Gachoki,,0722639823,,,,Joyland Down,,,,,,1000,,THURSDAY,,0
+Paul ,Mwangi,,0723538887,,,,Joyland Down,,,,,,500,,FRIDAY,,0
+Ruth ,Mwinzi,,0723952800,,,,Joyland Down,,,,,,300,,SATURDAY,,0
+Joel ,Aduda,,0726591908,,,,Joyland Down,,,,,,500,,MONDAY,,0
+Stephen ,Njenga,,0710998703,,,,Joyland Down,,,,,,500,,MONDAY,,0
+Joseph ,Kamanja,,0722328458,,,,Joyland Down,,,,,,1000,,TUESDAY,,0
+Wahu,Wahu,,0700498955,,,,Joyland Down,,,,,,500,,WEDNESDAY,,0
+Wanjia ,Joybell,,0711374513,,,,Joyland Down,,,,,,900,,THURSDAY,,900
+Andrew ,Nyangoto,,0727478883,,,,Joyland up,,,,,,3200,,FRIDAY,,0
+Beatrice ,Maina,,0720314921,,,,Joyland up,,,,,,100,,SATURDAY,,0
+John ,Nyaga ,,0701690483,,,,Joyland up,,,,,,1000,,MONDAY,,0
+Beatrice ,Ogora,,0726635632,,,,Joyland up,,,,,,5000,,MONDAY,,3000
+Benjoy,Benjoy,,0722708052,,,,Joyland up,,,,,,2000,,TUESDAY,,2000
+Joyce ,Koech,,0722761255,,,,Joyland up,,,,,,3000,,WEDNESDAY,,0
+Catherine ,Catherine,,0722886039,,,,Joyland up,,,,,,500,,THURSDAY,,0
+Joanes ,Njiru,,0721783983,,,,Joyland up,,,,,,300,,FRIDAY,,0
+Jane ,Sakagwa,,0726715545,,,,Joyland up,,,,,,1000,,SATURDAY,,0
+Abraham,Kimeu,,0725303309,,,,Joyland up,,,,,,500,,MONDAY,,500
+joyce,Kerubo,,0710657315,,,,Joyland up,,,,,,3000,,MONDAY,,0
+David ,Gachugu ,,0723220331,,,,Joyland up,,,,,,5200,,TUESDAY,,5200
+Geoffrey ,Kibunja,,0746071545,,,,Joyland up,,,,,,500,,WEDNESDAY,,500
+Gemimah ,Nganga,,0727531957,,,,Joyland up,,,,,,2500,,THURSDAY,,2500
+Humphrey ,Karanja ,,0723248481,,,,Joyland up,,,,,,500,,FRIDAY,,500
+Roman ,Karuma,,0722942234,,,,Joyland up,,,,,,500,,SATURDAY,,500
+John ,Chege,,0726141020,,,,Joyland up,,,,,,1000,,MONDAY,,1000
+Naomi ,Mugure,,0725657932,,,,,,,,,,300,,MONDAY,,300
+Mrs Ayub,Mjomba,,0722280953,,,,Joyland up,,,,,,300,,TUESDAY,,300
+Hellen ,Wanjera,,0722470774,,,,Joyland up,,,,,,1000,,WEDNESDAY,,0
+Margaret ,Njoki,,0722386642,,,,Joyland up,,,,,,400,,THURSDAY,,0
+Esther ,Gathiga,,0725537762,,,,Joyland up,,,,,,1300,,FRIDAY,,0
+Dio ,Dzomba,,0722737003,,,,Joyland up,,,,,,300,,SATURDAY,,0
+JACKLINE ,OTWORI,,0721430187,,,,Joyland up,,,,,,4000,,MONDAY,,0
+George ,Gichuhi,,0710379017,,,,Joyland up,,,,,,1000,,MONDAY,,1000
+Mukaya ,Mukaya ,,0724237906,,,,Joyland up,,,,,,1000,,TUESDAY,,1000
+Dominic ,Nganga,,0721473885,,,,,,,,,,1500,,WEDNESDAY,,1500
+HARRISON ,NDUNGU,,0717068754,,,,Joyland up,,,,,,300,,THURSDAY,,300
+Astellia ,Mumbi,,0719338583,,,,Ithuri,,,,,,100,,FRIDAY,,100
+Katumo ,Doreen,,0728824761,,,,Joyland up,,,,,,2500,,SATURDAY,,2500
+Francis ,Njau,,0729437716,,,,Joyland up,,,,,,2000,,MONDAY,,2000
+Prof. Okot,Abel,,0728260531,,,,Joyland up,,,,,,3000,,MONDAY,,3000
+Gregory ,Njoroge,,0725643970,,,,,,,,,,300,,TUESDAY,,300
+Salome ,Mbuya,,0723749261,,,,Joyland up,,,,,,300,,WEDNESDAY,,300
+Amos ,Gitonga,,0750283832,,,,Joyland up,,,,,,1500,,THURSDAY,,1500
+Faith ,Muchugia,,0758931037,,,,Joyland up,,,,,,1500,,FRIDAY,,1500
+Barboza ,Junior,,0725271701,,,,Kenyatta road,,,,,,1000,,SATURDAY,,0
+Martin ,Martin ,,0723247616,,,,Kenyatta road,,,,,,4000,,MONDAY,,4000
+Mary ,Kiiru,,0715811898,,,,Kibariti,,,,,,1300,,MONDAY,,1300
+Nusaiba ,Ramadhan,,0725849375,,,,Kimbo,,,,,,6000,,TUESDAY,,0
+Anthony ,Ngacha,,0717881857,,,,Kimbo,,,,,,3600,,WEDNESDAY,,0
+Juliet ,Nganga,,0722315927,,,,Kimbo,,,,,,1000,,THURSDAY,,0
+Kawira,Kawira,,0725771158,,,,Muchatha,,,,,,1500,,FRIDAY,,0
+Jeremiah ,Ngotho,,0725619386,,,,Muchatha,,,,,,2500,,SATURDAY,,2500
+Grace ,Mungai,,0722928135,,,,Muchatha,,,,,,3000,,MONDAY,,3000
+Elias ,Mbugua,,0722272340,,,,Muchatha,,,,,,7200,,MONDAY,,7200
+John ,Kamau,,0722782424,,,,,,,,,,2000,,TUESDAY,,2000
+Peter, Maweu,                                                                                                                                                                                  ,0716757729,,,,Muchatha,,,,,,2350,,WEDNESDAY,,2350
+John ,Karuu,,0702382978,,,,Muchatha,,,,,,1000,,THURSDAY,,1000
+Beth ,Kamakia,,0727129789,,,,Muchatha,,,,,,1000,,FRIDAY,,1000
+Lawrence ,Warui,,0722819924,,,,Muchatha,,,,,,3500,,SATURDAY,,3500
+Janet ,Muriuki,,0713936501,,,,,,,,,,300,,MONDAY,,300
+Karanja ,Munga,,0729169799,,,,Muchatha,,,,,,1500,,MONDAY,,1500
+Teresia,Kinyua,,0725771158,,,,Muchatha,,,,,,1500,,TUESDAY,,0
+Francis ,Njoroge,,0725856747,,,,Muchatha,,,,,,22800,,WEDNESDAY,,0
+Moses ,Chege,,0720480771,,,,Muchatha,,,,,,4800,,THURSDAY,,800
+Peter ,Meria,,0726217273,,,,Muchatha,,,,,,1500,,FRIDAY,,1500
+Stephen ,Gathebu,,0723867005,,,,Muchatha,,,,,,500,,SATURDAY,,0
+Josphat,Moguro,,0724607877,,,,Muchatha,,,,,,1000,,MONDAY,,0
+Andrew ,Kinyitta,,0722369358,,,,Mungetho,,,,,,800,,MONDAY,,800
+Anthony ,Wanjiru,,0723506133,,,,Mungetho,,,,,,300,,TUESDAY,,300
+Lucy ,Maina,,0724487667,,,,,,,,,,600,,WEDNESDAY,,600
+JOHNSON ,WAHOME,,0717573899,,,,Mungetho,,,,,,1500,,THURSDAY,,1500
+Lucy ,Kuria,,0722673416,,,,Mungetho,,,,,,300,,FRIDAY,,300
+Margaret , Githua,,0724940701,,,,Mungetho,,,,,,900,,SATURDAY,,900
+Michael ,Kinyita,,0722113365,,,,Mungetho,,,,,,500,,MONDAY,,500
+David ,Macharia,,0722928577,,,,Mungetho,,,,,,800,,MONDAY,,800
+ John ,Mwaura,,0722223934,,,,Mungetho,,,,,,900,,TUESDAY,,900
+Isaac ,Mutahi,,0723878916,,,,Mungetho,,,,,,500,,WEDNESDAY,,500
+Mary,Gatume,,0727302013,,,,Mungetho,,,,,,300,,THURSDAY,,300
+Susan ,Theuri,,0721660995,,,,Mungetho,,,,,,500,,FRIDAY,,500
+Jecinta ,Mungai,,0721451236,,,,Mungetho,,,,,,500,,SATURDAY,,500
+Veronica ,Gathoni ,,0724006780,,,,Mungetho,,,,,,1500,,MONDAY,,1500
+Patrick ,Kiongo ,,0726565599,,,,Mungetho,,,,,,500,,MONDAY,,500
+Chege ,Gachibu,,0722836558,,,,Mungetho,,,,,,5000,,TUESDAY,,5000
+Patrick ,Nderitu,,0722412748,,,,Mungetho,,,,,,400,,WEDNESDAY,,400
+Wilfred ,Obara,,0725976547,,,,Mungetho,,,,,,500,,THURSDAY,,500
+Margaret ,Ndirangu,,0721725570,,,,Mungetho,,,,,,500,,FRIDAY,,500
+Rikario ,Mucuruthi,,0728858324,,,,Mungetho,,,,,,200,,SATURDAY,,300
+Alexander ,Mwangi,,0712718341,,,,Mungetho,,,,,,500,,MONDAY,,500
+Mwaura ,Hamisi,,0722218643,,,,Mungetho,,,,,,1000,,MONDAY,,1000
+Dave,Dave,,0723410467,,,,Mungetho,,,,,,400,,TUESDAY,,400
+Antony ,Kamande,,0707927900,,,,Oasis,,,,,,500,,WEDNESDAY,,500
+Antony ,Ndichu,,0720567654,,,,Oasis,,,,,,1000,,THURSDAY,,1000
+James ,Ngugi,,0721333201,,,,Oasis,,,,,,500,,FRIDAY,,0
+John, Mburu,,0722800409,,,,Oasis,,,,,,1000,,SATURDAY,,1000
+Benson ,Felix Mwangi,,0736771849,,,,Oasis,,,,,,1000,,MONDAY,,1000
+Ndua ,Ndua ,,0724098941,,,,Oasis,,,,,,300,,MONDAY,,300
+Teddy ,Gituku,,0711601130,,,,Oasis,,,,,,500,,TUESDAY,,500
+Naisuba ,Ramadhan,,0710998850,,,,Juja,,,,,,3000,,WEDNESDAY,,0
+Consolata ,Muraya,,0724923813,,,,Gachororo,,,,,,800,,THURSDAY,,800
+Peninah ,Gateru,,0722552933,,,,Greenfield,,,,,,1500,,FRIDAY,,0
+TABITHA ,KAMBO,,0729991300,,,,Ruiru,,,,,,2500,,SATURDAY,,0
+Fiona,Fiona,,0700071085,,,,Ruiru,,,,,,2000,,MONDAY,,0
+Nelius ,Njoroge,,0724394157,,,,Ruiru,,,,,,200,,MONDAY,,200
+Njoroge ,Waruingi,,0722262811,,,,United,,,,,,1000,,TUESDAY,,1000
+Fidelis ,Wambui,,0720739512,,,,United,,,,,,500,,WEDNESDAY,,500
+Margaret ,Ndichu,,0708906932,,,,,,,,,,1500,,THURSDAY,,1500
+PAULINE ,NJUGUNA,,0720082574,,,,Salama,,,,,,1000,,FRIDAY,,1000
+Anne ,Opondo,,0729375001,,,,Salama,,,,,,300,,SATURDAY,,300
+JOSEPH ,MWANGI,,0716089388	,,,,Salama,,,,,,300,,MONDAY,,300
+Peris ,Githaiga,,0710235259,,,,Salama,,,,,,500,,MONDAY,,500
+Joseph ,Wambugu,,0715148445,,,,Shalom,,,,,,500,,TUESDAY,,500
+Simon ,Gutu,,0721322518,,,,Shalom,,,,,,1200,,WEDNESDAY,,1200
+Moses ,Kungu,,0724833281,,,,Agent,,,,,,11000,,THURSDAY,,4400
+Jane ,Mwaura,,0722897079,,,,Sunrise street,,,,,,1000,,FRIDAY,,0
+George ,Gichungo,,0722773155,,,,Sunrise street,,,,,,500,,SATURDAY,,0
+Cecilia ,Gakere,,0727638005,,,,Sunrise street,,,,,,2000,,MONDAY,,0
+Michael ,Boit ,,0724736569,,,,Sunrise street,,,,,,800,,MONDAY,,0
+Faith ,Njau,,0727307539,,,,Muchatha,,,,,,1000,,TUESDAY,,1000
+Joseph ,Kimani,,0722742794,,,,Sunrise street,,,,,,500,,WEDNESDAY,,500
+Lewis,Mbua,,079562657,,,,Superhighway,,,,,,6000,,THURSDAY,,8000
+Elizabeth ,Mwaura,,0722601924,,,,Superhighway,,,,,,1300,,FRIDAY,,1300
+Gedeon ,Gichuki,,0727756799,,,,Superhighway,,,,,,2000,,SATURDAY,,2000
+Elizabeth ,Gachoya,,0722668173,,,,,,,,,,600,,MONDAY,,600
+Faith ,Ireri,,0734693975,,,,Thika,,,,,,2800,,MONDAY,,2800
+Isaac ,Kungu,,0723715225,,,,Witeithie,,,,,,1400,,TUESDAY,,1400
+Peter ,Mega,,0720867013,,,,Witeithie,,,,,,300,,WEDNESDAY,,300
+Oxyde ,Master,,0735025946,,,,Witeithie,,,,,,2500,,THURSDAY,,2500
+Joash ,Ngeno,,0710668173,,,,Witeithie,,,,,,7400,,FRIDAY,,7400
+Peter ,Wambugu,,0718725882,,,,,,,,,,2100,,SATURDAY,,2100
+Reuben ,Mwaura,,0726408289,,,,,,,,,,500,,MONDAY,,500
+James ,Muiruri,,0729317193,,,,bakita,,,,,,300,,MONDAY,,300
+John ,Njeri,,0727898954,,,,,,,,,,1000,,TUESDAY,,1000
+Teresia ,Ngaruiya,,0795305044,,,,,,,,,,1000,,WEDNESDAY,,1000
+Mary ,Wanjiku,,0724433260,,,,,,,,,,400,,THURSDAY,,400
+Mary ,Kanoi,,0727000932,,,,,,,,,,300,,FRIDAY,,300
+Anne ,Nyambura,,0740759465,,,,,,,,,,500,,SATURDAY,,500
+David ,Gitau,,0705741632,,,,,,,,,,500,,MONDAY,,500
+Mwenda ,Inoti,,0729080029,,,,greenfield,,,,,,2000,,MONDAY,,2000
+Stephen ,Muchiri,,0717965391,,,,gachororo,,,,,,2200,,TUESDAY,,2200
+James ,Kamau,,0721326021,,,,,,,,,,1050,,WEDNESDAY,,1050
+Magdalene ,Muola,,0112426477,,,,,,,,,,5000,,THURSDAY,,5000
+IRENE ,GACIKI,,0713246846,,,,Gachororo,,,,,,3100,,FRIDAY,,3100
+ANTONY ,NJUGUNA,,0717881857,,,,toll,,,,,,3600,,SATURDAY,,3600
+JOHN ,MBURU,,0722282679,,,,,,,,,,5200,,MONDAY,,5200
+JOSEPH ,MURIU,,0729920710,,,,,,,,,,800,,MONDAY,,800
+Jim ,Kagau,,0722743731,,,,Greenfield,,,,,,1000,,TUESDAY,,0
+Bernard ,Moirongo ,,0721421545,,,,,,,,,,9000,,WEDNESDAY,,0

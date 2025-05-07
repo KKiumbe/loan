@@ -1,0 +1,6 @@
+firstName,lastName,phoneNumber,unitNumber,buildingName,monthlyCharge,closingBalance,billWater,waterRate,depositAmount,leaseStartDate,leaseEndDate,email,nationalId,landlordFirstName,landlordLastName,landlordPhoneNumber,garbageCharge,serviceCharge,securityCharge,amenitiesCharge,backupGeneratorCharge
+Muthoni,Wangari,0723730675,A102,Starlight Residences,17000,1000,true,50,17000,2025-02-15,2026-02-14,muthoni.wangari@example.com,56789012,Joseph,Kiptoo,+254700123460,500,300,400,200,100
+Kiptoo,Chebet,254778901234,B203,Sunrise Apartments,19000,4000,false,,19000,2025-05-01,2026-04-30,kiptoo.chebet@example.com,67890123,,,,600,400,300,150,
+Musyoka,Mutua,+254712345679,A103,Moonlight Towers,19500,3500,true,45,19500,2025-09-01,2026-08-31,musyoka.mutua@example.com,01234567,Grace,Anyango,254700123463,550,350,450,250,150
+Auma,Anyango,078901235,B205,Moonlight Towers,20000,4000,false,,20000,2025-03-15,2026-03-14,auma.anyango@example.com,67890124,Patrick,Kamau,0700123466,500,300,400,200,
+Cheruiyot,Kiptoo,254790123457,D407,Sunrise Apartments,17500,1000,false,,17500,2025-05-15,2026-05-14,cheruiyot.kiptoo@example.com,89012346,,,,600,400,300,150,100

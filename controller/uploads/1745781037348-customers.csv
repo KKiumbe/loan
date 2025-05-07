@@ -1,0 +1,21 @@
+firstName,lastName,phoneNumber,unitNumber,buildingName,monthlyCharge,closingBalance,depositAmount,leaseStartDate,leaseEndDate,email,nationalId
+Mwangi,Kamau,+254712345678,A101,Sunrise Apartments,15000,2000,15000,2025-01-01,2025-12-31,mwangi.kamau@example.com,12345678
+Akinyi,Otieno,+254723456789,B202,Moonlight Towers,20000,2500,20000,2025-02-01,2026-01-31,akinyi.otieno@example.com,87654321
+Kamau,Njoroge,+254734567890,C303,Starlight Residences,18000,0,18000,2025-03-01,2026-02-28,kamau.njoroge@example.com,23456789
+Wanjiku,Muthoni,+254745678901,D404,Sunrise Apartments,16000,5000,16000,2025-01-15,2026-01-14,wanjiku.muthoni@example.com,34567890
+Otieno,Ochieng,+254756789012,E505,Moonlight Towers,22000,3000,22000,2025-04-01,2026-03-31,otieno.ochieng@example.com,45678901
+Muthoni,Wangari,+254767890123,A102,Starlight Residences,17000,1000,17000,2025-02-15,2026-02-14,muthoni.wangari@example.com,56789012
+Kiptoo,Chebet,+254778901234,B203,Sunrise Apartments,19000,4000,19000,2025-05-01,2026-04-30,kiptoo.chebet@example.com,67890123
+Njoroge,Wambui,+254789012345,C304,Moonlight Towers,21000,2000,21000,2025-06-01,2026-05-31,njoroge.wambui@example.com,78901234
+Anyango,Auma,+254790123456,D405,Starlight Residences,17500,0,17500,2025-07-01,2026-06-30,anyango.auma@example.com,89012345
+Chebet,Kipchumba,+254701234567,E506,Sunrise Apartments,18500,6000,18500,2025-08-01,2026-07-31,chebet.kipchumba@example.com,90123456
+Musyoka,Mutua,+254712345679,A103,Moonlight Towers,19500,3500,19500,2025-09-01,2026-08-31,musyoka.mutua@example.com,1234567
+Wambui,Njeri,+254723456780,B204,Starlight Residences,16500,1500,16500,2025-10-01,2026-09-30,wambui.njeri@example.com,12345679
+Ochieng,Otieno,+254734567891,C305,Sunrise Apartments,20500,5000,20500,2025-11-01,2026-10-31,ochieng.otieno@example.com,23456780
+Njeri,Wangari,+254745678902,D406,Moonlight Towers,17000,2000,17000,2025-12-01,2026-11-30,njeri.wangari@example.com,34567891
+Kipchumba,Cheruiyot,+254756789013,E507,Starlight Residences,21500,3000,21500,2025-01-15,2026-01-14,kipchumba.cheruiyot@example.com,45678902
+Mutua,Musyoka,+254767890124,A104,Sunrise Apartments,18000,0,18000,2025-02-15,2026-02-14,mutua.musyoka@example.com,56789013
+Auma,Anyango,+254778901235,B205,Moonlight Towers,20000,4000,20000,2025-03-15,2026-03-14,auma.anyango@example.com,67890124
+Wangari,Muthoni,+254789012346,C306,Starlight Residences,19000,2500,19000,2025-04-15,2026-04-14,wangari.muthoni@example.com,78901235
+Cheruiyot,Kiptoo,+254790123457,D407,Sunrise Apartments,17500,1000,17500,2025-05-15,2026-05-14,cheruiyot.kiptoo@example.com,89012346
+Mwikali,Mutua,+254701234568,E508,Moonlight Towers,18500,3000,18500,2025-06-15,2026-06-14,mwikali.mutua@example.com,90123457

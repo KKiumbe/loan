@@ -1,0 +1,217 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Tenant {
+  id            Int            @id @default(autoincrement())
+  name          String
+
+  status                 TenantStatus        @default(ACTIVE)
+  subscriptionPlan       String
+  monthlyCharge          Float
+
+  updatedAt              DateTime            @updatedAt
+  email                  String?
+  phoneNumber            String?
+  alternativePhoneNumber String?
+  county                 String?
+  town                   String?
+  address                String?
+  building               String?
+  street                 String?
+  website                String?
+  logoUrl                String?
+  allowedUsers           Int @default(1)       
+  organizations Organization[]
+  users         User[]
+  loans         Loan[]
+  repayments    ConsolidatedRepayment[]
+  mpesaConfig   MpesaConfig[]
+  smsConfig     SMSConfig[]
+  auditLogs     AuditLog[]
+  createdAt     DateTime       @default(now())
+
+
+  Employee Employee[]
+}
+
+enum TenantStatus {
+  ACTIVE
+  DISABLED
+}
+
+
+
+model Organization {
+  id                Int            @id @default(autoincrement())
+  name              String
+  tenantId          Int
+  tenant            Tenant         @relation(fields: [tenantId], references: [id])
+  approvalSteps     Int            @default(1)
+  loanLimitMultiplier Float        @default(1.0)
+  users             User[]
+  loans             Loan[]
+  repayments        ConsolidatedRepayment[]
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+  interestRate        Float                  @default(0.1) // 10% monthly interest rate
+
+  Employee Employee[]
+}
+
+model User {
+  id              Int            @id @default(autoincrement())
+  firstName       String
+  lastName        String
+  phoneNumber     String         @unique
+  email           String  ?       @unique
+  password        String
+  tenantId        Int
+  gender             String?
+  county             String?
+  town               String?
+
+  role               String[]
+
+  createdBy          Int?
+  status             UserStatus          @default(ACTIVE)
+  mfaEnabled         Boolean             @default(false)
+
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+  lastLogin          DateTime?
+  loginCount         Int                 @default(0)
+  otpAttempts        Int                 @default(0)
+  resetCode          String?
+  resetCodeExpiresAt DateTime?
+  tenant          Tenant         @relation(fields: [tenantId], references: [id])
+  organizationId   Int?
+
+
+  organization    Organization?   @relation(fields: [organizationId], references: [id])
+  tenantName      String?
+ 
+  employeeId      Int?           @unique
+  employee        Employee?      @relation(fields: [employeeId], references: [id])
+  loans           Loan[]
+  auditLogs       AuditLog[]
+
+}
+enum UserStatus {
+  ACTIVE
+  DISABLED
+}
+
+model Employee {
+  id                  Int            @id @default(autoincrement())
+  phoneNumber         String         @unique
+  idNumber            String         @unique
+  firstName           String
+
+  lastName            String
+
+  grossSalary         Float
+  jobId               String?
+  secondaryPhoneNumber String?
+  tenantId            Int
+  tenant              Tenant         @relation(fields: [tenantId], references: [id])
+  organizationId      Int
+  organization        Organization   @relation(fields: [organizationId], references: [id])
+  user                User?
+  createdAt           DateTime       @default(now())
+  updatedAt           DateTime       @updatedAt
+}
+
+
+
+model Loan {
+  id                Int            @id @default(autoincrement())
+  userId            Int
+  user              User           @relation(fields: [userId], references: [id])
+  organizationId    Int
+  organization      Organization   @relation(fields: [organizationId], references: [id])
+  amount            Float
+  interestRate      Float          // Monthly interest rate (e.g., 0.1 for 10%)
+  duration          Int            @default(30) // 30 days
+  status            LoanStatus     @default(PENDING)
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+  tenantId          Int
+  tenant            Tenant         @relation(fields: [tenantId], references: [id])
+  consolidatedRepaymentId Int?                  // Foreign key, nullable
+  approvalCount      Int @default(0)
+  consolidatedRepayment ConsolidatedRepayment? @relation(fields: [consolidatedRepaymentId], references: [id]) // Added relation
+  firstApproverId        Int?                   // New: User ID of first approver
+  secondApproverId       Int? 
+  thirdApproverId       Int?     
+  mpesaTransactionId     String?                // New: M-Pesa transaction ID
+  mpesaStatus            String?                // New: M-Pesa transaction status
+  
+                  // New: User ID of second approver
+  dueDate           DateTime       // Calculated as createdAt + 30 days
+  totalRepayable    Float          // amount + (amount * interestRate)
+}
+
+enum LoanStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  REPAID
+}
+
+
+
+model ConsolidatedRepayment {
+  id              Int            @id @default(autoincrement())
+  tenantId        Int
+  tenant          Tenant         @relation(fields: [tenantId], references: [id])
+  organizationId  Int
+  organization    Organization   @relation(fields: [organizationId], references: [id])
+  totalAmount     Float
+  status          String
+  paidAt          DateTime?
+  loans           Loan[]
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+}
+
+model MpesaConfig {
+  id          Int      @id @default(autoincrement())
+  tenantId    Int
+  tenant      Tenant   @relation(fields: [tenantId], references: [id])
+  consumerKey String
+  consumerSecret String
+  shortCode   String
+  passKey     String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model SMSConfig {
+  id                         Int      @id @default(autoincrement())
+  tenantId                   Int      @unique
+  partnerId                  String
+  apiKey                     String
+  shortCode                  String 
+  customerSupportPhoneNumber String
+  createdAt                  DateTime @default(now())
+  updatedAt                  DateTime @updatedAt
+  tenant                     Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+}
+
+model AuditLog {
+  id          Int      @id @default(autoincrement())
+  tenantId    Int
+  tenant      Tenant   @relation(fields: [tenantId], references: [id])
+  userId      Int
+  user        User     @relation(fields: [userId], references: [id])
+  action      String
+  resource    String
+  details     Json
+  createdAt   DateTime @default(now())
+}
