@@ -1,6 +1,7 @@
 const { connect } = require("mongoose");
 const ROLE_PERMISSIONS = require("../../DatabaseConfig/role.js");
 const { PrismaClient } = require('@prisma/client');
+const { disburseB2CPayment } = require("../mpesa/initiateB2CPayment.js");
 const prisma = new PrismaClient();
 
 
@@ -27,11 +28,9 @@ const createLoan = async (req, res) => {
   const { amount } = req.body;
   const user = req.user;
 
-  // Log user for debugging
   console.log(`user: ${JSON.stringify(user, null, 2)}`);
 
-  // Validate user and role
-  if (!user || !user.id || !user.tenantId) {
+  if (!user || !user.id || !user.tenantId || !user.employeeId) {
     return res.status(401).json({
       message: 'Unauthorized: User not authenticated or missing required fields',
       userDetails: user,
@@ -41,13 +40,11 @@ const createLoan = async (req, res) => {
     return res.status(403).json({ message: 'Only employees can apply for loans' });
   }
 
-  // Validate input
   if (!amount || amount <= 0) {
     return res.status(400).json({ message: 'Valid loan amount is required' });
   }
 
   try {
-    // Check for existing non-repaid loans
     console.time('existingLoansQuery');
     const existingLoans = await prisma.loan.findMany({
       where: {
@@ -66,7 +63,6 @@ const createLoan = async (req, res) => {
       });
     }
 
-    // Fetch employee and organization
     console.time('employeeQuery');
     const employee = await prisma.employee.findFirst({
       where: { id: user.employeeId, tenantId: user.tenantId },
@@ -93,26 +89,22 @@ const createLoan = async (req, res) => {
       return res.status(404).json({ message: 'Organization not found for employee' });
     }
 
-    // Validate interest rate
     const interestRate = employee.organization.interestRate;
     if (!interestRate || isNaN(interestRate)) {
       return res.status(500).json({ message: 'Organization interest rate is invalid' });
     }
 
-    // Check loan limit
     const maxLoanAmount = employee.grossSalary * employee.organization.loanLimitMultiplier;
     if (amount > maxLoanAmount) {
       return res.status(400).json({ message: `Loan amount exceeds limit of ${maxLoanAmount}` });
     }
 
-    // Calculate loan details
     const { dueDate, totalRepayable } = calculateLoanDetails(amount, interestRate);
 
-    // Create the loan
     console.time('loanCreateQuery');
     const newLoan = await prisma.loan.create({
       data: {
-        user: { connect: { id: user.id } }, // Fixed from user.user
+        user: { connect: { id: user.id } },
         organization: { connect: { id: employee.organization.id } },
         tenant: { connect: { id: user.tenantId } },
         amount,
@@ -120,17 +112,16 @@ const createLoan = async (req, res) => {
         dueDate,
         totalRepayable,
         status: 'PENDING',
-        approvalCount: 0, // Initialize approvalCount
+        approvalCount: 0,
       },
     });
     console.timeEnd('loanCreateQuery');
 
-    // Log the action
     console.time('auditLogQuery');
     await prisma.auditLog.create({
       data: {
         tenant: { connect: { id: user.tenantId } },
-        user: { connect: { id: user.id } }, // Fixed from user.user
+        user: { connect: { id: user.id } },
         action: 'CREATE',
         resource: 'LOAN',
         details: { message: `User ${user.firstName} ${user.lastName} applied for loan of ${amount}` },
@@ -229,12 +220,11 @@ const getLoanById = async (req, res) => {
 
 
 
-// Approve a loan
 const approveLoan = async (req, res) => {
   const { id } = req.params;
   const user = req.user;
 
-  if (!user || !user.id || !user.tenantId) {
+  if (!user || !user.id || !user.tenantId || !user.employeeId) {
     return res.status(401).json({
       message: 'Unauthorized: User not authenticated or missing required fields',
       userDetails: user,
@@ -244,7 +234,7 @@ const approveLoan = async (req, res) => {
     return res.status(403).json({ message: 'Only ORG_ADMIN or ADMIN can approve loans' });
   }
 
-  let prismaClient = prisma; // Use the same Prisma client instance
+  let prismaClient = prisma;
   try {
     console.time('loanQuery');
     const loan = await prismaClient.loan.findUnique({
@@ -252,11 +242,19 @@ const approveLoan = async (req, res) => {
       select: {
         id: true,
         status: true,
+        amount: true,
         organizationId: true,
         tenantId: true,
         approvalCount: true,
         firstApproverId: true,
         secondApproverId: true,
+        disbursedAt: true,
+        user: {
+          select: {
+            id: true,
+            phoneNumber: true,
+          },
+        },
         organization: {
           select: {
             id: true,
@@ -314,8 +312,68 @@ const approveLoan = async (req, res) => {
       });
       console.timeEnd('loanUpdateQuery');
 
-      // Immediately disburse for single-step approval
-      disbursementResult = await disburseLoanInternal(id, user, prismaClient);
+      // Disburse immediately for single-step approval
+      if (!loan.disbursedAt) {
+        const phoneNumber = loan.user.phoneNumber.startsWith('+254')
+          ? loan.user.phoneNumber.replace('+', '')
+          : `254${loan.user.phoneNumber.replace(/^0/, '')}`;
+
+        try {
+          const mpesaResponse = await disburseB2CPayment({
+            phoneNumber,
+            amount: loan.amount,
+          });
+
+          console.time('loanDisburseUpdateQuery');
+          updatedLoan = await prismaClient.loan.update({
+            where: { id: parseInt(id) },
+            data: {
+              disbursedAt: new Date(),
+              mpesaTransactionId: mpesaResponse.ConversationID || mpesaResponse.OriginatorConversationID,
+              mpesaStatus: mpesaResponse.ResponseCode === '0' ? 'PENDING' : 'FAILED',
+            },
+          });
+          console.timeEnd('loanDisburseUpdateQuery');
+
+          console.time('auditLogDisburseQuery');
+          await prismaClient.auditLog.create({
+            data: {
+              tenant: { connect: { id: loan.tenantId } },
+              user: { connect: { id: user.id } },
+              action: 'DISBURSE',
+              resource: 'LOAN',
+              details: {
+                loanId: loan.id,
+                amount: loan.amount,
+                phoneNumber,
+                mpesaTransactionId: mpesaResponse.ConversationID || mpesaResponse.OriginatorConversationID,
+                message: `Loan ${id} disbursed to ${phoneNumber} by ${user.firstName} ${user.lastName}`,
+              },
+            },
+          });
+          console.timeEnd('auditLogDisburseQuery');
+
+          disbursementResult = { loan: updatedLoan, mpesaResponse };
+        } catch (disburseError) {
+          console.error('Disbursement failed:', disburseError);
+          // Log the error but continue with approval
+          console.time('auditLogErrorQuery');
+          await prismaClient.auditLog.create({
+            data: {
+              tenant: { connect: { id: loan.tenantId } },
+              user: { connect: { id: user.id } },
+              action: 'DISBURSE_ERROR',
+              resource: 'LOAN',
+              details: {
+                loanId: loan.id,
+                error: disburseError.message,
+                message: `Failed to disburse loan ${id}`,
+              },
+            },
+          });
+          console.timeEnd('auditLogErrorQuery');
+        }
+      }
     } else if (loan.organization.approvalSteps === 2) {
       if (newApprovalCount === 1) {
         console.time('loanUpdateQuery');
@@ -339,8 +397,67 @@ const approveLoan = async (req, res) => {
         });
         console.timeEnd('loanUpdateQuery');
 
-        // Immediately disburse for two-step approval
-        disbursementResult = await disburseLoanInternal(id, user, prismaClient);
+        // Disburse immediately for two-step approval
+        if (!loan.disbursedAt) {
+          const phoneNumber = loan.user.phoneNumber.startsWith('+254')
+            ? loan.user.phoneNumber.replace('+', '')
+            : `254${loan.user.phoneNumber.replace(/^0/, '')}`;
+
+          try {
+            const mpesaResponse = await disburseB2CPayment({
+              phoneNumber,
+              amount: loan.amount,
+            });
+
+            console.time('loanDisburseUpdateQuery');
+            updatedLoan = await prismaClient.loan.update({
+              where: { id: parseInt(id) },
+              data: {
+                disbursedAt: new Date(),
+                mpesaTransactionId: mpesaResponse.ConversationID || mpesaResponse.OriginatorConversationID,
+                mpesaStatus: mpesaResponse.ResponseCode === '0' ? 'PENDING' : 'FAILED',
+              },
+            });
+            console.timeEnd('loanDisburseUpdateQuery');
+
+            console.time('auditLogDisburseQuery');
+            await prismaClient.auditLog.create({
+              data: {
+                tenant: { connect: { id: loan.tenantId } },
+                user: { connect: { id: user.id } },
+                action: 'DISBURSE',
+                resource: 'LOAN',
+                details: {
+                  loanId: loan.id,
+                  amount: loan.amount,
+                  phoneNumber,
+                  mpesaTransactionId: mpesaResponse.ConversationID || mpesaResponse.OriginatorConversationID,
+                  message: `Loan ${id} disbursed to ${phoneNumber} by ${user.firstName} ${user.lastName}`,
+                },
+              },
+            });
+            console.timeEnd('auditLogDisburseQuery');
+
+            disbursementResult = { loan: updatedLoan, mpesaResponse };
+          } catch (disburseError) {
+            console.error('Disbursement failed:', disburseError);
+            console.time('auditLogErrorQuery');
+            await prismaClient.auditLog.create({
+              data: {
+                tenant: { connect: { id: loan.tenantId } },
+                user: { connect: { id: user.id } },
+                action: 'DISBURSE_ERROR',
+                resource: 'LOAN',
+                details: {
+                  loanId: loan.id,
+                  error: disburseError.message,
+                  message: `Failed to disburse loan ${id}`,
+                },
+              },
+            });
+            console.timeEnd('auditLogErrorQuery');
+          }
+        }
       } else {
         return res.status(400).json({ message: 'Invalid approval count' });
       }
@@ -388,116 +505,6 @@ const approveLoan = async (req, res) => {
   }
 };
 
-
-const disburseLoanInternal = async (loanId, user, prismaInstance) => {
-  try {
-    console.time('loanQuery');
-    const loan = await prismaInstance.loan.findUnique({
-      where: { id: parseInt(loanId) },
-      select: {
-        id: true,
-        status: true,
-        amount: true,
-        userId: true,
-        organizationId: true,
-        tenantId: true,
-        disbursedAt: true,
-        user: {
-          select: {
-            id: true,
-            phoneNumber: true,
-          },
-        },
-        organization: {
-          select: {
-            id: true,
-          },
-        },
-      },
-    });
-    console.timeEnd('loanQuery');
-
-    if (!loan) {
-      throw new Error('Loan not found');
-    }
-
-    if (loan.status !== 'APPROVED') {
-      throw new Error('Loan must be APPROVED to disburse');
-    }
-
-    if (loan.disbursedAt) {
-      throw new Error('Loan has already been disbursed');
-    }
-
-    if (user.role.includes('ORG_ADMIN')) {
-      console.time('employeeQuery');
-      const employee = await prismaInstance.employee.findFirst({
-        where: { id: user.employeeId, tenantId: user.tenantId },
-        select: { organizationId: true },
-      });
-      console.timeEnd('employeeQuery');
-
-      if (!employee || loan.organizationId !== employee.organizationId) {
-        throw new Error('Unauthorized to disburse this loan');
-      }
-    } else if (user.role.includes('ADMIN') && loan.tenantId !== user.tenantId) {
-      throw new Error('Unauthorized to disburse this loan');
-    }
-
-    const phoneNumber = loan.user.phoneNumber.startsWith('+254')
-      ? loan.user.phoneNumber.replace('+', '')
-      : `254${loan.user.phoneNumber.replace(/^0/, '')}`;
-    if (!phoneNumber.match(/^2547\d{8}$/)) {
-      throw new Error('Invalid customer phone number for M-Pesa');
-    }
-
-    const resultUrl = `${process.env.APP_BASE_URL}/api/mpesa/b2c-result`;
-    const queueTimeoutUrl = `${process.env.APP_BASE_URL}/api/mpesa/b2c-timeout`;
-    console.time('mpesaPayment');
-    const mpesaResponse = await initiateB2CPayment({
-      amount: loan.amount,
-      phoneNumber,
-      queueTimeoutUrl,
-      resultUrl,
-      remarks: `Loan ${loan.id} disbursement`,
-    });
-    console.timeEnd('mpesaPayment');
-
-    console.time('loanUpdateQuery');
-    const updatedLoan = await prismaInstance.loan.update({
-      where: { id: parseInt(loanId) },
-      data: {
-        disbursedAt: new Date(),
-        mpesaTransactionId: mpesaResponse.ConversationID || mpesaResponse.OriginatorConversationID,
-        mpesaStatus: mpesaResponse.ResponseCode === '0' ? 'PENDING' : 'FAILED',
-      },
-    });
-    console.timeEnd('loanUpdateQuery');
-
-    console.time('auditLogQuery');
-    await prismaInstance.auditLog.create({
-      data: {
-        tenant: { connect: { id: loan.tenantId } },
-        user: { connect: { id: user.id } },
-        action: 'DISBURSE',
-        resource: 'LOAN',
-        details: {
-          loanId: loan.id,
-          amount: loan.amount,
-          phoneNumber,
-          mpesaTransactionId: mpesaResponse.ConversationID || mpesaResponse.OriginatorConversationID,
-          message: `Loan ${loanId} disbursed to ${phoneNumber} by ${user.firstName} ${user.lastName}`,
-        },
-      },
-    });
-    console.timeEnd('auditLogQuery');
-
-    return { loan: updatedLoan, mpesaResponse };
-  } catch (error) {
-    console.error('Error disbursing loan internally:', error);
-    throw error;
-  }
-};
 
 // Reject a loan
 const rejectLoan = async (req, res) => {
@@ -563,15 +570,36 @@ const disburseLoan = async (req, res) => {
   const { id } = req.params;
   const user = req.user;
 
+  if (!user || !user.id || !user.tenantId || !user.employeeId) {
+    return res.status(401).json({
+      message: 'Unauthorized: User not authenticated or missing required fields',
+      userDetails: user,
+    });
+  }
   if (!user.role.includes('ORG_ADMIN') && !user.role.includes('ADMIN')) {
     return res.status(403).json({ message: 'Only ORG_ADMIN or ADMIN can disburse loans' });
   }
 
   try {
+    console.time('loanQuery');
     const loan = await prisma.loan.findUnique({
       where: { id: parseInt(id) },
-      include: { organization: true },
+      select: {
+        id: true,
+        status: true,
+        amount: true,
+        organizationId: true,
+        tenantId: true,
+        disbursedAt: true,
+        user: {
+          select: {
+            id: true,
+            phoneNumber: true,
+          },
+        },
+      },
     });
+    console.timeEnd('loanQuery');
 
     if (!loan) {
       return res.status(404).json({ message: 'Loan not found' });
@@ -586,10 +614,13 @@ const disburseLoan = async (req, res) => {
     }
 
     if (user.role.includes('ORG_ADMIN')) {
+      console.time('employeeQuery');
       const employee = await prisma.employee.findFirst({
         where: { id: user.employeeId, tenantId: user.tenantId },
         select: { organizationId: true },
       });
+      console.timeEnd('employeeQuery');
+
       if (!employee || loan.organizationId !== employee.organizationId) {
         return res.status(403).json({ message: 'Unauthorized to disburse this loan' });
       }
@@ -597,22 +628,49 @@ const disburseLoan = async (req, res) => {
       return res.status(403).json({ message: 'Unauthorized to disburse this loan' });
     }
 
+    const phoneNumber = loan.user.phoneNumber.startsWith('+254')
+      ? loan.user.phoneNumber.replace('+', '')
+      : `254${loan.user.phoneNumber.replace(/^0/, '')}`;
+
+    const mpesaResponse = await disburseB2CPayment({
+      phoneNumber,
+      amount: loan.amount,
+    });
+
+    console.time('loanUpdateQuery');
     const updatedLoan = await prisma.loan.update({
       where: { id: parseInt(id) },
-      data: { disbursedAt: new Date() },
-    });
-
-    await prisma.auditLog.create({
       data: {
-        tenantId: loan.tenantId,
-        userId: user.id,
-        action: 'DISBURSE',
-        resource: 'LOAN',
-        details: { message: `Loan ${id} disbursed by ${user.firstName} ${user.lastName}` },
+        disbursedAt: new Date(),
+        mpesaTransactionId: mpesaResponse.ConversationID || mpesaResponse.OriginatorConversationID,
+        mpesaStatus: mpesaResponse.ResponseCode === '0' ? 'PENDING' : 'FAILED',
       },
     });
+    console.timeEnd('loanUpdateQuery');
 
-    return res.status(200).json({ message: 'Loan disbursed', loan: updatedLoan });
+    console.time('auditLogQuery');
+    await prisma.auditLog.create({
+      data: {
+        tenant: { connect: { id: loan.tenantId } },
+        user: { connect: { id: user.id } },
+        action: 'DISBURSE',
+        resource: 'LOAN',
+        details: {
+          loanId: loan.id,
+          amount: loan.amount,
+          phoneNumber,
+          mpesaTransactionId: mpesaResponse.ConversationID || mpesaResponse.OriginatorConversationID,
+          message: `Loan ${id} disbursed to ${phoneNumber} by ${user.firstName} ${user.lastName}`,
+        },
+      },
+    });
+    console.timeEnd('auditLogQuery');
+
+    return res.status(200).json({
+      message: 'Loan disbursement initiated',
+      loan: updatedLoan,
+      mpesaResponse,
+    });
   } catch (error) {
     console.error('Error disbursing loan:', error);
     return res.status(500).json({ message: 'Internal server error', error: error.message });
@@ -620,7 +678,6 @@ const disburseLoan = async (req, res) => {
     await prisma.$disconnect();
   }
 };
-
 // Create a repayment
 const createRepayment = async (req, res) => {
   const { loanIds, amount } = req.body;

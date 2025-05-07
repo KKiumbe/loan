@@ -1,8 +1,10 @@
 // src/utils/mpesaB2C.js
 const axios = require('axios');
-const { getMpesaAccessToken } = require('./mpesaAuth');
+const { getMpesaAccessToken } = require('./token');
+
 require('dotenv').config();
 
+// Existing initiateB2CPayment function
 const initiateB2CPayment = async ({
   amount,
   phoneNumber,
@@ -19,7 +21,6 @@ const initiateB2CPayment = async ({
     throw new Error('Missing M-Pesa B2C configuration in environment variables');
   }
 
-  // Validate inputs
   if (!amount || amount <= 0) {
     throw new Error('Invalid amount');
   }
@@ -52,7 +53,7 @@ const initiateB2CPayment = async ({
         Authorization: `Bearer ${accessToken}`,
         'Content-Type': 'application/json',
       },
-      timeout: 30000, // 30 seconds timeout
+      timeout: 30000,
     });
     console.timeEnd('mpesaB2CQuery');
     return response.data;
@@ -62,4 +63,29 @@ const initiateB2CPayment = async ({
   }
 };
 
-module.exports = { initiateB2CPayment };
+// New simplified disbursement function
+const disburseB2CPayment = async ({ phoneNumber, amount }) => {
+  if (!amount || amount <= 0) {
+    throw new Error('Invalid amount');
+  }
+  if (!phoneNumber.match(/^2547\d{8}$/)) {
+    throw new Error('Invalid phone number format');
+  }
+
+  const resultUrl = `${process.env.APP_BASE_URL}/api/mpesa/b2c-result`;
+  const queueTimeoutUrl = `${process.env.APP_BASE_URL}/api/mpesa/b2c-timeout`;
+
+  console.time('mpesaPayment');
+  const mpesaResponse = await initiateB2CPayment({
+    amount,
+    phoneNumber,
+    queueTimeoutUrl,
+    resultUrl,
+    remarks: 'Loan disbursement',
+  });
+  console.timeEnd('mpesaPayment');
+
+  return mpesaResponse;
+};
+
+module.exports = { initiateB2CPayment, disburseB2CPayment };
