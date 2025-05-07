@@ -2,30 +2,51 @@ const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 
 
-// Handle M-Pesa B2C result callback
+
+// Handle M-Pesa B2C result callback (ResultURL)
 const handleB2CResult = async (req, res) => {
   const result = req.body.Result;
   console.log('M-Pesa B2C Result:', JSON.stringify(result, null, 2));
+
+  if (!result || !result.ConversationID || result.ResultCode === undefined) {
+    console.error('Invalid B2C result payload:', req.body);
+    return res.status(400).json({ message: 'Invalid payload' });
+  }
 
   try {
     const transactionId = result.ConversationID || result.OriginatorConversationID;
     const status = result.ResultCode === 0 ? 'SUCCESS' : 'FAILED';
 
-    console.time('loanUpdateQuery');
+    // Fetch loan to get tenantId
+    console.time('loanResultQuery');
+    const loan = await prisma.loan.findFirst({
+      where: { mpesaTransactionId: transactionId },
+      select: { id: true, tenantId: true },
+    });
+    console.timeEnd('loanResultQuery');
+
+    if (!loan) {
+      console.error('No loan found for transactionId:', transactionId);
+      return res.status(404).json({ message: 'Loan not found for transaction' });
+    }
+
+    // Update loan status
+    console.time('loanResultUpdateQuery');
     await prisma.loan.updateMany({
       where: { mpesaTransactionId: transactionId },
       data: { mpesaStatus: status },
     });
-    console.timeEnd('loanUpdateQuery');
+    console.timeEnd('loanResultUpdateQuery');
 
     // Log the result
-    console.time('auditLogQuery');
+    console.time('auditLogResultQuery');
     await prisma.auditLog.create({
       data: {
-        tenantId: 0, // Update with actual tenantId if available
+        tenant: { connect: { id: loan.tenantId } },
         action: 'MPESA_B2C_RESULT',
         resource: 'LOAN',
         details: {
+          loanId: loan.id,
           transactionId,
           resultCode: result.ResultCode,
           resultDesc: result.ResultDesc,
@@ -33,51 +54,71 @@ const handleB2CResult = async (req, res) => {
         },
       },
     });
-    console.timeEnd('auditLogQuery');
+    console.timeEnd('auditLogResultQuery');
 
     return res.status(200).json({ message: 'Result processed' });
   } catch (error) {
     console.error('Error processing B2C result:', error);
-    return res.status(500).json({ message: 'Error processing result' });
+    return res.status(200).json({ message: 'Result received but processing failed' });
   } finally {
     await prisma.$disconnect();
   }
 };
 
-// Handle M-Pesa B2C timeout callback
+// Handle M-Pesa B2C timeout callback (QueueTimeOutURL)
 const handleB2CTimeout = async (req, res) => {
   const timeout = req.body;
   console.log('M-Pesa B2C Timeout:', JSON.stringify(timeout, null, 2));
 
+  if (!timeout || !timeout.ConversationID) {
+    console.error('Invalid B2C timeout payload:', req.body);
+    return res.status(400).json({ message: 'Invalid payload' });
+  }
+
   try {
     const transactionId = timeout.ConversationID || timeout.OriginatorConversationID;
 
-    console.time('loanUpdateQuery');
+    // Fetch loan to get tenantId
+    console.time('loanTimeoutQuery');
+    const loan = await prisma.loan.findFirst({
+      where: { mpesaTransactionId: transactionId },
+      select: { id: true, tenantId: true },
+    });
+    console.timeEnd('loanTimeoutQuery');
+
+    if (!loan) {
+      console.error('No loan found for transactionId:', transactionId);
+      return res.status(404).json({ message: 'Loan not found for transaction' });
+    }
+
+    // Update loan status
+    console.time('loanTimeoutUpdateQuery');
     await prisma.loan.updateMany({
       where: { mpesaTransactionId: transactionId },
       data: { mpesaStatus: 'TIMEOUT' },
     });
-    console.timeEnd('loanUpdateQuery');
+    console.timeEnd('loanTimeoutUpdateQuery');
 
     // Log the timeout
-    console.time('auditLogQuery');
+    console.time('auditLogTimeoutQuery');
     await prisma.auditLog.create({
       data: {
-        tenantId: 0, // Update with actual tenantId if available
+        tenant: { connect: { id: loan.tenantId } },
         action: 'MPESA_B2C_TIMEOUT',
         resource: 'LOAN',
         details: {
+          loanId: loan.id,
           transactionId,
           message: `M-Pesa B2C transaction ${transactionId} timed out`,
         },
       },
     });
-    console.timeEnd('auditLogQuery');
+    console.timeEnd('auditLogTimeoutQuery');
 
     return res.status(200).json({ message: 'Timeout processed' });
   } catch (error) {
     console.error('Error processing B2C timeout:', error);
-    return res.status(500).json({ message: 'Error processing timeout' });
+    return res.status(200).json({ message: 'Timeout received but processing failed' });
   } finally {
     await prisma.$disconnect();
   }
