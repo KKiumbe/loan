@@ -117,7 +117,7 @@ app.use('/lend', mpesaRoute);
 // app.use('/api', reportsReoute); 
 // app.use('/api', userManagementRoute); 
 
-// app.use('/api', mpesaSettings); 
+app.use('/api', mpesaSettings); 
 
 // app.use('/api', tenantRoute); 
 
