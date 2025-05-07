@@ -122,8 +122,8 @@ const disburseB2CPayment = async ({ phoneNumber, amount, loanId, userId, tenantI
 
   const mpesaConfig = settingsResponse.mpesaConfig;
 
-  const resultUrl = `${process.env.APP_BASE_URL}/api/mpesa/b2c-result`;
-  const queueTimeoutUrl = `${process.env.APP_BASE_URL}/api/mpesa/b2c-timeout`;
+  const resultUrl = `${process.env.APP_BASE_URL}/lend/b2c-result`;
+  const queueTimeoutUrl = `${process.env.APP_BASE_URL}/lend/b2c-timeout`;
 
   console.time('mpesaPayment');
   const mpesaResponse = await initiateB2CPayment({

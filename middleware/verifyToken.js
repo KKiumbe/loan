@@ -19,7 +19,12 @@ const verifyToken = async (req, res, next) => {
             role: decoded.role,
             tenantId: decoded.tenantId,
 
-            user:decoded.id
+            id:decoded.id,
+            firstName: decoded.firstName,
+            lastName: decoded.lastName,
+            email: decoded.email,
+            phoneNumber: decoded.phoneNumber,
+            tenantName: decoded.tenantName,
              // Ensure tenantId is part of the token payload
           };
 

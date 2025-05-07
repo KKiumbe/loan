@@ -4,8 +4,10 @@ const prisma = new PrismaClient();
 
 const createMPESAConfig = async (req, res) => {
   try {
-    const { tenantId } = req.user;
-    const {  b2cShortCode, initiatorName, securityCredential, consumerKey, consumerSecret } = req.body;
+    console.log(Object.keys(prisma));
+    console.log('req.body =', req.body); // Add this to see the incoming request body
+    //const { tenantId } = req.user;
+    const {  b2cShortCode, initiatorName, securityCredential, consumerKey, consumerSecret,tenantId } = req.body;
 
     if (!tenantId || !b2cShortCode || !initiatorName || !securityCredential || !consumerKey || !consumerSecret) {
       return res.status(400).json({ message: 'All required fields (tenantId, b2cShortCode, initiatorName, securityCredential, consumerKey, consumerSecret) must be provided.' });
@@ -14,6 +16,7 @@ const createMPESAConfig = async (req, res) => {
     const existingConfig = await prisma.mPESAConfig.findUnique({
       where: { tenantId },
     });
+    console.log('existingConfig =', existingConfig); // Add this to see the existing configuration    
 
     if (existingConfig) {
       return res.status(400).json({ message: 'M-Pesa B2C configuration already exists for this tenant.' });

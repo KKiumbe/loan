@@ -31,7 +31,7 @@ model Tenant {
   users         User[]
   loans         Loan[]
   repayments    ConsolidatedRepayment[]
-  mpesaConfig   MpesaConfig[]
+  mpesaConfig   MPESAConfig[]
   smsConfig     SMSConfig[]
   auditLogs     AuditLog[]
   createdAt     DateTime       @default(now())
@@ -141,6 +141,7 @@ model Loan {
   status            LoanStatus     @default(PENDING)
   createdAt         DateTime       @default(now())
   updatedAt         DateTime       @updatedAt
+   disbursedAt      DateTime?
   tenantId          Int
   tenant            Tenant         @relation(fields: [tenantId], references: [id])
   consolidatedRepaymentId Int?                  // Foreign key, nullable
@@ -162,6 +163,7 @@ enum LoanStatus {
   APPROVED
   REJECTED
   REPAID
+  DISBURSED
 }
 
 
@@ -180,16 +182,17 @@ model ConsolidatedRepayment {
   updatedAt       DateTime       @updatedAt
 }
 
-model MpesaConfig {
-  id          Int      @id @default(autoincrement())
-  tenantId    Int
-  tenant      Tenant   @relation(fields: [tenantId], references: [id])
-  consumerKey String
-  consumerSecret String
-  shortCode   String
-  passKey     String
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+model MPESAConfig {
+  tenantId           Int      @unique
+  tenant             Tenant   @relation(fields: [tenantId], references: [id])
+  b2cShortCode       String
+  initiatorName      String
+  securityCredential String
+  consumerKey        String
+  consumerSecret     String
+  name               String?  // Optional reference name
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
 }
 
 model SMSConfig {

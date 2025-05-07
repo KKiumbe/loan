@@ -12,6 +12,7 @@ const prisma = new PrismaClient();
 const createBorrowerOrganization = async (req, res) => {
   const { name, approvalSteps, loanLimitMultiplier, interestRate } = req.body;
   const { tenantId, id: userId } = req.user;
+  console.log('req.user =', req.user); // Add this before destructuring
 
   // Validate inputs
   if (!name) {
@@ -49,8 +50,8 @@ const createBorrowerOrganization = async (req, res) => {
     // Log the action
     await prisma.auditLog.create({
       data: {
-        tenantId,
-        userId,
+        tenant:{ connect: { id: tenantId } },
+        user: { connect: { id: userId } },
         action: 'CREATE_BORROWER_ORGANIZATION',
         resource: 'Organization',
         details: {

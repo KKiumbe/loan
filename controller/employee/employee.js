@@ -1,4 +1,5 @@
 const { PrismaClient } = require('@prisma/client');
+const { connect } = require('mongoose');
 const prisma = new PrismaClient();
 
 const createEmployee = async (req, res) => {
@@ -7,6 +8,8 @@ const createEmployee = async (req, res) => {
     organizationId,
     phoneNumber,
     idNumber,
+    grossSalary,
+
     firstName,
     lastName,
   } = req.body;
@@ -67,18 +70,17 @@ const {tenantId} = req.user
         firstName,
         lastName,
         grossSalary,
-        jobId,
-        secondaryPhoneNumber,
+      
       },
     });
 
     await prisma.auditLog.create({
       data: {
-        tenantId,
-        userId: req.user.user,
+        tenant:{connect:{id:tenantId}},
+        user:{connect:{id:req.user.id}},
         action: 'CREATE_EMPLOYEE',
         resource: 'Employee',
-        details: { employeeId: employee.id, phoneNumber, idNumber, firstName, lastName, grossSalary, jobId, secondaryPhoneNumber },
+        details: { employeeId: employee.id, phoneNumber, idNumber, firstName, lastName, grossSalary },
       },
     });
 
