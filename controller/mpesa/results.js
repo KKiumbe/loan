@@ -1,5 +1,6 @@
-// src/controllers/mpesaController.js
-const { prisma } = require('../prisma/prisma-client'); // Adjust path
+const { PrismaClient } = require('@prisma/client');
+const prisma = new PrismaClient();
+
 
 // Handle M-Pesa B2C result callback
 const handleB2CResult = async (req, res) => {
