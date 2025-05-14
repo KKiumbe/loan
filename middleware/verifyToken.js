@@ -25,6 +25,7 @@ const verifyToken = async (req, res, next) => {
             email: decoded.email,
             phoneNumber: decoded.phoneNumber,
             tenantName: decoded.tenantName,
+            
              // Ensure tenantId is part of the token payload
           };
 

@@ -1,6 +1,10 @@
 //prisma client
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
+const fs = require('fs');
+const path = require('path');
+const crypto = require('crypto');
+const multer = require('multer');
 
 const createMPESAConfig = async (req, res) => {
   try {
@@ -48,45 +52,70 @@ const createMPESAConfig = async (req, res) => {
 };
 
 const updateMPESAConfig = async (req, res) => {
+  // 1. Get tenantId from the logged-in user
+  const tenantId = req.user?.tenantId;
+  if (!tenantId) {
+    return res.status(401).json({ success: false, message: 'Unauthorized: missing tenant context.' });
+  }
+
+  // 2. Destructure only the updatable fields from the body
+  const {
+    b2cShortCode,
+    initiatorName,
+    securityCredential,
+    consumerKey,
+    consumerSecret,
+    name,           // optional human-friendly config name
+  } = req.body;
+
   try {
-    const { tenantId, b2cShortCode, initiatorName, securityCredential, consumerKey, consumerSecret} = req.body;
-
-    if (!tenantId) {
-      return res.status(400).json({ message: 'Tenant ID is required.' });
-    }
-
-    const existingConfig = await prisma.mPESAConfig.findUnique({
+    // 3. Make sure a config already exists for this tenant
+    const existing = await prisma.mPESAConfig.findUnique({
       where: { tenantId },
     });
-
-    if (!existingConfig) {
-      return res.status(404).json({ message: 'M-Pesa B2C configuration not found for this tenant.' });
+    if (!existing) {
+      return res
+        .status(404)
+        .json({ success: false, message: 'No M-Pesa configuration found for this tenant.' });
     }
 
+    // 4. Build a data object containing only the provided fields
+    const data = {
+      ...(b2cShortCode && { b2cShortCode }),
+      ...(initiatorName && { initiatorName }),
+      ...(securityCredential && { securityCredential }),
+      ...(consumerKey && { consumerKey }),
+      ...(consumerSecret && { consumerSecret }),
+      ...(name && { name }),
+    };
+
+    // 5. Update & return the new config
     const updatedConfig = await prisma.mPESAConfig.update({
       where: { tenantId },
-      data: {
-        ...(b2cShortCode && { b2cShortCode }),
-        ...(initiatorName && { initiatorName }),
-        ...(securityCredential && { securityCredential }),
-        ...(consumerKey && { consumerKey }),
-        ...(consumerSecret && { consumerSecret }),
-        
-      },
+      data,
     });
 
-    res.status(200).json({
+    return res.status(200).json({
       success: true,
-      message: 'M-Pesa B2C configuration updated successfully.',
+      message: 'M-Pesa configuration updated successfully.',
       data: updatedConfig,
     });
   } catch (error) {
-    console.error('Error updating M-Pesa configuration:', error.message);
-    res.status(500).json({ success: false, message: 'Failed to update M-Pesa configuration.' });
+    console.error('Error updating M-Pesa config:', error);
+    return res
+      .status(500)
+      .json({ success: false, message: 'An error occurred while updating configuration.' });
   } finally {
     await prisma.$disconnect();
   }
 };
+
+
+
+
+
+
+
 
 const getTenantSettings = async (tenantId) => {
   try {
@@ -96,15 +125,22 @@ const getTenantSettings = async (tenantId) => {
 
     console.log(`Fetching M-Pesa B2C settings for tenant ID: ${tenantId}`);
 
+    // 1. load your public cert
+    const certPath = path.resolve(
+      __dirname,
+      '../prodcert/ProductionCertificate.cer'
+    );
+    const publicKey = fs.readFileSync(certPath, 'utf8');
+
+    // 2. fetch the stored config (including the plaintext credential)
     const mpesaConfig = await prisma.mPESAConfig.findUnique({
       where: { tenantId },
       select: {
         b2cShortCode: true,
         initiatorName: true,
-        securityCredential: true,
+        securityCredential: true, // plaintext in DB
         consumerKey: true,
         consumerSecret: true,
-       
       },
     });
 
@@ -112,15 +148,25 @@ const getTenantSettings = async (tenantId) => {
       throw new Error('No M-Pesa B2C settings found for this tenant.');
     }
 
+    // 3. encrypt the plaintext securityCredential under the Safaricom public key
+    const buffer = Buffer.from(mpesaConfig.securityCredential, 'utf8');
+    const encrypted = crypto.publicEncrypt(
+      {
+        key: publicKey,
+        padding: crypto.constants.RSA_PKCS1_PADDING,
+      },
+      buffer
+    );
+    const securityCredentialEncrypted = encrypted.toString('base64');
+
     return {
       success: true,
       mpesaConfig: {
         b2cShortCode: mpesaConfig.b2cShortCode,
         initiatorName: mpesaConfig.initiatorName,
-        securityCredential: mpesaConfig.securityCredential,
+        securityCredential: securityCredentialEncrypted,
         consumerKey: mpesaConfig.consumerKey,
         consumerSecret: mpesaConfig.consumerSecret,
-        
       },
     };
   } catch (error) {
@@ -130,5 +176,7 @@ const getTenantSettings = async (tenantId) => {
     await prisma.$disconnect();
   }
 };
+
+
 
 module.exports = { createMPESAConfig, updateMPESAConfig, getTenantSettings };

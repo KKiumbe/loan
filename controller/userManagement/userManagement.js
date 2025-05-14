@@ -38,7 +38,7 @@ const getAllUsers = async (req, res) => {
         createdAt: true,
         lastLogin :true,
         loginCount:true,
-        userActivities:true,
+       // userActivities:true,
 
       },
     });

@@ -32,6 +32,9 @@ const organizationRoute = require('./routes/organization/orgRoutes.js')
 const employeeRoute = require('./routes/employee/employeeRoute.js')
 const loanRoutes =  require('./routes/loan/loanRoute.js')
 
+const sentSMSRoute = require('./routes/sms/sentRoute.js')
+
+
 const cookieParser = require('cookie-parser');
 
 const prisma = new PrismaClient(); // Prisma Client instance
@@ -66,7 +69,7 @@ app.use(cors({
     }
   },
   credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'], // Include OPTIONS for preflight
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS','PATCH'], // Include OPTIONS for preflight
   allowedHeaders: ['Content-Type', 'Authorization'], // Common headers
   optionsSuccessStatus: 200,
 }));
@@ -98,7 +101,7 @@ app.get('/api/test', (req, res) => {
 });
 
 // // Use customer routes
-// app.use('/api', customerRoutes); //done
+//app.use('/api', customerRoutes); //done
  app.use('/api', userRoutes);
  app.use('/api', organizationRoute); //done
 
@@ -106,20 +109,24 @@ app.get('/api/test', (req, res) => {
  app.use('/api', loanRoutes);
 // app.use('/api', invoiceRoutes);
 app.use('/lend', mpesaRoute);
+
+app.use('/api', SMSRoute); //done
 // app.use('/api', collectionRoute);
 // app.use('/api', receiptRoute);
-// app.use('/api', paymentRoute);
+app.use('/api', paymentRoute);
 // app.use('/api', statsRoute); //done
 
 // app.use('/api', uploadcustomers); 
  
-//  app.use('/api', smsBalanceRoute); 
-// app.use('/api', reportsReoute); 
-// app.use('/api', userManagementRoute); 
+app.use('/api', smsBalanceRoute); 
+//app.use('/api', reportsReoute); 
+app.use('/api', userManagementRoute); 
 
 app.use('/api', mpesaSettings); 
+//sent SMS history route
+app.use('/api', sentSMSRoute); //done
 
-// app.use('/api', tenantRoute); 
+app.use('/api', tenantRoute); 
 
 // app.use('/api', taskRoute);
 

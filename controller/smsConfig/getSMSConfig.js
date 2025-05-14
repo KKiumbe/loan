@@ -27,4 +27,5 @@ const getSMSConfigForTenant = async (tenantId) => {
 };
 
 
+
 module.exports = { getSMSConfigForTenant };

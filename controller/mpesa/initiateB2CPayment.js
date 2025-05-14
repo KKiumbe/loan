@@ -140,7 +140,9 @@ const disburseB2CPayment = async ({ phoneNumber, amount, loanId, userId, tenantI
   });
   console.timeEnd('mpesaPayment');
 
-  const transactionId = mpesaResponse.ConversationID || mpesaResponse.OriginatorConversationID;
+  console.log('M-Pesa B2C response:', JSON.stringify(mpesaResponse, null, 2));
+
+  const transactionId = mpesaResponse.TransactionID || mpesaResponse.ConversationID || mpesaResponse.OriginatorConversationID;
   const isSuccess = mpesaResponse.ResponseCode === '0';
 
   try {

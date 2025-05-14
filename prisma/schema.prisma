@@ -38,6 +38,12 @@ model Tenant {
 
 
   Employee Employee[]
+
+  SMS SMS[]
+
+  PaymentBatch PaymentBatch[]
+
+  LoanPayout LoanPayout[]
 }
 
 enum TenantStatus {
@@ -62,6 +68,8 @@ model Organization {
   interestRate        Float                  @default(0.1) // 10% monthly interest rate
 
   Employee Employee[]
+
+  PaymentBatch PaymentBatch[]
 }
 
 model User {
@@ -101,6 +109,8 @@ model User {
   loans           Loan[]
   auditLogs       AuditLog[]
 
+
+  LoanPayout LoanPayout[]
 }
 enum UserStatus {
   ACTIVE
@@ -141,7 +151,7 @@ model Loan {
   status            LoanStatus     @default(PENDING)
   createdAt         DateTime       @default(now())
   updatedAt         DateTime       @updatedAt
-   disbursedAt      DateTime?
+  disbursedAt      DateTime?
   tenantId          Int
   tenant            Tenant         @relation(fields: [tenantId], references: [id])
   consolidatedRepaymentId Int?                  // Foreign key, nullable
@@ -156,6 +166,8 @@ model Loan {
                   // New: User ID of second approver
   dueDate           DateTime       // Calculated as createdAt + 30 days
   totalRepayable    Float          // amount + (amount * interestRate)
+
+  LoanPayout LoanPayout[]
 }
 
 enum LoanStatus {
@@ -165,6 +177,61 @@ enum LoanStatus {
   REPAID
   DISBURSED
 }
+
+model PaymentBatch {
+  id             Int           @id @default(autoincrement())
+  tenantId       Int
+  tenant         Tenant        @relation(fields: [tenantId], references: [id])
+  organizationId Int
+  organization   Organization  @relation(fields: [organizationId], references: [id])
+  totalAmount    Float
+  receivedAt     DateTime      @default(now())
+  paymentMethod  String        // e.g., 'BANK_TRANSFER', 'MPESA', etc.
+  reference      String?       // MPESA Code, Cheque No, etc.
+  remarks        String?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  confirmations  PaymentConfirmation[]
+}
+
+model LoanPayout {
+  id             Int                @id @default(autoincrement())
+  loanId         Int
+  loan           Loan               @relation(fields: [loanId], references: [id])
+  amount         Float
+  method         String?            // MPESA, BANK_TRANSFER, CASH, etc.
+  transactionId  String?            // M-PESA code or Bank reference
+  status         PayoutStatus       @default(PENDING) // Tracks disbursement state
+  approvedById   Int?               // Who approved the payout (User)
+  approvedBy     User?              @relation(fields: [approvedById], references: [id])
+  tenantId       Int
+  tenant         Tenant             @relation(fields: [tenantId], references: [id])
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+
+  confirmation   PaymentConfirmation?
+}
+
+enum PayoutStatus {
+  PENDING
+  DISBURSED
+  FAILED
+}
+
+
+
+model PaymentConfirmation {
+  id              Int            @id @default(autoincrement())
+  paymentBatchId  Int
+  loanPayoutId    Int @unique
+
+  paymentBatch    PaymentBatch   @relation(fields: [paymentBatchId], references: [id])
+  loanPayout      LoanPayout     @relation(fields: [loanPayoutId], references: [id])
+  amountSettled   Float
+  settledAt       DateTime       @default(now())
+}
+
 
 
 
@@ -217,4 +284,24 @@ model AuditLog {
   resource    String
   details     Json
   createdAt   DateTime @default(now())
+}
+
+
+model SMS {
+  id          Int        @id @default(autoincrement())
+  tenantId    Int
+  tenant      Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  clientsmsid String     @unique
+  mobile      String
+  message     String
+  status      SMSStatus
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+}
+
+enum SMSStatus {
+  PENDING
+  SENT
+  FAILED
+  DELIVERED
 }

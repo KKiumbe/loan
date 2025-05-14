@@ -1,7 +1,8 @@
 const { connect } = require("mongoose");
 const ROLE_PERMISSIONS = require("../../DatabaseConfig/role.js");
-const { PrismaClient } = require('@prisma/client');
+const { PrismaClient,LoanStatus } = require('@prisma/client');
 const { disburseB2CPayment } = require("../mpesa/initiateB2CPayment.js");
+const { sendSMS } = require("../sms/sms.js");
 const prisma = new PrismaClient();
 
 
@@ -21,9 +22,7 @@ const calculateLoanDetails = (amount, interestRate) => {
 
 
 
-
-
-// Create a new loan
+// Updated createLoan function
 const createLoan = async (req, res) => {
   const { amount } = req.body;
   const user = req.user;
@@ -114,6 +113,18 @@ const createLoan = async (req, res) => {
         status: 'PENDING',
         approvalCount: 0,
       },
+      select: {
+        id: true,
+        userId: true,
+        organizationId: true,
+        tenantId: true,
+        amount: true,
+        interestRate: true,
+        dueDate: true,
+        totalRepayable: true,
+        status: true,
+        createdAt: true,
+      },
     });
     console.timeEnd('loanCreateQuery');
 
@@ -124,11 +135,27 @@ const createLoan = async (req, res) => {
         user: { connect: { id: user.id } },
         action: 'CREATE',
         resource: 'LOAN',
-        details: { message: `User ${user.firstName} ${user.lastName} applied for loan of ${amount}` },
+        details: JSON.stringify({
+          message: `User ${user.firstName} ${user.lastName} applied for loan of ${amount}`,
+          loanId: newLoan.id,
+          amount,
+        }),
       },
     });
     console.timeEnd('auditLogQuery');
 
+    // Send SMS notification
+    const tenant = await prisma.tenant.findUnique({
+      where: { id: user.tenantId },
+      select: { name: true },
+    });
+    const welcomeMessage = `Dear ${user.firstName}, your loan application for KES ${amount} at ${tenant.name} is being processed. We'll notify you once reviewed.`;
+    await sendSMS(user.tenantId, user.phoneNumber, welcomeMessage).catch((error) => {
+      console.error(`Failed to send SMS to ${user.phoneNumber}:`, error.message);
+      // Continue even if SMS fails
+    });
+
+    console.log(`Loan created: loanId ${newLoan.id}`);
     return res.status(201).json({ message: 'Loan application submitted', loan: newLoan });
   } catch (error) {
     console.error('Error creating loan:', error);
@@ -137,6 +164,8 @@ const createLoan = async (req, res) => {
     await prisma.$disconnect();
   }
 };
+
+
 // Get loans (scoped by role)
 const getLoans = async (req, res) => {
   const user = req.user;
@@ -245,10 +274,11 @@ const approveLoan = async (req, res) => {
         approvalCount: true,
         firstApproverId: true,
         secondApproverId: true,
-       
+        disbursedAt: true, // Added to check disbursement status
         user: {
           select: {
             id: true,
+            firstName: true,
             phoneNumber: true,
           },
         },
@@ -296,6 +326,7 @@ const approveLoan = async (req, res) => {
     const newApprovalCount = loan.approvalCount + 1;
     let updatedLoan;
     let disbursementResult = null;
+    let loanPayout = null;
 
     if (loan.organization.approvalSteps === 1) {
       console.time('loanUpdateQuery');
@@ -306,8 +337,40 @@ const approveLoan = async (req, res) => {
           approvalCount: newApprovalCount,
           firstApproverId: user.id,
         },
+        select: {
+          id: true,
+          status: true,
+          amount: true,
+          organizationId: true,
+          tenantId: true,
+          approvalCount: true,
+          firstApproverId: true,
+          disbursedAt: true,
+        },
       });
       console.timeEnd('loanUpdateQuery');
+
+      // Create LoanPayout record for single-step approval
+      console.time('loanPayoutCreateQuery');
+      loanPayout = await prisma.loanPayout.create({
+        data: {
+          loanId: loan.id,
+          amount: loan.amount,
+          method: 'MPESA', // Assuming MPESA as default; adjust as needed
+          status: 'PENDING',
+          approvedById: user.id,
+          tenantId: loan.tenantId,
+        },
+        select: {
+          id: true,
+          loanId: true,
+          amount: true,
+          method: true,
+          status: true,
+          transactionId: true,
+        },
+      });
+      console.timeEnd('loanPayoutCreateQuery');
 
       // Disburse immediately for single-step approval
       if (!loan.disbursedAt) {
@@ -324,9 +387,32 @@ const approveLoan = async (req, res) => {
             tenantId: loan.tenantId,
           });
           updatedLoan = disbursementResult.loan;
+
+          // Update LoanPayout with disbursement details
+          console.time('loanPayoutUpdateQuery');
+          loanPayout = await prisma.loanPayout.update({
+            where: { id: loanPayout.id },
+            data: {
+              transactionId: disbursementResult.mpesaResponse?.transactionId || null,
+              status: 'DISBURSED',
+            },
+            select: {
+              id: true,
+              loanId: true,
+              amount: true,
+              method: true,
+              status: true,
+              transactionId: true,
+            },
+          });
+          console.timeEnd('loanPayoutUpdateQuery');
         } catch (disburseError) {
           console.error('Disbursement failed:', JSON.stringify(disburseError, null, 2));
-          // Error is logged in disburseB2CPayment
+          // Update LoanPayout to FAILED if disbursement fails
+          await prisma.loanPayout.update({
+            where: { id: loanPayout.id },
+            data: { status: 'FAILED' },
+          });
         }
       }
     } else if (loan.organization.approvalSteps === 2) {
@@ -337,6 +423,16 @@ const approveLoan = async (req, res) => {
           data: {
             approvalCount: newApprovalCount,
             firstApproverId: user.id,
+          },
+          select: {
+            id: true,
+            status: true,
+            amount: true,
+            organizationId: true,
+            tenantId: true,
+            approvalCount: true,
+            firstApproverId: true,
+            disbursedAt: true,
           },
         });
         console.timeEnd('loanUpdateQuery');
@@ -349,8 +445,40 @@ const approveLoan = async (req, res) => {
             approvalCount: newApprovalCount,
             secondApproverId: user.id,
           },
+          select: {
+            id: true,
+            status: true,
+            amount: true,
+            organizationId: true,
+            tenantId: true,
+            approvalCount: true,
+            secondApproverId: true,
+            disbursedAt: true,
+          },
         });
         console.timeEnd('loanUpdateQuery');
+
+        // Create LoanPayout record for two-step approval
+        console.time('loanPayoutCreateQuery');
+        loanPayout = await prisma.loanPayout.create({
+          data: {
+            loanId: loan.id,
+            amount: loan.amount,
+            method: 'MPESA', // Assuming MPESA as default; adjust as needed
+            status: 'PENDING',
+            approvedById: user.id,
+            tenantId: loan.tenantId,
+          },
+          select: {
+            id: true,
+            loanId: true,
+            amount: true,
+            method: true,
+            status: true,
+            transactionId: true,
+          },
+        });
+        console.timeEnd('loanPayoutCreateQuery');
 
         // Disburse immediately for two-step approval
         if (!loan.disbursedAt) {
@@ -367,9 +495,32 @@ const approveLoan = async (req, res) => {
               tenantId: loan.tenantId,
             });
             updatedLoan = disbursementResult.loan;
+
+            // Update LoanPayout with disbursement details
+            console.time('loanPayoutUpdateQuery');
+            loanPayout = await prisma.loanPayout.update({
+              where: { id: loanPayout.id },
+              data: {
+                transactionId: disbursementResult.mpesaResponse?.transactionId || null,
+                status: 'DISBURSED',
+              },
+              select: {
+                id: true,
+                loanId: true,
+                amount: true,
+                method: true,
+                status: true,
+                transactionId: true,
+              },
+            });
+            console.timeEnd('loanPayoutUpdateQuery');
           } catch (disburseError) {
             console.error('Disbursement failed:', JSON.stringify(disburseError, null, 2));
-            // Error is logged in disburseB2CPayment
+            // Update LoanPayout to FAILED if disbursement fails
+            await prisma.loanPayout.update({
+              where: { id: loanPayout.id },
+              data: { status: 'FAILED' },
+            });
           }
         }
       } else {
@@ -386,14 +537,27 @@ const approveLoan = async (req, res) => {
         user: { connect: { id: user.id } },
         action: 'APPROVE',
         resource: 'LOAN',
-        details: {
+        details: JSON.stringify({
           loanId: loan.id,
           approvalCount: newApprovalCount,
           message: `Loan ${id} approved by ${user.firstName} ${user.lastName} (Approval ${newApprovalCount}/${loan.organization.approvalSteps})`,
-        },
+        }),
       },
     });
     console.timeEnd('auditLogQuery');
+
+    // Send SMS notification for final approval
+    if (updatedLoan.status === 'APPROVED') {
+      const tenant = await prisma.tenant.findUnique({
+        where: { id: loan.tenantId },
+        select: { name: true },
+      });
+      const welcomeMessage = `Dear ${loan.user.firstName}, your loan of KES ${loan.amount} at ${tenant.name} has been approved. Disbursement initiated. Contact support for queries.`;
+      await sendSMS(loan.tenantId, loan.user.phoneNumber, welcomeMessage).catch((error) => {
+        console.error(`Failed to send SMS to ${loan.user.phoneNumber}:`, error.message);
+        // Continue even if SMS fails
+      });
+    }
 
     const response = {
       message:
@@ -402,6 +566,13 @@ const approveLoan = async (req, res) => {
           : 'Loan partially approved (pending second approval)',
       loan: updatedLoan,
     };
+
+    if (loanPayout) {
+      response.loanPayout = {
+        message: 'Loan payout record created',
+        payout: loanPayout,
+      };
+    }
 
     if (disbursementResult) {
       response.disbursement = {
@@ -419,7 +590,6 @@ const approveLoan = async (req, res) => {
     await prisma.$disconnect();
   }
 };
-
 
 // Reject a loan
 const rejectLoan = async (req, res) => {
@@ -668,7 +838,124 @@ const createRepayment = async (req, res) => {
   }
 };
 
-module.exports = { createLoan, getLoans, getLoanById, approveLoan, rejectLoan, disburseLoan, createRepayment };
+
+
+const getPendingLoanRequests = async (req, res) => {
+  try {
+    const tenantId = req.user?.tenantId;
+
+    if (!tenantId) {
+      return res.status(400).json({ message: 'Tenant ID is required' });
+    }
+
+    const loans = await prisma.loan.findMany({
+      where: {
+        tenantId,
+        status: 'PENDING', // Only fetch pending loans
+      },
+      include: {
+        user: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            phoneNumber: true,
+            email: true,
+          },
+        },
+        organization: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+   res.status(200).json({
+  data: loans,
+  message: loans.length === 0 ? 'No pending loans found' : 'Pending loans retrieved successfully',
+});
+
+
+
+  } catch (error) {
+    console.error('Error fetching pending loan requests:', error);
+    res.status(500).json({ message: 'Failed to fetch pending loan requests' });
+  }
+};
+
+
+
+
+
+const getLoansGroupedByStatus = async (req, res) => {
+  try {
+    const tenantId = req.user?.tenantId;
+    if (!tenantId) {
+      return res.status(400).json({ message: 'Tenant ID is required' });
+    }
+
+    const statuses = [
+      LoanStatus.PENDING,
+      LoanStatus.APPROVED,
+      LoanStatus.REJECTED,
+      LoanStatus.DISBURSED,
+      LoanStatus.REPAID,
+    ];
+
+    const loanResults = await Promise.all(
+      statuses.map((status) =>
+        prisma.loan.findMany({
+          where: {
+            tenantId,
+            status,
+          },
+          include: {
+            user: {
+              select: {
+                id: true,
+                firstName: true,
+                lastName: true,
+                phoneNumber: true,
+                email: true,
+              },
+            },
+            organization: {
+              select: {
+                id: true,
+                name: true,
+              },
+            },
+          },
+          orderBy: { createdAt: 'desc' },
+        })
+      )
+    );
+
+    const groupedLoans = {};
+    statuses.forEach((status, i) => {
+      groupedLoans[status] = loanResults[i];
+    });
+
+    res.status(200).json(groupedLoans);
+  } catch (error) {
+    console.error('Error fetching grouped loans:', error);
+    res.status(500).json({ message: 'Failed to fetch loans grouped by status' });
+  }
+};
+
+
+
+
+
+
+
+
+
+
+module.exports = { createLoan, getLoans, getLoanById, approveLoan, rejectLoan, disburseLoan, createRepayment,getPendingLoanRequests ,getLoansGroupedByStatus};
 
 
 

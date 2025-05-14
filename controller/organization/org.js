@@ -74,6 +74,68 @@ const createBorrowerOrganization = async (req, res) => {
   }
 };
 
+
+
+
+const searchOrganizations = async (req, res) => {
+  try {
+    const tenantId = req.user?.tenantId;
+    if (!tenantId) {
+      return res.status(400).json({ message: 'Tenant ID is required' });
+    }
+
+    const { name = '', page = 1, limit = 20 } = req.query;
+    const take = parseInt(limit, 10);
+    const skip = (parseInt(page, 10) - 1) * take;
+
+    // find matching organizations
+    const [ orgs, total ] = await Promise.all([
+      prisma.organization.findMany({
+        where: {
+          tenantId,
+          name: { contains: name, mode: 'insensitive' }
+        },
+        skip,
+        take,
+        orderBy: { name: 'asc' },
+        include: {
+          _count: {
+            select: { Employee: true, loans: true, PaymentBatch: true }
+          }
+        }
+      }),
+      prisma.organization.count({
+        where: {
+          tenantId,
+          name: { contains: name, mode: 'insensitive' }
+        }
+      })
+    ]);
+
+    // format the response if you need any extra fields
+    const formatted = orgs.map(o => ({
+      id: o.id,
+      name: o.name,
+      approvalSteps: o.approvalSteps,
+      interestRate: o.interestRate,
+      employeeCount: o._count.Employee,
+      loanCount: o._count.loans,
+      batchCount: o._count.PaymentBatch,
+      createdAt: o.createdAt
+    }));
+
+    res.json({ organizations: formatted, total });
+  } catch (err) {
+    console.error('Error searching organizations:', err);
+    res.status(500).json({ message: 'Internal server error' });
+  } finally {
+    await prisma.$disconnect();
+  }
+};
+
+
+
+
 // Update an existing borrower organization
 const updateBorrowerOrganization = async (req, res) => {
   const { organizationId } = req.params;
@@ -220,6 +282,64 @@ const deleteBorrowerOrganization = async (req, res) => {
 
 
 
+const getOrganizations = async (req, res) => {
+  try {
+    const tenantId = req.user?.tenantId;
+
+    if (!tenantId) {
+      return res.status(400).json({ message: 'Tenant ID is required' });
+    }
+
+    const organizations = await prisma.organization.findMany({
+      where: { tenantId },
+      include: {
+        _count: {
+          select: {
+            Employee: true,
+            loans: true,
+          },
+        },
+        loans: {
+          select: {
+            amount: true,
+            status: true,
+          },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    const data = organizations.map((org) => {
+      const totalLoanAmount = org.loans.reduce((sum, loan) => sum + loan.amount, 0);
+      const approvedLoanAmount = org.loans
+        .filter((loan) => loan.status === 'APPROVED' || loan.status === 'DISBURSED')
+        .reduce((sum, loan) => sum + loan.amount, 0);
+
+      return {
+        id: org.id,
+        name: org.name,
+        approvalSteps: org.approvalSteps,
+        interestRate: org.interestRate,
+        employeeCount: org._count.Employee,
+        loanCount: org._count.loans,
+        totalLoanAmount,
+        approvedLoanAmount,
+        createdAt: org.createdAt,
+      };
+    });
+
+    res.status(200).json(data);
+  } catch (error) {
+    console.error('Error fetching organizations:', error);
+    res.status(500).json({ message: 'Failed to fetch organization stats' });
+  }
+};
+
+
+
+
+
+
 
 
 
@@ -236,6 +356,45 @@ const sendSMS = async (phoneNumber, message) => {
 
 
 
+const getOrganizationAdmins = async (req, res) => {
+  try {
+    const tenantId = req.user?.tenantId;
+
+    if (!tenantId) {
+      return res.status(400).json({ message: 'Tenant ID required' });
+    }
+
+    const admins = await prisma.user.findMany({
+      where: {
+        tenantId,
+        role: {
+          has: 'ORG_ADMIN', // Matches array roles containing 'ORG_ADMIN'
+        },
+      },
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+        email: true,
+        phoneNumber: true,
+        organization: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+        createdAt: true,
+      },
+     
+    });
+
+    res.status(200).json(admins);
+  } catch (error) {
+    console.error('Error fetching ORG_ADMINs:', error);
+    res.status(500).json({ message: 'Failed to fetch organization admins' });
+  }
+};
+
 
 
 
@@ -244,4 +403,6 @@ module.exports = {
   getBorrowerOrganizations,
   updateBorrowerOrganization,
   deleteBorrowerOrganization,
+
+  getOrganizations,getOrganizationAdmins,searchOrganizations
 };

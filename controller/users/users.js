@@ -2,22 +2,26 @@ const bcrypt = require('bcrypt');
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 const ROLE_PERMISSIONS = require('../../DatabaseConfig/role'); // Path to the role permissions file
+const { sendSMS } = require('../sms/sms');
+const {  getUserOrganizationIdById } = require('../../routes/userRoute/getOrgId');
 
 
 
 
 const registerUser = async (req, res) => {
   const { phoneNumber, idNumber, password } = req.body;
- 
-  const {tenantId} = req.user;
-  console.log(`tenant id ${tenantId}`)
-  if (!req.user.role.includes('ADMIN')) {
-    return res.status(403).json({ message: 'Access denied. Only admins can create users.' });
-  }
+  const { tenantId } = req.user;
+  console.log(`this is user object ${JSON.stringify(req.user)}`);
+  console.log(`tenant id ${tenantId}`);
+
+ if (!req.user.role.includes('ORG_ADMIN') && !req.user.role.includes('ADMIN')) {
+  return res.status(403).json({ message: 'Access denied. Only admins can create users.' });
+}
+
 
   // Validate required fields
   if ((!phoneNumber && !idNumber) || !password || !tenantId) {
-    return res.status(400).json({ message: 'Either phoneNumber or idNumber, password,  are required' });
+    return res.status(400).json({ message: 'Either phoneNumber or idNumber, password, are required' });
   }
 
   try {
@@ -26,11 +30,6 @@ const registerUser = async (req, res) => {
       where: { id: tenantId },
       select: { id: true, name: true }, // Fetch only id and name
     });
-
-    if (!tenant) {
-      return res.status(404).json({ message: 'Tenant not found' });
-    }
-
 
     if (!tenant) {
       return res.status(404).json({ message: 'Tenant not found' });
@@ -86,15 +85,12 @@ const registerUser = async (req, res) => {
     // Create the new user
     const newUser = await prisma.user.create({
       data: {
-        //tenantId, // Set scalar tenantId field
         firstName: employee.firstName,
         lastName: employee.lastName,
         email: null, // Employee schema has no email field
         phoneNumber: employee.phoneNumber,
         password: hashedPassword,
-        employee: {connect:{
-          id:employee.id
-        }},
+        employee: { connect: { id: employee.id } },
         role: { set: [defaultRole] },
         createdBy: req.user.id || null, // Handle undefined createdBy
         lastLogin: new Date(),
@@ -105,6 +101,11 @@ const registerUser = async (req, res) => {
         },
       },
     });
+
+    // Prepare and send SMS
+    const welcomeMessage = `Welcome to ${tenant.name}! Your account has been created. Your password is: ${password}`;
+    await sendSMS(tenantId, employee.phoneNumber, welcomeMessage);
+
     return res.status(201).json({ message: 'User created successfully', user: newUser });
   } catch (error) {
     console.error('Error creating user:', error);
@@ -114,9 +115,7 @@ const registerUser = async (req, res) => {
 
 
 
-
-
-
+// Updated createOrgAdmin function
 
 const createOrgAdmin = async (req, res) => {
   const { firstName, lastName, phoneNumber, email, password, organizationId} = req.body;
@@ -176,6 +175,10 @@ const createOrgAdmin = async (req, res) => {
     res.status(500).json({ error: 'Failed to create Org Admin' });
   }
 };
+
+
+
+
 
 
 

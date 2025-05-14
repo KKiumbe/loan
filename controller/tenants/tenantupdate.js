@@ -168,27 +168,23 @@ const fetchTenantDetails = async(tenantID) =>{
 
 
 
-const getTenantDetails = async (req, res) => {
-  const { tenantId } = req.params; // Extract tenantId from route params
-  const tenantIdInt = parseInt(tenantId, 10);
 
-  console.log(`User object: ${JSON.stringify(req.user)}`);
-  const { role, tenantId: userTenantId } = req.user;
+
+const getTenantDetails = async (req, res) => {
+  const {tenantId} = req.user;
+  if (!tenantId) {
+    return res.status(400).json({ message: 'No tenantId found in token' });
+  }
 
   try {
-    // Fetch the tenant with relationships
     const tenant = await prisma.tenant.findUnique({
-      where: { id: tenantIdInt },
+      where: { id: tenantId },
       select: {
+        id: true,
         name: true,
-        createdBy: true,
         status: true,
         subscriptionPlan: true,
         monthlyCharge: true,
-        paymentDetails:true,
-       
-        createdAt: true,
-        updatedAt: true,
         email: true,
         phoneNumber: true,
         alternativePhoneNumber: true,
@@ -199,35 +195,41 @@ const getTenantDetails = async (req, res) => {
         street: true,
         website: true,
         logoUrl: true,
-        allowedUsers: true, // Include trash bag issuance
+        allowedUsers: true,
+        createdAt: true,
+        updatedAt: true,
+        // only return a count of organizations, not the list
+        _count: {
+          select: {
+            organizations: true,
+          },
+        },
+        // other relations if you still need them:
+        mpesaConfig: true,
+        smsConfig: true,
       },
     });
 
     if (!tenant) {
-      return res.status(404).json({ error: 'Tenant not found.' });
+      return res.status(404).json({ message: 'Tenant not found' });
     }
 
-    // Ensure user belongs to the same tenant or is a SUPER_ADMIN
-    if (userTenantId !== tenantIdInt) {
-      return res.status(403).json({ error: 'Access denied. You do not have permission to view this tenant.' });
-    }
-    const baseurl = `${req.protocol}://${req.get('host')}`;
-
-    // Build the full URL for logoUrl if it exists
-    const fullLogoUrl = tenant.logoUrl ? `${baseurl}${tenant.logoUrl}` : null;
-
-    // Send the response with the full logo URL
-    res.status(200).json({ 
+    // rename the count field for clarity
+    const { _count, ...rest } = tenant;
+    res.json({
       tenant: {
-        ...tenant,
-        logoUrl: fullLogoUrl, // Add the full URL to the response
-      } 
+        ...rest,
+        organizationCount: _count.organizations,
+      },
     });
-  } catch (error) {
-    console.error('Error fetching tenant details:', error);
-    res.status(500).json({ error: 'Failed to retrieve tenant details.', details: error.message });
+  } catch (err) {
+    console.error('getTenant error', err);
+    res.status(500).json({ message: 'Failed to fetch tenant' });
   }
 };
+
+
+
 
 
 
