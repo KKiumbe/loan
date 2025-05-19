@@ -14,32 +14,6 @@ require('dotenv').config();
 
 
 
-
-// const getMpesaAccessToken = async (consumerKey, consumerSecret) => {
-//   const oauthUrl = process.env.MPESA_OAUTH_URL || 'https://sandbox.safaricom.co.ke/oauth/v1/generate?grant_type=client_credentials';
-
-//   if (!consumerKey || !consumerSecret || !oauthUrl) {
-//     throw new Error('Missing M-Pesa OAuth configuration');
-//   }
-
-//   const auth = Buffer.from(`${consumerKey}:${consumerSecret}`).toString('base64');
-
-//   try {
-//     console.time('mpesaOAuthQuery');
-//     const response = await axios.get(oauthUrl, {
-//       headers: {
-//         Authorization: `Basic ${auth}`,
-//       },
-//       timeout: 10000,
-//     });
-//     console.timeEnd('mpesaOAuthQuery');
-//     return response.data.access_token;
-//   } catch (error) {
-//     console.error('Error fetching M-Pesa access token:', error.response?.data || error.message);
-//     throw new Error('Failed to fetch M-Pesa access token');
-//   }
-// };
-
 const initiateB2CPayment = async ({
   amount,
   phoneNumber,
@@ -52,7 +26,7 @@ const initiateB2CPayment = async ({
   consumerSecret,
   remarks = 'Loan Disbursement',
 }) => {
-  const b2cUrl = process.env.MPESA_B2C_URL || 'https://sandbox.safaricom.co.ke/mpesa/b2c/v1/paymentrequest';
+  const b2cUrl = process.env.MPESA_B2C_URL;
 
   if (!b2cUrl || !b2cShortCode || !initiatorName || !securityCredential || !consumerKey || !consumerSecret) {
     throw new Error('Missing M-Pesa B2C configuration');
@@ -68,7 +42,14 @@ const initiateB2CPayment = async ({
     throw new Error('Missing webhook URLs');
   }
 
+  console.log(`this is consumer key and secret`, consumerKey, consumerSecret);
   const accessToken = await getMpesaAccessToken(consumerKey, consumerSecret);
+
+  console.log(`this is the access token`, accessToken);
+
+  if (!accessToken) {
+    throw new Error('Failed to fetch M-Pesa access token');
+  }
 
   const payload = {
     InitiatorName: initiatorName,
@@ -83,21 +64,32 @@ const initiateB2CPayment = async ({
     Occasion: 'LoanDisbursement',
   };
 
-  try {
-    console.time('mpesaB2CQuery');
-    const response = await axios.post(b2cUrl, payload, {
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        'Content-Type': 'application/json',
-      },
-      timeout: 30000,
-    });
-    console.timeEnd('mpesaB2CQuery');
-    return response.data;
-  } catch (error) {
-    console.error('Error initiating B2C payment:', error.response?.data || error.message);
-    throw new Error('Failed to initiate B2C payment');
-  }
+  console.log(`this is the payload ${JSON.stringify(payload)}`);
+  console.log(`this is the b2cUrl ${b2cUrl}`);
+
+
+try {
+  console.time('mpesaB2CQuery');
+  const response = await axios.post(b2cUrl, payload, {
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      'Content-Type': 'application/json',
+    },
+    timeout: 30000,
+  });
+  console.log('Full M-Pesa B2C response:', JSON.stringify(response.data, null, 2));
+  console.timeEnd('mpesaB2CQuery');
+  return response.data;
+} catch (error) {
+  console.error('Error initiating B2C payment:', {
+    message: error.message,
+    response: error.response?.data,
+    status: error.response?.status,
+    headers: error.response?.headers,
+  });
+  throw new Error('Failed to initiate B2C payment');
+}
+
 };
 
 const disburseB2CPayment = async ({ phoneNumber, amount, loanId, userId, tenantId }) => {
@@ -111,10 +103,13 @@ const disburseB2CPayment = async ({ phoneNumber, amount, loanId, userId, tenantI
     throw new Error('Missing loanId, userId, or tenantId');
   }
 
+  console.log(`this is the tenantId`, tenantId);
+
   // Fetch tenant-specific M-Pesa configuration
   console.time('getTenantSettingsQuery');
   const settingsResponse = await getTenantSettings(tenantId);
-  console.timeEnd('getTenantSettingsQuery');
+  
+ console.log(`this is the settingsResponse`, settingsResponse);
 
   if (!settingsResponse.success) {
     throw new Error(settingsResponse.message || 'Failed to fetch tenant M-Pesa settings');

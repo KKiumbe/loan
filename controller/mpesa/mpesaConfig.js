@@ -53,13 +53,14 @@ const createMPESAConfig = async (req, res) => {
 
 const updateMPESAConfig = async (req, res) => {
   // 1. Get tenantId from the logged-in user
-  const tenantId = req.user?.tenantId;
-  if (!tenantId) {
-    return res.status(401).json({ success: false, message: 'Unauthorized: missing tenant context.' });
-  }
+  // const tenantId = req.user?.tenantId;
+  // if (!tenantId) {
+  //   return res.status(401).json({ success: false, message: 'Unauthorized: missing tenant context.' });
+  // }
 
   // 2. Destructure only the updatable fields from the body
   const {
+    tenantId,
     b2cShortCode,
     initiatorName,
     securityCredential,

@@ -190,19 +190,19 @@ const getEmployeeUsers = async (req, res) => {
     });
 
     // now sanitize into exactly the shape your DataGrid columns expect
-    const data = employees.map(emp => ({
-      userId:           emp.user?.id,
-      firstName:        emp.user?.firstName  || emp.firstName,
-      lastName:         emp.user?.lastName   || emp.lastName,
-      email:            emp.user?.email      || '',
-      phoneNumber:      emp.phoneNumber,
-      organizationName: emp.organization.name,
-      tenantName:       emp.tenant.name,
-      loans:            emp.user?.loans      || [],
-      createdAt:        emp.user?.createdAt  || emp.createdAt,
-    }));
+    // const data = employees.map(emp => ({
+    //   userId:           emp.user?.id,
+    //   firstName:        emp.user?.firstName  || emp.firstName,
+    //   lastName:         emp.user?.lastName   || emp.lastName,
+    //   email:            emp.user?.email      || '',
+    //   phoneNumber:      emp.phoneNumber,
+    //   organizationName: emp.organization.name,
+    //   tenantName:       emp.tenant.name,
+    //   loans:            emp.user?.loans      || [],
+    //   createdAt:        emp.user?.createdAt  || emp.createdAt,
+    // }));
 
-    return res.json({ data, total });
+    return res.json({ employees, total });
   } catch (error) {
     console.error('Error fetching employee-user overview:', error);
     return res.status(500).json({ message: 'Failed to fetch data' });

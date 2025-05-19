@@ -388,6 +388,8 @@ const approveLoan = async (req, res) => {
           });
           updatedLoan = disbursementResult.loan;
 
+          console.log(`object disbursementResult: ${JSON.stringify(disbursementResult, null, 2)}`);
+  
           // Update LoanPayout with disbursement details
           console.time('loanPayoutUpdateQuery');
           loanPayout = await prisma.loanPayout.update({
@@ -494,6 +496,8 @@ const approveLoan = async (req, res) => {
               userId: user.id,
               tenantId: loan.tenantId,
             });
+
+            console.log(`this is disbursementResult: ${JSON.stringify(disbursementResult, null, 2)}`);
             updatedLoan = disbursementResult.loan;
 
             // Update LoanPayout with disbursement details

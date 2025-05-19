@@ -5,7 +5,7 @@ const verifyToken = require('../../middleware/verifyToken.js');
 const router = express.Router();
 
 router.post('/create-mp-settings', createMPESAConfig);
-router.put('/update-mp-settings', verifyToken, updateMPESAConfig);
+router.put('/update-mp-settings', updateMPESAConfig);
 router.get('/get-mp-settings',verifyToken, getTenantSettings);
 
 
