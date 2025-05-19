@@ -3,29 +3,27 @@ const { getTenantSettings } = require('./mpesaConfig');
 const { getMpesaAccessToken } = require('./token');
 const prisma = new PrismaClient();
 
+const axios = require('axios');
+require('dotenv').config();
 
-
-
-/**
- * Handle M-Pesa B2C result callback (ResultURL)
- */
 const handleB2CResult = async (req, res) => {
   const result = req.body.Result;
   console.log('M-Pesa B2C Result:', JSON.stringify(result, null, 2));
 
-  if (!result || !result.ConversationID || result.ResultCode === undefined) {
+  // Validate payload: must include either ConversationID or OriginatorConversationID
+  if (!result || (!result.ConversationID && !result.OriginatorConversationID) || result.ResultCode === undefined) {
     console.error('Invalid B2C result payload:', req.body);
     return res.status(400).json({ message: 'Invalid payload' });
   }
 
-  let loan;
   try {
-    const transactionId = result.ConversationID;
+    // Use ConversationID if present, otherwise OriginatorConversationID from callback
+    const transactionId = result.ConversationID || result.OriginatorConversationID;
     const status = result.ResultCode === 0 ? 'SUCCESS' : 'FAILED';
 
-    // Fetch loan to get tenantId
+    // Fetch loan by mpesaTransactionId
     console.time('loanResultQuery');
-    loan = await prisma.loan.findFirst({
+    const loan = await prisma.loan.findFirst({
       where: { mpesaTransactionId: transactionId },
       select: { id: true, tenantId: true },
     });
@@ -44,7 +42,7 @@ const handleB2CResult = async (req, res) => {
     });
     console.timeEnd('loanResultUpdateQuery');
 
-    // Log the result
+    // Log the result with OriginatorConversationID
     console.time('auditLogResultQuery');
     await prisma.auditLog.create({
       data: {
@@ -54,15 +52,16 @@ const handleB2CResult = async (req, res) => {
         details: {
           loanId: loan.id,
           transactionId,
+          originatorConversationId: result.OriginatorConversationID,
           resultCode: result.ResultCode,
-          resultDesc: result.ResultDesc,
+          resultDesc: result.ResultDesc || result.errorMessage,
           message: `B2C transaction ${transactionId} ${status}`,
         },
       },
     });
     console.timeEnd('auditLogResultQuery');
 
-    // Fetch and record account balance after disbursement
+    // Optionally fetch account balance after disbursement
     try {
       const settingsRes = await getTenantSettings(loan.tenantId);
       if (settingsRes.success) {
@@ -76,7 +75,7 @@ const handleB2CResult = async (req, res) => {
           IdentifierType: '4',
           Remarks: 'Post-disbursement balance check',
           QueueTimeOutURL: `${process.env.APP_BASE_URL}/lend/accountbalance-timeout`,
-          ResultURL: `${process.env.APP_BASE_URL}/lend/accountbalance-result`
+          ResultURL: `${process.env.APP_BASE_URL}/lend/accountbalance-result`,
         };
         console.log('Sending AccountBalance request:', balancePayload);
         const balRes = await axios.post(
@@ -84,7 +83,7 @@ const handleB2CResult = async (req, res) => {
           balancePayload,
           { headers: { Authorization: `Bearer ${accessToken}` } }
         );
-        console.log('M-Pesa AccountBalanceResult (sync response):', balRes.data);
+        console.log('M-Pesa AccountBalanceResult:', balRes.data);
       }
     } catch (balErr) {
       console.error('Error invoking account balance query:', balErr);
@@ -106,13 +105,13 @@ const handleB2CTimeout = async (req, res) => {
   const timeout = req.body;
   console.log('M-Pesa B2C Timeout:', JSON.stringify(timeout, null, 2));
 
-  if (!timeout || !timeout.ConversationID) {
+  if (!timeout || (!timeout.ConversationID && !timeout.OriginatorConversationID)) {
     console.error('Invalid B2C timeout payload:', req.body);
     return res.status(400).json({ message: 'Invalid payload' });
   }
 
   try {
-    const transactionId = timeout.ConversationID;
+    const transactionId = timeout.ConversationID || timeout.OriginatorConversationID;
 
     console.time('loanTimeoutQuery');
     const loan = await prisma.loan.findFirst({
@@ -139,8 +138,13 @@ const handleB2CTimeout = async (req, res) => {
         tenant: { connect: { id: loan.tenantId } },
         action: 'MPESA_B2C_TIMEOUT',
         resource: 'LOAN',
-        details: { loanId: loan.id, transactionId, message: `Transaction timed out` }
-      }
+        details: {
+          loanId: loan.id,
+          transactionId,
+          originatorConversationId: timeout.OriginatorConversationID,
+          message: 'Transaction timed out',
+        },
+      },
     });
     console.timeEnd('auditLogTimeoutQuery');
 
@@ -161,14 +165,13 @@ const handleAccountBalanceResult = async (req, res) => {
   console.log('M-Pesa Account Balance Result:', JSON.stringify(result, null, 2));
 
   try {
-    // Persist the balance check result in audit logs
     await prisma.auditLog.create({
       data: {
-        tenant: { connect: { id: result.TenantId } }, // ensure TenantId sent or derive
+        tenant: { connect: { id: result.TenantId } },
         action: 'MPESA_ACCOUNT_BALANCE_RESULT',
         resource: 'ACCOUNT',
         details: result,
-      }
+      },
     });
     return res.status(200).json({ message: 'Balance result processed' });
   } catch (err) {
@@ -193,7 +196,7 @@ const handleAccountBalanceTimeout = async (req, res) => {
         action: 'MPESA_ACCOUNT_BALANCE_TIMEOUT',
         resource: 'ACCOUNT',
         details: timeout,
-      }
+      },
     });
     return res.status(200).json({ message: 'Balance timeout processed' });
   } catch (err) {
@@ -203,6 +206,8 @@ const handleAccountBalanceTimeout = async (req, res) => {
     await prisma.$disconnect();
   }
 };
+
+
 
 
 

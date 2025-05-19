@@ -26,10 +26,8 @@ const initiateB2CPayment = async ({
   consumerSecret,
   remarks = 'Loan Disbursement',
 }) => {
-  let b2cUrl = process.env.MPESA_B2C_URL;
-  if (b2cUrl && b2cUrl.includes('/v3/')) {
-    b2cUrl = b2cUrl.replace('/v3/', '/v1/');
-  }
+  const b2cUrl = process.env.MPESA_B2C_URL;
+
 
   if (!b2cUrl || !b2cShortCode || !initiatorName || !securityCredential) {
     return { error: 'Missing M-Pesa B2C configuration' };
