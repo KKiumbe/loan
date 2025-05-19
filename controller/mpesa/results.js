@@ -3,7 +3,9 @@ const prisma = new PrismaClient();
 
 
 
-// Handle M-Pesa B2C result callback (ResultURL)
+/**
+ * Handle M-Pesa B2C result callback (ResultURL)
+ */
 const handleB2CResult = async (req, res) => {
   const result = req.body.Result;
   console.log('M-Pesa B2C Result:', JSON.stringify(result, null, 2));
@@ -14,10 +16,9 @@ const handleB2CResult = async (req, res) => {
   }
 
   try {
-    const transactionId = result.ConversationID || result.OriginatorConversationID;
+    const transactionId = result.ConversationID;
     const status = result.ResultCode === 0 ? 'SUCCESS' : 'FAILED';
 
-    // Fetch loan to get tenantId
     console.time('loanResultQuery');
     const loan = await prisma.loan.findFirst({
       where: { mpesaTransactionId: transactionId },
@@ -30,7 +31,6 @@ const handleB2CResult = async (req, res) => {
       return res.status(404).json({ message: 'Loan not found for transaction' });
     }
 
-    // Update loan status
     console.time('loanResultUpdateQuery');
     await prisma.loan.updateMany({
       where: { mpesaTransactionId: transactionId },
@@ -38,7 +38,6 @@ const handleB2CResult = async (req, res) => {
     });
     console.timeEnd('loanResultUpdateQuery');
 
-    // Log the result
     console.time('auditLogResultQuery');
     await prisma.auditLog.create({
       data: {
@@ -65,7 +64,9 @@ const handleB2CResult = async (req, res) => {
   }
 };
 
-// Handle M-Pesa B2C timeout callback (QueueTimeOutURL)
+/**
+ * Handle M-Pesa B2C timeout callback (QueueTimeOutURL)
+ */
 const handleB2CTimeout = async (req, res) => {
   const timeout = req.body;
   console.log('M-Pesa B2C Timeout:', JSON.stringify(timeout, null, 2));
@@ -76,9 +77,8 @@ const handleB2CTimeout = async (req, res) => {
   }
 
   try {
-    const transactionId = timeout.ConversationID || timeout.OriginatorConversationID;
+    const transactionId = timeout.ConversationID;
 
-    // Fetch loan to get tenantId
     console.time('loanTimeoutQuery');
     const loan = await prisma.loan.findFirst({
       where: { mpesaTransactionId: transactionId },
@@ -91,7 +91,6 @@ const handleB2CTimeout = async (req, res) => {
       return res.status(404).json({ message: 'Loan not found for transaction' });
     }
 
-    // Update loan status
     console.time('loanTimeoutUpdateQuery');
     await prisma.loan.updateMany({
       where: { mpesaTransactionId: transactionId },
@@ -99,7 +98,6 @@ const handleB2CTimeout = async (req, res) => {
     });
     console.timeEnd('loanTimeoutUpdateQuery');
 
-    // Log the timeout
     console.time('auditLogTimeoutQuery');
     await prisma.auditLog.create({
       data: {
@@ -123,5 +121,10 @@ const handleB2CTimeout = async (req, res) => {
     await prisma.$disconnect();
   }
 };
+
+
+
+
+
 
 module.exports = { handleB2CResult, handleB2CTimeout };

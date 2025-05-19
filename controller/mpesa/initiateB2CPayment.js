@@ -1,19 +1,19 @@
 // src/utils/mpesaB2C.js
-//prismaClient.js
-
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 const axios = require('axios');
 const { getMpesaAccessToken } = require('./token');
 const { getTenantSettings } = require('./mpesaConfig');
-
 require('dotenv').config();
 
 
 
 
 
-
+/**
+ * Initiates a B2C payment, returning the raw M-Pesa response object.
+ * Does not throw for M-Pesa errors; always returns data or error structure.
+ */
 const initiateB2CPayment = async ({
   amount,
   phoneNumber,
@@ -26,29 +26,27 @@ const initiateB2CPayment = async ({
   consumerSecret,
   remarks = 'Loan Disbursement',
 }) => {
-  const b2cUrl = process.env.MPESA_B2C_URL;
-
-  if (!b2cUrl || !b2cShortCode || !initiatorName || !securityCredential || !consumerKey || !consumerSecret) {
-    throw new Error('Missing M-Pesa B2C configuration');
+  let b2cUrl = process.env.MPESA_B2C_URL;
+  if (b2cUrl && b2cUrl.includes('/v3/')) {
+    b2cUrl = b2cUrl.replace('/v3/', '/v1/');
   }
 
+  if (!b2cUrl || !b2cShortCode || !initiatorName || !securityCredential) {
+    return { error: 'Missing M-Pesa B2C configuration' };
+  }
   if (!amount || amount <= 0) {
-    throw new Error('Invalid amount');
+    return { error: 'Invalid amount' };
   }
-  if (!phoneNumber.match(/^2547\d{8}$/)) {
-    throw new Error('Invalid phone number format');
+  if (!/^2547\d{8}$/.test(phoneNumber)) {
+    return { error: 'Invalid phone number format' };
   }
   if (!queueTimeoutUrl || !resultUrl) {
-    throw new Error('Missing webhook URLs');
+    return { error: 'Missing webhook URLs' };
   }
 
-  console.log(`this is consumer key and secret`, consumerKey, consumerSecret);
   const accessToken = await getMpesaAccessToken(consumerKey, consumerSecret);
-
-  console.log(`this is the access token`, accessToken);
-
   if (!accessToken) {
-    throw new Error('Failed to fetch M-Pesa access token');
+    return { error: 'Failed to fetch M-Pesa access token' };
   }
 
   const payload = {
@@ -64,87 +62,55 @@ const initiateB2CPayment = async ({
     Occasion: 'LoanDisbursement',
   };
 
-  console.log(`this is the payload ${JSON.stringify(payload)}`);
-  console.log(`this is the b2cUrl ${b2cUrl}`);
-
-
-try {
-  console.time('mpesaB2CQuery');
-  const response = await axios.post(b2cUrl, payload, {
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      'Content-Type': 'application/json',
-    },
-    timeout: 30000,
-  });
-  console.log('Full M-Pesa B2C response:', JSON.stringify(response.data, null, 2));
-  console.timeEnd('mpesaB2CQuery');
-  return response.data;
-} catch (error) {
-  console.error('Error initiating B2C payment:', {
-    message: error.message,
-    response: error.response?.data,
-    status: error.response?.status,
-    headers: error.response?.headers,
-  });
-  throw new Error('Failed to initiate B2C payment');
-}
-
+  try {
+    console.time('mpesaB2CQuery');
+    const { data } = await axios.post(b2cUrl, payload, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+      timeout: 30000,
+    });
+    console.timeEnd('mpesaB2CQuery');
+    return data;
+  } catch (err) {
+    return err.response?.data || { error: err.message };
+  }
 };
 
+/**
+ * Disburses a loan via B2C payment, updates loan record, and returns a unified result object.
+ */
 const disburseB2CPayment = async ({ phoneNumber, amount, loanId, userId, tenantId }) => {
-  if (!amount || amount <= 0) {
-    throw new Error('Invalid amount');
-  }
-  if (!phoneNumber.match(/^2547\d{8}$/)) {
-    throw new Error('Invalid phone number format');
-  }
-  if (!loanId || !userId || !tenantId) {
-    throw new Error('Missing loanId, userId, or tenantId');
-  }
-
-  console.log(`this is the tenantId`, tenantId);
-
-  // Fetch tenant-specific M-Pesa configuration
-  console.time('getTenantSettingsQuery');
-  const settingsResponse = await getTenantSettings(tenantId);
-  
- console.log(`this is the settingsResponse`, settingsResponse);
-
-  if (!settingsResponse.success) {
-    throw new Error(settingsResponse.message || 'Failed to fetch tenant M-Pesa settings');
-  }
-
-  const mpesaConfig = settingsResponse.mpesaConfig;
-
-  const resultUrl = `${process.env.APP_BASE_URL}/lend/b2c-result`;
-  const queueTimeoutUrl = `${process.env.APP_BASE_URL}/lend/b2c-timeout`;
-
-  console.time('mpesaPayment');
-  const mpesaResponse = await initiateB2CPayment({
-    amount,
-    phoneNumber,
-    queueTimeoutUrl,
-    resultUrl,
-    b2cShortCode: mpesaConfig.b2cShortCode,
-    initiatorName: mpesaConfig.initiatorName,
-    securityCredential: mpesaConfig.securityCredential,
-    consumerKey: mpesaConfig.consumerKey,
-    consumerSecret: mpesaConfig.consumerSecret,
-    remarks: `Loan ${loanId} disbursement`,
-  });
-  console.timeEnd('mpesaPayment');
-
-  console.log('M-Pesa B2C response:', JSON.stringify(mpesaResponse, null, 2));
-
-  const transactionId = mpesaResponse.TransactionID || mpesaResponse.ConversationID || mpesaResponse.OriginatorConversationID;
-  const isSuccess = mpesaResponse.ResponseCode === '0';
-
+  const result = { success: false, loan: null, mpesaResponse: null, error: null };
   try {
-    // Update loan immediately
-    console.time('loanDisburseUpdateQuery');
+    if (!amount || amount <= 0) throw new Error('Invalid amount');
+    if (!/^2547\d{8}$/.test(phoneNumber)) throw new Error('Invalid phone number format');
+    if (!loanId || !userId || !tenantId) throw new Error('Missing identifiers');
+
+    const settings = await getTenantSettings(tenantId);
+    if (!settings.success) throw new Error(settings.message || 'Failed to fetch M-Pesa config');
+
+    const { mpesaConfig } = settings;
+    const resultUrl = `${process.env.APP_BASE_URL}/lend/b2c-result`;
+    const queueTimeoutUrl = `${process.env.APP_BASE_URL}/lend/b2c-timeout`;
+
+    const mpesaResponse = await initiateB2CPayment({
+      amount,
+      phoneNumber,
+      queueTimeoutUrl,
+      resultUrl,
+      b2cShortCode: mpesaConfig.b2cShortCode,
+      initiatorName: mpesaConfig.initiatorName,
+      securityCredential: mpesaConfig.securityCredential,
+      consumerKey: mpesaConfig.consumerKey,
+      consumerSecret: mpesaConfig.consumerSecret,
+      remarks: `Loan ${loanId} disbursement`,
+    });
+    result.mpesaResponse = mpesaResponse;
+
+    const transactionId = mpesaResponse.TransactionID || mpesaResponse.ConversationID || '';
+    const isSuccess = mpesaResponse.ResponseCode === '0';
+
     const updatedLoan = await prisma.loan.update({
-      where: { id: parseInt(loanId) },
+      where: { id: parseInt(loanId, 10) },
       data: {
         disbursedAt: new Date(),
         mpesaTransactionId: transactionId,
@@ -152,41 +118,25 @@ const disburseB2CPayment = async ({ phoneNumber, amount, loanId, userId, tenantI
         status: isSuccess ? 'DISBURSED' : 'APPROVED',
       },
     });
-    console.timeEnd('loanDisburseUpdateQuery');
+    result.loan = updatedLoan;
+    result.success = isSuccess;
 
-    // Log the disbursement
-    console.time('auditLogDisburseQuery');
     await prisma.auditLog.create({
       data: {
         tenant: { connect: { id: tenantId } },
         user: { connect: { id: userId } },
         action: isSuccess ? 'DISBURSE' : 'DISBURSE_ERROR',
         resource: 'LOAN',
-        details: {
-          loanId,
-          amount,
-          phoneNumber,
-          mpesaTransactionId: transactionId,
-          mpesaResponse,
-          message: isSuccess
-            ? `Loan ${loanId} disbursed to ${phoneNumber}`
-            : `Failed to disburse loan ${loanId}: ${mpesaResponse.ResponseDescription || 'Unknown error'}`,
-        },
+        details: { loanId, phoneNumber, transactionId, mpesaResponse },
       },
     });
-    console.timeEnd('auditLogDisburseQuery');
-
-    return { loan: updatedLoan, mpesaResponse };
-  } catch (error) {
-    console.error('Error updating loan after disbursement:', error);
-    throw new Error('Failed to update loan after disbursement');
+  } catch (err) {
+    result.error = err.message;
   } finally {
     await prisma.$disconnect();
   }
+  return result;
 };
 
-
-
-
-
 module.exports = { initiateB2CPayment, disburseB2CPayment };
+
