@@ -3,11 +3,14 @@ const router = express.Router();
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 const  {settleInvoice}  = require('../../controller/mpesa/paymentSettlement.js');
-const { handleB2CResult, handleB2CTimeout } = require('../../controller/mpesa/results.js');
+const { handleB2CResult, handleB2CTimeout, handleAccountBalanceResult, handleAccountBalanceTimeout } = require('../../controller/mpesa/results.js');
 
 
 router.post('/b2c-result', handleB2CResult);
 router.post('/b2c-timeout', handleB2CTimeout);
+
+router.post('/lend/accountbalance-result', handleAccountBalanceResult);
+router.post('/lend/accountbalance-timeout', handleAccountBalanceTimeout);
 // Route to handle M-Pesa callback notifications
 router.post('/callback', async (req, res) => {
   const paymentData = req.body; // M-Pesa sends the payment details in the body
