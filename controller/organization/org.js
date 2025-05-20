@@ -337,7 +337,36 @@ const getOrganizations = async (req, res) => {
 
 
 
+const getOrganizationById = async (req, res, next) => {
+  try {
+    const orgId = parseInt(req.params.orgId, 10);
+    if (isNaN(orgId)) {
+      return res.status(400).json({ error: 'Invalid organization ID' });
+    }
 
+    const { tenantId } = req.user;   // set by your verifyToken middleware
+
+    const organization = await prisma.organization.findFirst({
+      where: { id: orgId, tenantId },
+      include: {
+        tenant: true,
+        users: true,
+        loans: true,
+        repayments: true,
+        Employee: true,
+        PaymentBatch: true,
+      },
+    });
+
+    if (!organization) {
+      return res.status(404).json({ error: 'Organization not found' });
+    }
+
+    res.json(organization);
+  } catch (err) {
+    next(err);
+  }
+};
 
 
 
@@ -404,5 +433,5 @@ module.exports = {
   updateBorrowerOrganization,
   deleteBorrowerOrganization,
 
-  getOrganizations,getOrganizationAdmins,searchOrganizations
+  getOrganizations,getOrganizationAdmins,searchOrganizations,getOrganizationById
 };

@@ -4,15 +4,35 @@ const prisma = new PrismaClient();
 const axios = require('axios');
 const { getMpesaAccessToken } = require('./token');
 const { getTenantSettings } = require('./mpesaConfig');
+
+const { v4: uuidv4 } = require('uuid');
 require('dotenv').config();
 
 
 
 
+/**
+ * Normalize Kenyan phone numbers to E.164 without '+'
+ * Ensures format: 2547XXXXXXXX
+ */
+function sanitizePhoneNumber(phone) {
+  let p = phone.trim().replace(/\D/g, '');
+  if (p.startsWith('0')) {
+    p = '254' + p.slice(1);
+  } else if (p.startsWith('7')) {
+    p = '254' + p;
+  } else if (!p.startsWith('254')) {
+    p = '254' + p;
+  }
+  else if (p.startsWith('+')) {
+    p = p.slice(1);
+  }
+  return p;
+}
 
 /**
  * Initiates a B2C payment, returning the raw M-Pesa response object.
- * Does not throw for M-Pesa errors; always returns data or error structure.
+ * Requires OriginatorConversationID to correlate callbacks.
  */
 const initiateB2CPayment = async ({
   amount,
@@ -25,18 +45,14 @@ const initiateB2CPayment = async ({
   consumerKey,
   consumerSecret,
   remarks = 'Loan Disbursement',
+  originatorConversationID = uuidv4(),
 }) => {
   const b2cUrl = process.env.MPESA_B2C_URL;
-
-
   if (!b2cUrl || !b2cShortCode || !initiatorName || !securityCredential) {
     return { error: 'Missing M-Pesa B2C configuration' };
   }
   if (!amount || amount <= 0) {
     return { error: 'Invalid amount' };
-  }
-  if (!/^2547\d{8}$/.test(phoneNumber)) {
-    return { error: 'Invalid phone number format' };
   }
   if (!queueTimeoutUrl || !resultUrl) {
     return { error: 'Missing webhook URLs' };
@@ -48,6 +64,7 @@ const initiateB2CPayment = async ({
   }
 
   const payload = {
+    OriginatorConversationID: originatorConversationID,
     InitiatorName: initiatorName,
     SecurityCredential: securityCredential,
     CommandID: 'BusinessPayment',
@@ -60,6 +77,7 @@ const initiateB2CPayment = async ({
     Occasion: 'LoanDisbursement',
   };
 
+  console.log(`Initiating B2C call. OriginatorConversationID: ${originatorConversationID}`);
   try {
     console.time('mpesaB2CQuery');
     const { data } = await axios.post(b2cUrl, payload, {
@@ -67,21 +85,27 @@ const initiateB2CPayment = async ({
       timeout: 30000,
     });
     console.timeEnd('mpesaB2CQuery');
-    return data;
+    return { ...data, OriginatorConversationID: originatorConversationID };
   } catch (err) {
-    return err.response?.data || { error: err.message };
+    return { ...(err.response?.data || { error: err.message }), OriginatorConversationID: originatorConversationID };
   }
 };
 
 /**
  * Disburses a loan via B2C payment, updates loan record, and returns a unified result object.
+ * Sanitizes phone numbers to ensure correct format.
  */
 const disburseB2CPayment = async ({ phoneNumber, amount, loanId, userId, tenantId }) => {
   const result = { success: false, loan: null, mpesaResponse: null, error: null };
   try {
     if (!amount || amount <= 0) throw new Error('Invalid amount');
-    if (!/^2547\d{8}$/.test(phoneNumber)) throw new Error('Invalid phone number format');
     if (!loanId || !userId || !tenantId) throw new Error('Missing identifiers');
+
+    // Sanitize phone
+    const sanitizedPhone = sanitizePhoneNumber(phoneNumber);
+    if (!/^2547\d{8}$/.test(sanitizedPhone)) {
+      throw new Error('Invalid phone number format after sanitization');
+    }
 
     const settings = await getTenantSettings(tenantId);
     if (!settings.success) throw new Error(settings.message || 'Failed to fetch M-Pesa config');
@@ -92,7 +116,7 @@ const disburseB2CPayment = async ({ phoneNumber, amount, loanId, userId, tenantI
 
     const mpesaResponse = await initiateB2CPayment({
       amount,
-      phoneNumber,
+      phoneNumber: sanitizedPhone,
       queueTimeoutUrl,
       resultUrl,
       b2cShortCode: mpesaConfig.b2cShortCode,
@@ -125,7 +149,7 @@ const disburseB2CPayment = async ({ phoneNumber, amount, loanId, userId, tenantI
         user: { connect: { id: userId } },
         action: isSuccess ? 'DISBURSE' : 'DISBURSE_ERROR',
         resource: 'LOAN',
-        details: { loanId, phoneNumber, transactionId, mpesaResponse },
+        details: { loanId, phoneNumber: sanitizedPhone, transactionId, mpesaResponse },
       },
     });
   } catch (err) {
@@ -137,4 +161,3 @@ const disburseB2CPayment = async ({ phoneNumber, amount, loanId, userId, tenantI
 };
 
 module.exports = { initiateB2CPayment, disburseB2CPayment };
-
