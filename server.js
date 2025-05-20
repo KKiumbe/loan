@@ -108,7 +108,7 @@ app.get('/api/test', (req, res) => {
  app.use('/api',employeeRoute);
  app.use('/api', loanRoutes);
 // app.use('/api', invoiceRoutes);
-app.use('/lend', mpesaRoute);
+app.use('/api', mpesaRoute);
 
 app.use('/api', SMSRoute); //done
 // app.use('/api', collectionRoute);
