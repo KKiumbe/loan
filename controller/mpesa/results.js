@@ -65,6 +65,10 @@ const handleB2CResult = async (req, res) => {
     // Optionally fetch account balance after disbursement
     try {
       const settingsRes = await getTenantSettings(loan.tenantId);
+
+      console.log(`this us tenant settings ${JSON.stringify(settingsRes)}`);
+
+
       if (settingsRes.success) {
         const cfg = settingsRes.mpesaConfig;
         const accessToken = await getMpesaAccessToken(cfg.consumerKey, cfg.consumerSecret);
