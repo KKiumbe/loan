@@ -43,7 +43,7 @@ const createBorrowerOrganization = async (req, res) => {
         tenantId,
         approvalSteps: approvalSteps || 1,
         loanLimitMultiplier: loanLimitMultiplier || 1.0,
-        interestRate: interestRate !== undefined ? interestRate : 0.1, // Default to 10%
+        interestRate: interestRate/100 !== undefined ? interestRate : 0.1, // Default to 10%
       },
     });
 

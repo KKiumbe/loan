@@ -25,7 +25,7 @@ const handleB2CResult = async (req, res) => {
     console.time('loanResultQuery');
     const loan = await prisma.loan.findFirst({
       where: { mpesaTransactionId: transactionId },
-      select: { id: true, tenantId: true },
+      select: { id: true, tenantId: true, userId: true },
     });
     console.timeEnd('loanResultQuery');
 
@@ -47,6 +47,7 @@ const handleB2CResult = async (req, res) => {
     await prisma.auditLog.create({
       data: {
         tenant: { connect: { id: loan.tenantId } },
+        user: { connect: { id: loan.userId } },
         action: 'MPESA_B2C_RESULT',
         resource: 'LOAN',
         details: {
