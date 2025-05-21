@@ -23,147 +23,95 @@ const calculateLoanDetails = (amount, interestRate) => {
 
 
 // Updated createLoan function
+
+
 const createLoan = async (req, res) => {
   const { amount } = req.body;
   const user = req.user;
 
-  console.log(`user: ${JSON.stringify(user, null, 2)}`);
-
-  if (!user || !user.id || !user.tenantId) {
-    return res.status(401).json({
-      message: 'Unauthorized: User not authenticated or missing required fields',
-      userDetails: user,
-    });
+  // 1. Auth & basic checks
+  if (!user?.id || !user?.tenantId) {
+    return res.status(401).json({ message: 'Unauthorized' });
   }
   if (!user.role.includes('EMPLOYEE')) {
     return res.status(403).json({ message: 'Only employees can apply for loans' });
   }
-
   if (!amount || amount <= 0) {
     return res.status(400).json({ message: 'Valid loan amount is required' });
   }
 
-  try {
-    console.time('existingLoansQuery');
-    const existingLoans = await prisma.loan.findMany({
-      where: {
-        userId: user.id,
-        tenantId: user.tenantId,
-        status: { in: ['PENDING', 'APPROVED'] },
-      },
-      select: { id: true, status: true },
-    });
-    console.timeEnd('existingLoansQuery');
-
-    if (existingLoans.length > 0) {
-      return res.status(400).json({
-        message: 'Cannot apply for a new loan. You have pending or approved loans.',
-        existingLoans,
-      });
-    }
-
-    console.time('employeeQuery');
-    const employee = await prisma.employee.findFirst({
-      where: { id: user.employeeId, tenantId: user.tenantId },
-      select: {
-        id: true,
-        grossSalary: true,
-        organization: {
-          select: {
-            id: true,
-            interestRate: true,
-            loanLimitMultiplier: true,
-          },
-        },
-      },
-    });
-    console.timeEnd('employeeQuery');
-
-    console.log(`employee: ${JSON.stringify(employee, null, 2)}`);
-
-    if (!employee) {
-      return res.status(404).json({ message: 'Employee not found' });
-    }
-    if (!employee.organization) {
-      return res.status(404).json({ message: 'Organization not found for employee' });
-    }
-
-    const interestRate = employee.organization.interestRate;
-    if (!interestRate || isNaN(interestRate)) {
-      return res.status(500).json({ message: 'Organization interest rate is invalid' });
-    }
-
-    const maxLoanAmount = employee.grossSalary * employee.organization.loanLimitMultiplier;
-    if (amount > maxLoanAmount) {
-      return res.status(400).json({ message: `Loan amount exceeds limit of ${maxLoanAmount}` });
-    }
-
-    const { dueDate, totalRepayable } = calculateLoanDetails(amount, interestRate);
-
-    console.time('loanCreateQuery');
-    const newLoan = await prisma.loan.create({
-      data: {
-        user: { connect: { id: user.id } },
-        organization: { connect: { id: employee.organization.id } },
-        tenant: { connect: { id: user.tenantId } },
-        amount,
-        interestRate,
-        dueDate,
-        totalRepayable,
-        status: 'PENDING',
-        approvalCount: 0,
-      },
-      select: {
-        id: true,
-        userId: true,
-        organizationId: true,
-        tenantId: true,
-        amount: true,
-        interestRate: true,
-        dueDate: true,
-        totalRepayable: true,
-        status: true,
-        createdAt: true,
-      },
-    });
-    console.timeEnd('loanCreateQuery');
-
-    console.time('auditLogQuery');
-    await prisma.auditLog.create({
-      data: {
-        tenant: { connect: { id: user.tenantId } },
-        user: { connect: { id: user.id } },
-        action: 'CREATE',
-        resource: 'LOAN',
-        details: JSON.stringify({
-          message: `User ${user.firstName} ${user.lastName} applied for loan of ${amount}`,
-          loanId: newLoan.id,
-          amount,
-        }),
-      },
-    });
-    console.timeEnd('auditLogQuery');
-
-    // Send SMS notification
-    const tenant = await prisma.tenant.findUnique({
-      where: { id: user.tenantId },
-      select: { name: true },
-    });
-    const welcomeMessage = `Dear ${user.firstName}, your loan application for KES ${amount} at ${tenant.name} is being processed. We'll notify you once reviewed.`;
-    await sendSMS(user.tenantId, user.phoneNumber, welcomeMessage).catch((error) => {
-      console.error(`Failed to send SMS to ${user.phoneNumber}:`, error.message);
-      // Continue even if SMS fails
-    });
-
-    console.log(`Loan created: loanId ${newLoan.id}`);
-    return res.status(201).json({ message: 'Loan application submitted', loan: newLoan });
-  } catch (error) {
-    console.error('Error creating loan:', error);
-    return res.status(500).json({ message: 'Internal server error', error: error.message });
-  } finally {
-    await prisma.$disconnect();
+  // 2. Load employee & org to compute absolute max
+  const employee = await prisma.employee.findUnique({
+    where: { id: user.employeeId },
+    include: { organization: true },
+  });
+  if (!employee) {
+    return res.status(404).json({ message: 'Employee record not found' });
   }
+  const maxLoanAmount = employee.grossSalary * employee.organization.loanLimitMultiplier;
+
+  // 3. Bound to current month
+  const now = new Date();
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+  const monthEnd   = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+
+  // 4. Sum up all loans this month (pending or approved)
+  const { _sum } = await prisma.loan.aggregate({
+    _sum: { amount: true },
+    where: {
+      userId: user.id,
+      tenantId: user.tenantId,
+      status: { in: ['PENDING', 'APPROVED'] },
+      createdAt: {
+        gte: monthStart,
+        lt: monthEnd,
+      },
+    },
+  });
+  const takenSoFar = _sum.amount ?? 0;
+
+  // 5. Enforce remaining capacity
+  if (takenSoFar + amount > maxLoanAmount) {
+    return res.status(400).json({
+      message: `Loan would exceed your monthly limit of KES ${maxLoanAmount}. You’ve already taken KES ${takenSoFar} this month.`,
+      takenSoFar,
+      maxLoanAmount,
+    });
+  }
+
+  // 6. All good — create the new loan
+  const { dueDate, totalRepayable } = calculateLoanDetails(amount, employee.organization.interestRate);
+  const newLoan = await prisma.loan.create({
+    data: {
+      user: { connect: { id: user.id } },
+      organization: { connect: { id: employee.organization.id } },
+      tenant: { connect: { id: user.tenantId } },
+      amount,
+      interestRate: employee.organization.interestRate,
+      dueDate,
+      totalRepayable,
+      status: 'PENDING',
+      approvalCount: 0,
+    },
+  });
+
+  // 7. Audit log & SMS (as before)…
+  await prisma.auditLog.create({
+    data: {
+      tenant: { connect: { id: user.tenantId } },
+      user: { connect: { id: user.id } },
+      action: 'CREATE',
+      resource: 'LOAN',
+      details: JSON.stringify({ loanId: newLoan.id, amount }),
+    },
+  });
+  const tenant = await prisma.tenant.findUnique({ where: { id: user.tenantId }, select: { name: true } });
+  const msg = `Dear ${user.firstName}, your KES ${amount} loan at ${tenant.name} is pending.`;
+  sendSMS(user.tenantId, user.phoneNumber, msg).catch(console.error);
+
+  return res.status(201).json({ message: 'Loan application submitted', loan: newLoan });
 };
+
 
 
 // Get loans (scoped by role)

@@ -10,7 +10,7 @@ const router = express.Router();
 
 
 // Create organization admin (Admin only)
-router.post('/create-loan', verifyToken, checkAccess('loan', 'create'), createLoan);
+router.post('/create-loan', verifyToken,  createLoan);
 //get pending loan requests
 router.get('/pending-loans', verifyToken, checkAccess('loan', 'read'), getPendingLoanRequests);
 
