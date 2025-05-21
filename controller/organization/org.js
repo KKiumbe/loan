@@ -387,7 +387,7 @@ const sendSMS = async (phoneNumber, message) => {
 
 const getOrganizationAdmins = async (req, res) => {
   try {
-    const tenantId = req.user?.tenantId;
+    const {tenantId} = req.user;
 
     if (!tenantId) {
       return res.status(400).json({ message: 'Tenant ID required' });

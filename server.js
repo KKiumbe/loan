@@ -114,7 +114,7 @@ app.use('/api', SMSRoute); //done
 // app.use('/api', collectionRoute);
 // app.use('/api', receiptRoute);
 app.use('/api', paymentRoute);
-// app.use('/api', statsRoute); //done
+app.use('/api', statsRoute); //done
 
 // app.use('/api', uploadcustomers); 
  
