@@ -22,18 +22,13 @@ const calculateLoanDetails = (amount, interestRate) => {
 
 
 
-// Updated createLoan function
 
-
-// controllers/loan.js
-
-
-
+ 
 const createLoan = async (req, res) => {
   const { amount } = req.body;
   const user = req.user;
 
-  // 1. Auth & basic checks
+  // 1. Basic auth & validation
   if (!user?.id || !user?.tenantId) {
     return res.status(401).json({ message: 'Unauthorized' });
   }
@@ -44,96 +39,88 @@ const createLoan = async (req, res) => {
     return res.status(400).json({ message: 'Valid loan amount is required' });
   }
 
-  // 2. Guard missing employeeId
-  if (!user.employeeId) {
-    return res.status(400).json({ message: 'Your account is not linked to an employee record' });
+  // 2. Load user with employee relation
+  const fullUser = await prisma.user.findUnique({
+    where: { id: user.id },
+    include: { employee: { include: { organization: true } } },
+  });
+  if (!fullUser?.employee) {
+    return res.status(400).json({ message: 'Account not linked to employee' });
+  }
+  const employee = fullUser.employee;
+  const org = employee.organization;
+  if (!org) {
+    return res.status(500).json({ message: 'Employee has no organization' });
   }
 
-  try {
-    // 3. Load Employee by the unique employeeId
-    const employee = await prisma.employee.findUnique({
-      where: { id: user.employeeId },
-      include: { organization: true },
+  // 3. Compute monthly limit
+  const monthlyCap = employee.grossSalary * org.loanLimitMultiplier;
+
+  // 4. Date bounds for this month
+  const now = new Date();
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+  const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+
+  // 5. Sum existing PENDING/APPROVED loans this month
+  const agg = await prisma.loan.aggregate({
+    _sum: { amount: true },
+    where: {
+      userId: user.id,
+      tenantId: user.tenantId,
+      status: { in: ['PENDING', 'APPROVED'] },
+      createdAt: { gte: monthStart, lt: monthEnd },
+    },
+  });
+  const takenSoFar = agg._sum.amount ?? 0;
+
+  // 6. Enforce cap
+  if (takenSoFar + amount > monthlyCap) {
+    return res.status(400).json({
+      message: `Cap exceeded. Borrowed KES ${takenSoFar} of KES ${monthlyCap}.`,
+      takenSoFar,
+      monthlyCap,
     });
-    if (!employee) {
-      return res.status(404).json({ message: 'Employee record not found' });
-    }
+  }
 
-    // 4. Compute absolute monthly cap
-    const monthlyCap = employee.grossSalary * employee.organization.loanLimitMultiplier;
-
-    // 5. Compute current calendar month bounds
-    const now = new Date();
-    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-    const monthEnd   = new Date(now.getFullYear(), now.getMonth() + 1, 1);
-
-    // 6. Sum PENDING/APPROVED loans this month
-    const agg = await prisma.loan.aggregate({
-      _sum: { amount: true },
-      where: {
-        userId: user.id,
-        tenantId: user.tenantId,
-        status: { in: ['PENDING', 'APPROVED'] },
-        createdAt: { gte: monthStart, lt: monthEnd },
-      },
-    });
-    const takenSoFar = agg._sum.amount ?? 0;
-
-    // 7. Enforce monthly cap
-    if (takenSoFar + amount > monthlyCap) {
-      return res.status(400).json({
-        message: `Monthly cap exceeded. You’ve borrowed KES ${takenSoFar} of KES ${monthlyCap}.`,
-        takenSoFar,
-        monthlyCap,
-      });
-    }
-
-    // 8. Create the loan
-    const { dueDate, totalRepayable } = calculateLoanDetails(
+  // 7. Create loan
+  const { dueDate, totalRepayable } = calculateLoanDetails(
+    amount,
+    org.interestRate
+  );
+  const newLoan = await prisma.loan.create({
+    data: {
+      user: { connect: { id: user.id } },
+      organization: { connect: { id: org.id } },
+      tenant: { connect: { id: user.tenantId } },
       amount,
-      employee.organization.interestRate
-    );
-    const newLoan = await prisma.loan.create({
-      data: {
-        user: { connect: { id: user.id } },
-        organization: { connect: { id: employee.organization.id } },
-        tenant: { connect: { id: user.tenantId } },
-        amount,
-        interestRate: employee.organization.interestRate,
-        dueDate,
-        totalRepayable,
-        status: 'PENDING',
-        approvalCount: 0,
-      },
-    });
+      interestRate: org.interestRate,
+      dueDate,
+      totalRepayable,
+      status: 'PENDING',
+      approvalCount: 0,
+    },
+  });
 
-    // 9. Audit log + SMS
-    await prisma.auditLog.create({
-      data: {
-        tenant: { connect: { id: user.tenantId } },
-        user:   { connect: { id: user.id } },
-        action: 'CREATE',
-        resource:'LOAN',
-        details: JSON.stringify({ loanId: newLoan.id, amount }),
-      },
-    });
-    const tenant = await prisma.tenant.findUnique({
-      where: { id: user.tenantId },
-      select: { name: true },
-    });
-    const smsMsg = `Dear ${user.firstName}, your KES ${amount} loan at ${tenant?.name} is pending.`;
-    sendSMS(user.tenantId, user.phoneNumber, smsMsg).catch(console.error);
+  // 8. Audit log
+  await prisma.auditLog.create({
+    data: {
+      tenant: { connect: { id: user.tenantId } },
+      user: { connect: { id: user.id } },
+      action: 'CREATE',
+      resource: 'LOAN',
+      details: JSON.stringify({ loanId: newLoan.id, amount }),
+    },
+  });
 
-    return res.status(201).json({
-      message: 'Loan application submitted',
-      loan: newLoan,
-    });
-  } catch (error) {
-    console.error('Error creating loan:', error);
-    return res.status(500).json({ message: 'Internal server error' });
-  } finally {
-    await prisma.$disconnect();
-  }
+  // 9. SMS notification
+  const tenant = await prisma.tenant.findUnique({
+    where: { id: user.tenantId },
+    select: { name: true },
+  });
+  const msg = `Dear ${user.firstName}, your KES ${amount} loan at ${tenant?.name} is pending.`;
+  sendSMS(user.tenantId, user.phoneNumber, msg).catch(console.error);
+
+  res.status(201).json({ message: 'Loan application submitted', loan: newLoan });
 };
 
 
