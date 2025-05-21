@@ -9,8 +9,8 @@ const { handleB2CResult, handleB2CTimeout, handleAccountBalanceResult, handleAcc
 router.post('/b2c-result', handleB2CResult);
 router.post('/b2c-timeout', handleB2CTimeout);
 
-router.post('/lend/accountbalance-result', handleAccountBalanceResult);
-router.post('/lend/accountbalance-timeout', handleAccountBalanceTimeout);
+router.post('/accountbalance-result', handleAccountBalanceResult);
+router.post('/accountbalance-timeout', handleAccountBalanceTimeout);
 // Route to handle M-Pesa callback notifications
 router.post('/callback', async (req, res) => {
   const paymentData = req.body; // M-Pesa sends the payment details in the body

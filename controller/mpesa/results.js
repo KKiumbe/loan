@@ -74,8 +74,8 @@ const handleB2CResult = async (req, res) => {
           PartyA: cfg.b2cShortCode,
           IdentifierType: '4',
           Remarks: 'Post-disbursement balance check',
-          QueueTimeOutURL: `${process.env.APP_BASE_URL}/lend/accountbalance-timeout`,
-          ResultURL: `${process.env.APP_BASE_URL}/lend/accountbalance-result`,
+          QueueTimeOutURL: `${process.env.APP_BASE_URL}/api/accountbalance-timeout`,
+          ResultURL: `${process.env.APP_BASE_URL}/api/accountbalance-result`,
         };
         console.log('Sending AccountBalance request:', balancePayload);
         const balRes = await axios.post(

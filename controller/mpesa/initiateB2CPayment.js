@@ -111,8 +111,8 @@ const disburseB2CPayment = async ({ phoneNumber, amount, loanId, userId, tenantI
     if (!settings.success) throw new Error(settings.message || 'Failed to fetch M-Pesa config');
 
     const { mpesaConfig } = settings;
-    const resultUrl = `${process.env.APP_BASE_URL}/lend/b2c-result`;
-    const queueTimeoutUrl = `${process.env.APP_BASE_URL}/lend/b2c-timeout`;
+    const resultUrl = `${process.env.APP_BASE_URL}/api/b2c-result`;
+    const queueTimeoutUrl = `${process.env.APP_BASE_URL}/api/b2c-timeout`;
 
     const mpesaResponse = await initiateB2CPayment({
       amount,
