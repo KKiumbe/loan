@@ -4,10 +4,44 @@ const ROLE_PERMISSIONS = require("./../../DatabaseConfig/role.js");
 const bcrypt = require('bcrypt');
 const prisma = new PrismaClient();
 
-/**
- * Get all users
- */
 
+
+const getCurrentUser = async (req, res) => {
+  try {
+    const userId = req.user.id;              // set in verifyToken
+    const loggedUSer = await prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+        email: true,
+        phoneNumber: true,
+        email: true,
+        gender: true,
+        county: true,
+        town: true,
+        role: true,
+        status: true,
+        createdAt: true,
+        updatedAt: true,
+        lastLogin: true,
+        loginCount: true,
+
+       
+      },
+    });
+
+    if (!loggedUSer) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    res.json(loggedUSer);
+  } catch (error) {
+    console.error('Error fetching current user:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
 
 
 
@@ -438,5 +472,6 @@ module.exports = {
   updateUserDetails,
 
   fetchUser,
-  removeRoles
+  removeRoles,
+  getCurrentUser
 };
