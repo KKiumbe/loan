@@ -914,6 +914,48 @@ const getLoansGroupedByStatus = async (req, res) => {
 };
 
 
+const getUserLoans = async (req, res) => {
+  try {
+    const userId = req.user.id;           // set by verifyToken middleware
+    // fetch all loans for this user, most recent first
+    const loans = await prisma.loan.findMany({
+      where: { userId },
+      orderBy: { createdAt: 'desc' }
+    });
+
+    // group them
+    const pending   = [];
+    const disbursed = [];
+    const rejected  = [];
+
+    for (const loan of loans) {
+      switch (loan.status) {
+        case LoanStatus.PENDING:
+        case LoanStatus.APPROVED: // if you want to show APPROVED in pending bucket, adjust as needed
+          pending.push(loan);
+          break;
+        case LoanStatus.DISBURSED:
+          disbursed.push(loan);
+          break;
+        case LoanStatus.REJECTED:
+          rejected.push(loan);
+          break;
+        default:
+          // ignore or handle other statuses (REPAID, etc.)
+          break;
+      }
+    }
+
+    return res.json({
+      pending,
+      disbursed,
+      rejected
+    });
+  } catch (error) {
+    console.error('Error fetching user loans:', error);
+    return res.status(500).json({ error: 'Could not retrieve loans' });
+  }
+};
 
 
 
@@ -922,7 +964,10 @@ const getLoansGroupedByStatus = async (req, res) => {
 
 
 
-module.exports = { createLoan, getLoans, getLoanById, approveLoan, rejectLoan, disburseLoan, createRepayment,getPendingLoanRequests ,getLoansGroupedByStatus};
+
+
+
+module.exports = { createLoan, getLoans, getLoanById, approveLoan, rejectLoan, disburseLoan, createRepayment,getPendingLoanRequests ,getLoansGroupedByStatus,getUserLoans};
 
 
 

@@ -2,7 +2,7 @@
 
 const express = require('express');
 const verifyToken = require('../../middleware/verifyToken.js');
-const { getLoansGroupedByStatus, getPendingLoanRequests, createLoan, getLoanById, approveLoan } = require('../../controller/loan/loan.js');
+const { getLoansGroupedByStatus, getPendingLoanRequests, createLoan, getLoanById, approveLoan, getUserLoans } = require('../../controller/loan/loan.js');
 const checkAccess = require('../../middleware/roleVerify.js');
 
 
@@ -10,7 +10,9 @@ const router = express.Router();
 
 
 // Create organization admin (Admin only)
-router.post('/create-loan', verifyToken,  createLoan);
+router.post('/create-loan', verifyToken, checkAccess('loan', 'create'), createLoan);
+
+router.get('/user-loans', verifyToken, getUserLoans);
 //get pending loan requests
 router.get('/pending-loans', verifyToken, checkAccess('loan', 'read'), getPendingLoanRequests);
 
