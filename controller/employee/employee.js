@@ -463,11 +463,63 @@ const deleteEmployee = async (req, res) => {
   }
 };
 
+
+
+const getUserDetailsById = async (req, res) => {
+  try {
+    const userId = parseInt(req.params.userId, 10);
+    const tenantId = req.user.tenantId;
+
+    // Fetch user by userId
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      include: {
+        tenant: true,
+        organization: true,
+        employee: {
+          select: {
+            id: true,
+            phoneNumber: true,
+            idNumber: true,
+            grossSalary: true,
+            jobId: true,
+            secondaryPhoneNumber: true,
+            createdAt: true,
+            updatedAt: true,
+          },
+        },
+        loans: {
+          include: {
+            organization: { select: { id: true, name: true } },
+          },
+          orderBy: { createdAt: 'desc' },
+        },
+      },
+    });
+
+    // Validate existence and tenant
+    if (!user || user.tenantId !== tenantId) {
+      return res.status(404).json({ error: 'User not found or access denied' });
+    }
+
+    res.json(user);
+  } catch (error) {
+    console.error('Error fetching user by ID:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+}
+
+
+
+
+
+
 module.exports = {
   createEmployee,
   getEmployeeUsers,
   updateEmployee,
   deleteEmployee,
-   searchEmployeeByName,
+  searchEmployeeByName,
   searchEmployeeByPhone,
+ getUserDetailsById
 };

@@ -438,6 +438,11 @@ const fetchUser = async (req, res) => {
         county: true,
         town: true,
         role: true,
+        organizationId: true,
+        organization: true,
+        employeeId: true,
+        employee: true,
+        loans: true,
        
         status: true,
         createdAt: true,

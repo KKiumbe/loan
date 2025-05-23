@@ -8,11 +8,10 @@ const prisma = new PrismaClient();
 
 
 
-// Create a new borrower organization
 const createBorrowerOrganization = async (req, res) => {
   const { name, approvalSteps, loanLimitMultiplier, interestRate } = req.body;
   const { tenantId, id: userId } = req.user;
-  console.log('req.user =', req.user); // Add this before destructuring
+  console.log('req.user =', req.user); // Debugging user info
 
   // Validate inputs
   if (!name) {
@@ -36,6 +35,9 @@ const createBorrowerOrganization = async (req, res) => {
       return res.status(404).json({ error: 'Tenant (Lender Organization) not found' });
     }
 
+    // Process interest rate (divide by 100, default to 0.1 if undefined)
+    const processedInterestRate = interestRate !== undefined ? interestRate / 100 : 0.1;
+
     // Create organization
     const organization = await prisma.organization.create({
       data: {
@@ -43,14 +45,14 @@ const createBorrowerOrganization = async (req, res) => {
         tenantId,
         approvalSteps: approvalSteps || 1,
         loanLimitMultiplier: loanLimitMultiplier || 1.0,
-        interestRate: interestRate/100 !== undefined ? interestRate : 0.1, // Default to 10%
+        interestRate: processedInterestRate,
       },
     });
 
-    // Log the action
+    // Log the action with processed interest rate
     await prisma.auditLog.create({
       data: {
-        tenant:{ connect: { id: tenantId } },
+        tenant: { connect: { id: tenantId } },
         user: { connect: { id: userId } },
         action: 'CREATE_BORROWER_ORGANIZATION',
         resource: 'Organization',
@@ -59,7 +61,7 @@ const createBorrowerOrganization = async (req, res) => {
           name,
           approvalSteps: approvalSteps || 1,
           loanLimitMultiplier: loanLimitMultiplier || 1.0,
-          interestRate: interestRate !== undefined ? interestRate : 0.1,
+          interestRate: processedInterestRate, // Store processed value
         },
       },
     });

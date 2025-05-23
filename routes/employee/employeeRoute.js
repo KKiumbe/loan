@@ -1,12 +1,15 @@
 const express = require('express');
 const verifyToken = require('../../middleware/verifyToken.js');
-const { createEmployee, getEmployee, updateEmployee, deleteEmployee, getEmployeeUsers, searchEmployeeByName, searchEmployeeByPhone } = require('../../controller/employee/employee.js');
+const { createEmployee, deleteEmployee, getEmployeeUsers, searchEmployeeByName, searchEmployeeByPhone, getEmployeeById, getUserDetailsById } = require('../../controller/employee/employee.js');
 const checkAccess = require('../../middleware/roleVerify.js');
 const router = express.Router();
 
 
 // Create Employee (ADMIN, ORG_ADMIN)
 router.post('/create-employee', verifyToken, checkAccess('employee', 'create'), createEmployee);
+
+//employee details page using id params , route customer-details
+router.get('/user-details/:userId', verifyToken, checkAccess('employee', 'read'), getUserDetailsById);
 
 // Get Employee by ID (ADMIN, ORG_ADMIN, EMPLOYEE)
 router.get('/customers/employee-users', verifyToken, checkAccess('employee', 'read'), getEmployeeUsers);
