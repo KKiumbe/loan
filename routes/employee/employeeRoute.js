@@ -25,7 +25,7 @@ router.delete('/:employeeId', verifyToken, checkAccess('employee', 'delete'), de
 router.get(
   '/employees/search-by-name',
   verifyToken,
-  checkAccess('employee', 'read'),
+  checkAccess('organizations', 'read'),
   searchEmployeeByName
 );
 

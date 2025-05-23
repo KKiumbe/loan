@@ -78,60 +78,92 @@ const createBorrowerOrganization = async (req, res) => {
 
 
 
-
 const searchOrganizations = async (req, res) => {
   try {
-    const tenantId = req.user?.tenantId;
-    if (!tenantId) {
-      return res.status(400).json({ message: 'Tenant ID is required' });
+    // 1) Ensure auth middleware ran
+    if (!req.user?.id) {
+      console.error('No user in request. Authentication middleware missing or failed.');
+      return res.status(401).json({ message: 'Authentication required' });
     }
 
-    const { name = '', page = 1, limit = 20 } = req.query;
-    const take = parseInt(limit, 10);
-    const skip = (parseInt(page, 10) - 1) * take;
+    // 2) Extract or lookup tenantId
+    let tenantId = req.user.tenantId;
+    if (!tenantId) {
+      const authUser = await prisma.user.findUnique({
+        where: { id: req.user.id },
+        select: { tenantId: true }
+      });
+      if (!authUser) {
+        console.error(`Authenticated user record not found: id=${req.user.id}`);
+        return res.status(404).json({ message: 'Authenticated user not found' });
+      }
+      tenantId = authUser.tenantId;
+    }
 
-    // find matching organizations
-    const [ orgs, total ] = await Promise.all([
+    // 3) Parse query params
+    const { name = '', page = '1', limit = '20' } = req.query;
+    const take = Math.min(parseInt(limit, 10) || 20, 100);
+    const skip = Math.max((parseInt(page, 10) - 1) * take, 0);
+
+    console.log('Searching organizations with params:', {
+      userId: req.user.id,
+      tenantId,
+      name,
+      page,
+      limit,
+      take,
+      skip
+    });
+
+    // 4) Perform the search + count
+    const [orgs, total] = await Promise.all([
       prisma.organization.findMany({
         where: {
           tenantId,
-          name: { contains: name, mode: 'insensitive' }
+          name: { contains: name, mode: 'insensitive' },
         },
         skip,
         take,
         orderBy: { name: 'asc' },
         include: {
           _count: {
-            select: { Employee: true, loans: true, PaymentBatch: true }
-          }
-        }
+            select: { Employee: true, loans: true, PaymentBatch: true },
+          },
+        },
       }),
       prisma.organization.count({
         where: {
           tenantId,
-          name: { contains: name, mode: 'insensitive' }
-        }
-      })
+          name: { contains: name, mode: 'insensitive' },
+        },
+      }),
     ]);
 
-    // format the response if you need any extra fields
-    const formatted = orgs.map(o => ({
+    // 5) Shape the response
+    const organizations = orgs.map(o => ({
       id: o.id,
       name: o.name,
       approvalSteps: o.approvalSteps,
-      interestRate: o.interestRate,
+      interestRate: o.interestRate ?? null,
       employeeCount: o._count.Employee,
       loanCount: o._count.loans,
       batchCount: o._count.PaymentBatch,
-      createdAt: o.createdAt
+      createdAt: o.createdAt,
     }));
 
-    res.json({ organizations: formatted, total });
+    console.log(`Fetched ${organizations.length} organizations for tenant ${tenantId}`);
+    return res.json({ organizations, total });
   } catch (err) {
-    console.error('Error searching organizations:', err);
-    res.status(500).json({ message: 'Internal server error' });
-  } finally {
-    await prisma.$disconnect();
+    console.error('Error searching organizations:', {
+      message: err.message,
+      stack: err.stack,
+      query: req.query,
+      user: req.user,
+    });
+    return res.status(500).json({
+      message: 'Internal server error',
+      error: err.message
+    });
   }
 };
 

@@ -559,63 +559,86 @@ const approveLoan = async (req, res) => {
 };
 
 // Reject a loan
+
+
 const rejectLoan = async (req, res) => {
   const { id } = req.params;
   const user = req.user;
 
-  if (!user.role.includes('ORG_ADMIN') && !user.role.includes('ADMIN')) {
-    return res.status(403).json({ message: 'Only ORG_ADMIN or ADMIN can reject loans' });
-  }
-
   try {
+    // Role validation
+    if (!user.role.includes('ORG_ADMIN') && !user.role.includes('ADMIN')) {
+      console.error(`Access denied: User ${user.id} lacks required role (ORG_ADMIN or ADMIN)`);
+      return res.status(403).json({ message: 'Only ORG_ADMIN or ADMIN can reject loans' });
+    }
+
+    // Fetch loan with organization
     const loan = await prisma.loan.findUnique({
       where: { id: parseInt(id) },
       include: { organization: true },
     });
 
     if (!loan) {
+      console.error(`Loan not found: id ${id}`);
       return res.status(404).json({ message: 'Loan not found' });
     }
 
+    // Check loan status
     if (loan.status !== 'PENDING') {
-      return res.status(400).json({ message: 'Loan is not in PENDING status' });
+      console.error(`Loan ${id} is not in PENDING status: current status ${loan.status}`);
+      return res.status(400).json({ message: `Loan is not in PENDING status, current status: ${loan.status}` });
     }
 
+    // Authorization checks
     if (user.role.includes('ORG_ADMIN')) {
       const employee = await prisma.employee.findFirst({
         where: { id: user.employeeId, tenantId: user.tenantId },
         select: { organizationId: true },
       });
-      if (!employee || loan.organizationId !== employee.organizationId) {
+      if (!employee) {
+        console.error(`Employee not found for user ${user.id}, employeeId ${user.employeeId}`);
+        return res.status(403).json({ message: 'Employee profile not found for this user' });
+      }
+      if (loan.organizationId !== employee.organizationId) {
+        console.error(`Unauthorized: User organizationId ${employee.organizationId} does not match loan organizationId ${loan.organizationId}`);
         return res.status(403).json({ message: 'Unauthorized to reject this loan' });
       }
     } else if (user.role.includes('ADMIN') && loan.tenantId !== user.tenantId) {
+      console.error(`Unauthorized: Loan tenantId ${loan.tenantId} does not match user tenantId ${user.tenantId}`);
       return res.status(403).json({ message: 'Unauthorized to reject this loan' });
     }
 
+    // Update loan status
     const updatedLoan = await prisma.loan.update({
       where: { id: parseInt(id) },
       data: { status: 'REJECTED' },
     });
 
+    // Log action
     await prisma.auditLog.create({
       data: {
         tenantId: loan.tenantId,
         userId: user.id,
-        action: 'REJECT',
-        resource: 'LOAN',
-        details: { message: `Loan ${id} rejected by ${user.firstName} ${user.lastName}` },
+        
+        action: 'REJECT_LOAN',
+        resource: 'Loan',
+        details: {
+          loanId: id,
+          message: `Loan ${id} rejected by ${user.firstName} ${user.lastName}`,
+        },
       },
     });
 
-    return res.status(200).json({ message: 'Loan rejected', loan: updatedLoan });
+    console.log(`Loan ${id} rejected by user ${user.id}`);
+    return res.status(200).json({ message: 'Loan rejected successfully', loan: updatedLoan });
   } catch (error) {
-    console.error('Error rejecting loan:', error);
+    console.error(`Error rejecting loan ${id}:`, error.message);
     return res.status(500).json({ message: 'Internal server error', error: error.message });
   } finally {
     await prisma.$disconnect();
   }
 };
+;
 
 // Disburse a loan
 const disburseLoan = async (req, res) => {

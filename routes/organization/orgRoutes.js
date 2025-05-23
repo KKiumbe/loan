@@ -3,7 +3,7 @@ const verifyToken = require('../../middleware/verifyToken.js');
 const {  createBorrowerOrganization, getOrganizations, getOrganizationAdmins, searchOrganizations, getOrganizationById } = require('../../controller/organization/org.js');
 const { createOrgAdmin } = require('../../controller/users/users.js');
 const checkAccess = require('../../middleware/roleVerify.js');
-const router = express.Router();
+const   router = express.Router();
 
 
 // Create organization admin (Admin only)
@@ -21,10 +21,10 @@ router.get(
 );
 
 router.get(
-  '/organizations/search',
+  '/organizations-search',
   verifyToken,
-  checkAccess('organizations', 'read'),
-  searchOrganizations
+
+ searchOrganizations
 );
 
 // Create employee (Org Admin only)
