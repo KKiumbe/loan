@@ -145,6 +145,7 @@ const handleB2CTimeout = async (req, res) => {
     await prisma.auditLog.create({
       data: {
         tenant: { connect: { id: loan.tenantId } },
+        user: { connect: { id: loan.userId } },
         action: 'MPESA_B2C_TIMEOUT',
         resource: 'LOAN',
         details: {
@@ -177,6 +178,7 @@ const handleAccountBalanceResult = async (req, res) => {
     await prisma.auditLog.create({
       data: {
         tenant: { connect: { id: result.TenantId } },
+        user: { connect: { id: result.UserId } },
         action: 'MPESA_ACCOUNT_BALANCE_RESULT',
         resource: 'ACCOUNT',
         details: result,
@@ -202,6 +204,7 @@ const handleAccountBalanceTimeout = async (req, res) => {
     await prisma.auditLog.create({
       data: {
         tenant: { connect: { id: timeout.TenantId } },
+        user: { connect: { id: timeout.UserId } },
         action: 'MPESA_ACCOUNT_BALANCE_TIMEOUT',
         resource: 'ACCOUNT',
         details: timeout,
