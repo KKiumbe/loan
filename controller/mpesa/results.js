@@ -175,18 +175,11 @@ const handleAccountBalanceResult = async (req, res) => {
   console.log('M-Pesa Account Balance Result:', JSON.stringify(result, null, 2));
 
   try {
-    await prisma.auditLog.create({
-      data: {
-        tenant: { connect: { id: result.TenantId } },
-        user: { connect: { id: result.UserId } },
-        action: 'MPESA_ACCOUNT_BALANCE_RESULT',
-        resource: 'ACCOUNT',
-        details: result,
-      },
-    });
+    // TODO: Implement account balance result processing logic here
+
     return res.status(200).json({ message: 'Balance result processed' });
-  } catch (err) {
-    console.error('Error processing balance result:', err);
+  } catch (error) {
+    console.error('Error processing balance result:', error);
     return res.status(500).json({ message: 'Error processing balance result' });
   } finally {
     await prisma.$disconnect();
@@ -201,15 +194,6 @@ const handleAccountBalanceTimeout = async (req, res) => {
   console.log('M-Pesa Account Balance Timeout:', JSON.stringify(timeout, null, 2));
 
   try {
-    await prisma.auditLog.create({
-      data: {
-        tenant: { connect: { id: timeout.TenantId } },
-        user: { connect: { id: timeout.UserId } },
-        action: 'MPESA_ACCOUNT_BALANCE_TIMEOUT',
-        resource: 'ACCOUNT',
-        details: timeout,
-      },
-    });
     return res.status(200).json({ message: 'Balance timeout processed' });
   } catch (err) {
     console.error('Error processing balance timeout:', err);
