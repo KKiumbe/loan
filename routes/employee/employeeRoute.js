@@ -9,7 +9,7 @@ const router = express.Router();
 router.post('/create-employee', verifyToken, checkAccess('employee', 'create'), createEmployee);
 
 //employee details page using id params , route customer-details
-router.get('/user-details/:userId', verifyToken, checkAccess('employee', 'read'), getUserDetailsById);
+router.get('/user-details/:userI', verifyToken, checkAccess('employee', 'read'), getUserDetailsById);
 
 // Get Employee by ID (ADMIN, ORG_ADMIN, EMPLOYEE)
 router.get('/customers/employee-users', verifyToken, checkAccess('employee', 'read'), getEmployeeUsers);
@@ -25,7 +25,7 @@ router.delete('/:employeeId', verifyToken, checkAccess('employee', 'delete'), de
 router.get(
   '/employees/search-by-name',
   verifyToken,
-  checkAccess('organizations', 'read'),
+  checkAccess('employee', 'read'),
   searchEmployeeByName
 );
 

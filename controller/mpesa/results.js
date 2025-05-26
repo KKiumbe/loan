@@ -72,16 +72,20 @@ const handleB2CResult = async (req, res) => {
       if (settingsRes.success) {
         const cfg = settingsRes.mpesaConfig;
         const accessToken = await getMpesaAccessToken(cfg.consumerKey, cfg.consumerSecret);
-        const balancePayload = {
-          InitiatorName: cfg.initiatorName,
-          SecurityCredential: cfg.securityCredential,
-          CommandID: 'AccountBalance',
-          PartyA: cfg.b2cShortCode,
-          IdentifierType: '4',
-          Remarks: 'Post-disbursement balance check',
-          QueueTimeOutURL: `${process.env.APP_BASE_URL}/api/accountbalance-timeout`,
-          ResultURL: `${process.env.APP_BASE_URL}/api/accountbalance-result`,
-        };
+    
+
+const balancePayload = {
+  Initiator:          cfg.initiatorName,       // field must be “Initiator” not “InitiatorName”
+  SecurityCredential: cfg.securityCredential,
+  CommandID:          'AccountBalance',
+  PartyA:             cfg.b2cShortCode,
+  IdentifierType:     '4',
+  Remarks:            'OK',
+  QueueTimeOutURL:    `${process.env.APP_BASE_URL}/api/accountbalance-timeout`,
+  ResultURL:          `${process.env.APP_BASE_URL}/api/accountbalance-result`,
+};
+
+
         console.log('Sending AccountBalance request:', balancePayload);
         const balRes = await axios.post(
           process.env.MPESA_ACCOUNT_BALANCE_URL,
