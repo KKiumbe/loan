@@ -191,7 +191,7 @@ const signin = async (req, res) => {
           select: { id: true, name: true },
         },
         employee:{
-          select:{id:true,employeeId:true,firstName:true}
+          select:{id:true,firstName:true}
         }
       
       },
@@ -246,7 +246,7 @@ const signin = async (req, res) => {
         tenantName: user.tenant.name,
         employee: user.employee ? {
           id: user.employee.id,
-          employeeId: user.employee.employeeId,
+          employeeId: user.employee.id,
           firstName: user.employee.firstName
         } : null, // Include employee details if exists
       // Include employeeId if exists
