@@ -172,28 +172,23 @@ const signin = async (req, res) => {
       return res.status(400).json({ message: 'Phone number and password are required' });
     }
 
-    // Find the user with explicit field selection
+    // Find the user, selecting employeeId directly
     const user = await prisma.user.findUnique({
       where: { phoneNumber },
       select: {
-        id: true,
-        firstName: true,
-        lastName: true,
-        phoneNumber: true,
-        password: true,
-        role: true,
+        id:             true,
+        firstName:      true,
+        lastName:       true,
+        phoneNumber:    true,
+        password:       true,
+        role:           true,
         organizationId: true,
-        //employeeId: true, // Include employeeId if exists
-        email: true,
-        
-        tenantId: true,
+        employeeId:     true,      // ← pull this from the user table
+        email:          true,
+        tenantId:       true,
         tenant: {
           select: { id: true, name: true },
         },
-        employee:{
-          select:{id:true,firstName:true}
-        }
-      
       },
     });
 
@@ -203,16 +198,15 @@ const signin = async (req, res) => {
 
     // Compare password
     const isPasswordValid = await bcrypt.compare(password, user.password);
-
     if (!isPasswordValid) {
       return res.status(401).json({ message: 'Invalid phone number or password' });
     }
 
-    // Update user login info
+    // Update login info
     await prisma.user.update({
       where: { id: user.id },
       data: {
-        lastLogin: new Date(),
+        lastLogin:  new Date(),
         loginCount: { increment: 1 },
       },
     });
@@ -220,46 +214,41 @@ const signin = async (req, res) => {
     // Log the login action
     await prisma.auditLog.create({
       data: {
-        tenant: {connect:{
-          id:user.tenantId
-        }},
-        user: {connect:{
-          id:user.id
-        }},
-        action: 'LOGIN',
-        resource:'user',
-       
-        details: { message: `User ${user.firstName} logged in` },
+        tenant:  { connect: { id: user.tenantId } },
+        user:    { connect: { id: user.id } },
+        action:   'LOGIN',
+        resource: 'user',
+        details:  { message: `User ${user.firstName} logged in` },
       },
     });
-    // Generate JWT token
+
+    // Generate JWT token, now including employeeId
     const token = jwt.sign(
       {
-        id: user.id,
-        firstName: user.firstName,
-        lastName: user.lastName,
-        email: user.email,
-        phoneNumber: user.phoneNumber,
-        role: user.role,
-        organizationId:user.organizationId ,
-        tenantId: user.tenantId,
-        tenantName: user.tenant.name,
-        employeeId: user.employee ? user.employee.id : null, // Include employeeId if exists
+        id:             user.id,
+        firstName:      user.firstName,
+        lastName:       user.lastName,
+        email:          user.email,
+        phoneNumber:    user.phoneNumber,
+        role:           user.role,
+        organizationId: user.organizationId,
+        employeeId:     user.employeeId,   // ← now available
+        tenantId:       user.tenantId,
+        tenantName:     user.tenant.name,
       },
       process.env.JWT_SECRET,
       { expiresIn: '1d' }
     );
 
-    // Set the token in an HTTP-only cookie
+    // Set cookie
     res.cookie('token', token, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      maxAge: 24 * 60 * 60 * 1000,
+      secure:   process.env.NODE_ENV === 'production',
+      maxAge:   24 * 60 * 60 * 1000,
     });
 
-    // Exclude password from response
-    const { password: userPassword, ...userInfo } = user;
-
+    // Return user (without password)
+    const { password: _, ...userInfo } = user;
     res.status(200).json({ message: 'Login successful', user: userInfo });
   } catch (error) {
     console.error('Error logging in:', error);
@@ -268,5 +257,6 @@ const signin = async (req, res) => {
     await prisma.$disconnect();
   }
 };
+
 
 module.exports = { register, signin };
