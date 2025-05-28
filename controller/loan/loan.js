@@ -478,8 +478,8 @@ const createLoan = async (req, res) => {
 
     console.log(`user object: ${JSON.stringify(req.user, null, 2)}`);
     // 1. Auth & basic validations
-    if (!userId || !tenantId || !employeeId) {
-      return res.status(401).json({ message: 'Unauthorized or missing employee link' });
+    if (!userId || !tenantId ) {
+      return res.status(401).json({ message: 'Unauthorized ' });
     }
     if (!role.includes('EMPLOYEE')) {
       return res.status(403).json({ message: 'Only employees can apply for loans' });
@@ -488,10 +488,12 @@ const createLoan = async (req, res) => {
       return res.status(400).json({ message: 'Valid loan amount is required' });
     }
 
+  
+
     // 2. Load employee + its organization
     const employee = await prisma.employee.findUnique({
-      where: { id: employeeId },
-      include: { organization: true }
+      where: { phoneNumber: userPhoneNumber },
+      include: { organization: true ,grossSalary: true, },
     });
     if (!employee) {
       return res.status(400).json({ message: 'Account not linked to an employee record' });
