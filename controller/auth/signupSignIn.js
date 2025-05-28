@@ -244,12 +244,7 @@ const signin = async (req, res) => {
         organizationId:user.organizationId ,
         tenantId: user.tenantId,
         tenantName: user.tenant.name,
-        employee: user.employee ? {
-          id: user.employee.id,
-          employeeId: user.employee.id,
-          firstName: user.employee.firstName
-        } : null, // Include employee details if exists
-      // Include employeeId if exists
+        employeeId: user.employee ? user.employee.id : null, // Include employeeId if exists
       },
       process.env.JWT_SECRET,
       { expiresIn: '1d' }
