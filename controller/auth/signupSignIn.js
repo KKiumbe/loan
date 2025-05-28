@@ -190,6 +190,10 @@ const signin = async (req, res) => {
         tenant: {
           select: { id: true, name: true },
         },
+        employee:{
+          select:{id:true,employeeId:true,firstName:true}
+        }
+      
       },
     });
 
