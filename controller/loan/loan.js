@@ -475,6 +475,8 @@ const createLoan = async (req, res) => {
       phoneNumber: userPhoneNumber,
     } = req.user;
 
+
+    console.log(`user object: ${JSON.stringify(req.user, null, 2)}`);
     // 1. Auth & basic validations
     if (!userId || !tenantId || !employeeId) {
       return res.status(401).json({ message: 'Unauthorized or missing employee link' });
