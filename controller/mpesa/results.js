@@ -175,9 +175,13 @@ const handleAccountBalanceResult = async (req, res) => {
 
   try {
     // Parse BOCompletedTime (YYYYMMDDHHMMSS)
-    const boCompletedTimeStr = result.ResultParameters.ResultParameter.find(
+    let boCompletedTimeStr = result.ResultParameters.ResultParameter.find(
       (param) => param.Key === 'BOCompletedTime'
     )?.Value;
+    
+    // Convert to string if number
+    boCompletedTimeStr = boCompletedTimeStr ? String(boCompletedTimeStr) : null;
+    
     const boCompletedTime = boCompletedTimeStr
       ? new Date(
           `${boCompletedTimeStr.slice(0, 4)}-${boCompletedTimeStr.slice(4, 6)}-${boCompletedTimeStr.slice(6, 8)}T${boCompletedTimeStr.slice(8, 10)}:${boCompletedTimeStr.slice(10, 12)}:${boCompletedTimeStr.slice(12, 14)}`
@@ -215,7 +219,7 @@ const handleAccountBalanceResult = async (req, res) => {
         workingAccountBalance,
         utilityAccountBalance,
         boCompletedTime,
-        tenantId: 1, // Replace with dynamic tenantId
+        tenantId: 1, // Replace with dynamic tenantId (e.g., req.user.tenantId)
       },
     });
 
@@ -227,6 +231,7 @@ const handleAccountBalanceResult = async (req, res) => {
     await prisma.$disconnect();
   }
 };
+
 
 
 
