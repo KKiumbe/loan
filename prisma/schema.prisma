@@ -44,6 +44,8 @@ model Tenant {
   PaymentBatch PaymentBatch[]
 
   LoanPayout LoanPayout[]
+
+  MPesaBalance MPesaBalance[]
 }
 
 enum TenantStatus {
@@ -232,6 +234,22 @@ model PaymentConfirmation {
   settledAt       DateTime       @default(now())
 }
 
+model MPesaBalance {
+  id                    Int       @id @default(autoincrement())
+  resultType            Int
+  resultCode            Int
+  resultDesc            String
+  originatorConversationID String
+  conversationID        String
+  transactionID         String
+  workingAccountBalance Float? // Working Account available balance
+  utilityAccountBalance Float? // Utility Account available balance
+  boCompletedTime       DateTime
+  tenantId              Int
+  tenant                Tenant    @relation(fields: [tenantId], references: [id])
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+}
 
 
 

@@ -167,15 +167,57 @@ const handleB2CTimeout = async (req, res) => {
   }
 };
 
-/**
- * Handle M-Pesa Account Balance result callback
- */
+
+
 const handleAccountBalanceResult = async (req, res) => {
   const result = req.body.Result;
   console.log('M-Pesa Account Balance Result:', JSON.stringify(result, null, 2));
 
   try {
-    // TODO: Implement account balance result processing logic here
+    // Parse BOCompletedTime (YYYYMMDDHHMMSS)
+    const boCompletedTimeStr = result.ResultParameters.ResultParameter.find(
+      (param) => param.Key === 'BOCompletedTime'
+    )?.Value;
+    const boCompletedTime = boCompletedTimeStr
+      ? new Date(
+          `${boCompletedTimeStr.slice(0, 4)}-${boCompletedTimeStr.slice(4, 6)}-${boCompletedTimeStr.slice(6, 8)}T${boCompletedTimeStr.slice(8, 10)}:${boCompletedTimeStr.slice(10, 12)}:${boCompletedTimeStr.slice(12, 14)}`
+        )
+      : new Date();
+
+    // Parse account balances
+    const accountBalanceStr = result.ResultParameters.ResultParameter.find(
+      (param) => param.Key === 'AccountBalance'
+    )?.Value || '';
+    let workingAccountBalance = null;
+    let utilityAccountBalance = null;
+
+    if (accountBalanceStr) {
+      const accounts = accountBalanceStr.split('&');
+      for (const account of accounts) {
+        const [accountType, currency, availableBalance] = account.split('|');
+        if (accountType === 'Working Account') {
+          workingAccountBalance = parseFloat(availableBalance) || null;
+        } else if (accountType === 'Utility Account') {
+          utilityAccountBalance = parseFloat(availableBalance) || null;
+        }
+      }
+    }
+
+    // Save to MPesaBalance
+    await prisma.mPesaBalance.create({
+      data: {
+        resultType: result.ResultType,
+        resultCode: result.ResultCode,
+        resultDesc: result.ResultDesc,
+        originatorConversationID: result.OriginatorConversationID,
+        conversationID: result.ConversationID,
+        transactionID: result.TransactionID,
+        workingAccountBalance,
+        utilityAccountBalance,
+        boCompletedTime,
+        tenantId: 1, // Replace with dynamic tenantId
+      },
+    });
 
     return res.status(200).json({ message: 'Balance result processed' });
   } catch (error) {
@@ -185,6 +227,8 @@ const handleAccountBalanceResult = async (req, res) => {
     await prisma.$disconnect();
   }
 };
+
+
 
 /**
  * Handle M-Pesa Account Balance timeout callback
