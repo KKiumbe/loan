@@ -2,7 +2,7 @@
 
 const express = require('express');
 const verifyToken = require('../../middleware/verifyToken.js');
-const { getLoansGroupedByStatus, getPendingLoanRequests, createLoan, getLoanById, approveLoan, getUserLoans, rejectLoan, getPendingLoans, getCurrentMonthLoanStats } = require('../../controller/loan/loan.js');
+const { getLoansGroupedByStatus, getPendingLoanRequests, createLoan, getLoanById, approveLoan, getUserLoans, rejectLoan, getPendingLoans, getCurrentMonthLoanStats, getLoansForAll } = require('../../controller/loan/loan.js');
 const checkAccess = require('../../middleware/roleVerify.js');
 
 
@@ -23,6 +23,7 @@ router.get('/loans/stats/current-month', verifyToken,checkAccess('loan', 'read')
 
 
 router.get('/loans', verifyToken, getLoansGroupedByStatus);
+router.get('/get-all-loans', verifyToken, checkAccess('loan', 'read'), getLoansForAll);
 
 //router.get('/get-loan:id', verifyToken, checkAccess('loan', 'read'), getLoanById);
 

@@ -937,6 +937,76 @@ const getLoansGroupedByStatus = async (req, res) => {
 };
 
 
+const getLoansForAll = async (req, res) => {
+  try {
+    const { tenantId, role, organizationId } = req.user;
+    if (!tenantId) {
+      return res.status(400).json({ message: 'Tenant ID is required' });
+    }
+
+    // Determine if the user is a full ADMIN
+    const isAdmin = role === 'ADMIN';
+
+    const statuses = [
+      LoanStatus.PENDING,
+      LoanStatus.APPROVED,
+      LoanStatus.REJECTED,
+      LoanStatus.DISBURSED,
+      LoanStatus.REPAID,
+    ];
+
+    // Fetch loans per status, adding organization filter when not ADMIN
+    const loanResults = await Promise.all(
+      statuses.map((status) =>
+        prisma.loan.findMany({
+          where: {
+            tenantId,
+            status,
+            // if not ADMIN, restrict to their organization
+            ...( !isAdmin && organizationId
+              ? { organizationId }
+              : {}
+            ),
+          },
+          include: {
+            user: {
+              select: {
+                id: true,
+                firstName: true,
+                lastName: true,
+                phoneNumber: true,
+                email: true,
+              },
+            },
+            organization: {
+              select: {
+                id: true,
+                name: true,
+              },
+            },
+          },
+          orderBy: { createdAt: 'desc' },
+        })
+      )
+    );
+
+    const groupedLoans = {};
+    statuses.forEach((status, i) => {
+      groupedLoans[status] = loanResults[i];
+    });
+
+    return res.status(200).json(groupedLoans);
+  } catch (error) {
+    console.error('Error fetching grouped loans:', error);
+    return res
+      .status(500)
+      .json({ message: 'Failed to fetch loans grouped by status' });
+  }
+};
+
+
+
+
  
 const getPendingLoans = async(req, res)=> {
   try {
@@ -1096,7 +1166,7 @@ async function getCurrentMonthLoanStats(req, res) {
 
 
 
-module.exports = { createLoan, getLoans, getLoanById, approveLoan, rejectLoan, disburseLoan, createRepayment,getPendingLoanRequests ,getLoansGroupedByStatus,getUserLoans ,getPendingLoans,getCurrentMonthLoanStats};
+module.exports = { createLoan, getLoans, getLoanById, approveLoan, rejectLoan, disburseLoan, createRepayment,getPendingLoanRequests ,getLoansGroupedByStatus,getUserLoans ,getPendingLoans,getCurrentMonthLoanStats,getLoansForAll};
 
 
 
