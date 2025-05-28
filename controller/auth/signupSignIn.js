@@ -183,7 +183,9 @@ const signin = async (req, res) => {
         password: true,
         role: true,
         organizationId: true,
+        employeeId: true, // Include employeeId if exists
         email: true,
+        
         tenantId: true,
         tenant: {
           select: { id: true, name: true },
