@@ -182,6 +182,8 @@ const signin = async (req, res) => {
         phoneNumber: true,
         password: true,
         role: true,
+        organizationId: true,
+        email: true,
         tenantId: true,
         tenant: {
           select: { id: true, name: true },
@@ -233,6 +235,7 @@ const signin = async (req, res) => {
         email: user.email,
         phoneNumber: user.phoneNumber,
         role: user.role,
+        organizationId:user.organizationId ,
         tenantId: user.tenantId,
         tenantName: user.tenant.name,
       },

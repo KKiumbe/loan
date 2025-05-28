@@ -2,7 +2,7 @@
 
 const express = require('express');
 const verifyToken = require('../../middleware/verifyToken.js');
-const { getLoansGroupedByStatus, getPendingLoanRequests, createLoan, getLoanById, approveLoan, getUserLoans, rejectLoan } = require('../../controller/loan/loan.js');
+const { getLoansGroupedByStatus, getPendingLoanRequests, createLoan, getLoanById, approveLoan, getUserLoans, rejectLoan, getPendingLoans, getCurrentMonthLoanStats } = require('../../controller/loan/loan.js');
 const checkAccess = require('../../middleware/roleVerify.js');
 
 
@@ -15,6 +15,12 @@ router.post('/create-loan', verifyToken, checkAccess('loan', 'create'), createLo
 router.get('/user-loans', verifyToken, getUserLoans);
 //get pending loan requests
 router.get('/pending-loans', verifyToken, checkAccess('loan', 'read'), getPendingLoanRequests);
+
+//route for admins to fetch pending loand for aproval for mobile
+router.get('/loans/pending', verifyToken, checkAccess('loan', 'read'), getPendingLoans);
+
+router.get('/loans/stats/current-month', verifyToken,checkAccess('loan', 'read'), getCurrentMonthLoanStats);
+
 
 router.get('/loans', verifyToken, getLoansGroupedByStatus);
 

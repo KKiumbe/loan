@@ -937,6 +937,59 @@ const getLoansGroupedByStatus = async (req, res) => {
 };
 
 
+ 
+const getPendingLoans = async(req, res)=> {
+  try {
+    const { role = [], tenantId, organizationId } = req.user;
+
+    // Base filter: only PENDING loans for this tenant
+    const baseFilter = { status: 'PENDING', tenantId };
+
+    let loans;
+    if (role.includes('ADMIN')) {
+      // ADMIN sees all pending loans in tenant
+      loans = await prisma.loan.findMany({
+        where: baseFilter,
+        include: {
+          user: { select: { id: true, firstName: true, lastName: true } },
+          organization: { select: { id: true, name: true } },
+        },
+        orderBy: { createdAt: 'desc' },
+      });
+
+    } else if (role.includes('ORG_ADMIN')) {
+      // ORG_ADMIN sees only their org’s pending loans
+      if (!organizationId) {
+        return res.status(400).json({ error: 'Organization context missing' });
+      }
+      loans = await prisma.loan.findMany({
+        where: {
+          ...baseFilter,
+          organizationId,
+        },
+        include: {
+          user: { select: { id: true, firstName: true, lastName: true } },
+          organization: { select: { id: true, name: true } },
+        },
+        orderBy: { createdAt: 'desc' },
+      });
+
+    } else {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+
+    return res.json(loans);
+
+  } catch (error) {
+    console.error('Error fetching pending loans:', error);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+}
+
+
+
+
+
 const getUserLoans = async (req, res) => {
   try {
     const userId = req.user.id;           // set by verifyToken middleware
@@ -982,6 +1035,54 @@ const getUserLoans = async (req, res) => {
 
 
 
+async function getCurrentMonthLoanStats(req, res) {
+  try {
+    const { role = [], tenantId, organizationId } = req.user;
+
+    // Compute current month window: [startOfMonth, startOfNextMonth)
+    const now   = new Date();
+    const start = new Date(now.getFullYear(), now.getMonth(), 1);
+    const end   = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+
+    // Base filter: tenant + createdAt in this month
+    const baseFilter = {
+      tenantId,
+      createdAt: { gte: start, lt: end },
+    };
+
+    // ORG_ADMIN: further restrict to their organization
+    if (role.includes('ORG_ADMIN')) {
+      if (!organizationId) {
+        return res.status(400).json({ error: 'Organization context missing.' });
+      }
+      baseFilter.organizationId = organizationId;
+
+    // Non-ADMIN/ORG_ADMIN: forbidden
+    } else if (!role.includes('ADMIN')) {
+      return res.status(403).json({ error: 'Access denied.' });
+    }
+
+    // In a single transaction: counts + sum
+    const [ totalBorrowed, totalPending, totalDisbursed, { _sum } ] =
+      await prisma.$transaction([
+        prisma.loan.count({ where: baseFilter }),
+        prisma.loan.count({ where: { ...baseFilter, status: 'PENDING' } }),
+        prisma.loan.count({ where: { ...baseFilter, status: 'DISBURSED' } }),
+        prisma.loan.aggregate({ _sum: { amount: true }, where: baseFilter })
+      ]);
+
+    return res.json({
+      totalBorrowed,
+      totalPending,
+      totalDisbursed,
+      totalAmountBorrowed: _sum.amount || 0
+    });
+
+  } catch (error) {
+    console.error('Error fetching current-month loan stats:', error);
+    return res.status(500).json({ error: 'Internal server error.' });
+  }
+}
 
 
 
@@ -990,7 +1091,12 @@ const getUserLoans = async (req, res) => {
 
 
 
-module.exports = { createLoan, getLoans, getLoanById, approveLoan, rejectLoan, disburseLoan, createRepayment,getPendingLoanRequests ,getLoansGroupedByStatus,getUserLoans};
+
+
+
+
+
+module.exports = { createLoan, getLoans, getLoanById, approveLoan, rejectLoan, disburseLoan, createRepayment,getPendingLoanRequests ,getLoansGroupedByStatus,getUserLoans ,getPendingLoans,getCurrentMonthLoanStats};
 
 
 
