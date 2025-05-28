@@ -463,139 +463,188 @@ const approveLoan = async (req, res) => {
 
 
 const createLoan = async (req, res) => {
-  const { amount } = req.body;
-  const { id: userId, tenantId, employeeId, role, phoneNumber } = req.user;
-
-  // 1. Auth & basic validations
-  if (!userId || !tenantId || !employeeId) {
-    return res.status(401).json({ message: 'Unauthorized or missing employee link' });
-  }
-  if (!role.includes('EMPLOYEE')) {
-    return res.status(403).json({ message: 'Only employees can apply for loans' });
-  }
-  if (!amount || amount <= 0) {
-    return res.status(400).json({ message: 'Valid loan amount is required' });
-  }
-
-  // 2. Fetch user details for notifications
-  const userDetails = await prisma.user.findUnique({
-    where: { id: userId },
-    select: { firstName: true, lastName: true, phoneNumber: true }
-  });
-  if (!userDetails) {
-    return res.status(500).json({ message: 'User record not found' });
-  }
-
-  // 3. Load employee + organization via employeeId
-  const employee = await prisma.employee.findUnique({
-    where: { id: employeeId },
-    include: { organization: true }  // brings in approvalSteps, loanLimitMultiplier, interestRate…
-  });
-  if (!employee) {
-    return res.status(400).json({ message: 'Account not linked to an employee record' });
-  }
-  const org = employee.organization;
-  if (!org) {
-    return res.status(500).json({ message: 'Employee has no organization' });
-  }
-
-  // 4. Compute monthly cap
-  const monthlyCap = employee.grossSalary * org.loanLimitMultiplier;
-  const now        = new Date();
-  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-  const monthEnd   = new Date(now.getFullYear(), now.getMonth() + 1, 1);
-
-  // 5. Sum existing PENDING/APPROVED loans
-  const { _sum } = await prisma.loan.aggregate({
-    _sum: { amount: true },
-    where: {
-      userId,
+  try {
+    const { amount } = req.body;
+    const {
+      id: userId,
       tenantId,
-      status:    { in: ['PENDING', 'APPROVED'] },
-      createdAt: { gte: monthStart, lt: monthEnd },
-    },
-  });
-  const takenSoFar = _sum.amount ?? 0;
-  if (takenSoFar + amount > monthlyCap) {
-    return res.status(400).json({
-      message: `Cap exceeded. Borrowed KES ${takenSoFar} of KES ${monthlyCap}.`,
-      takenSoFar,
-      monthlyCap,
-    });
-  }
+      role,
+      employeeId, 
+      firstName: userFirstName,
+      lastName:  userLastName,
+      phoneNumber: userPhoneNumber,
+    } = req.user;
 
-  // 6. Create the loan (initially PENDING)
-  let loan = await prisma.loan.create({
-    data: {
-      user:         { connect: { id: userId } },
-      organization: { connect: { id: org.id } },
-      tenant:       { connect: { id: tenantId } },
-      amount,
-      interestRate: org.interestRate,
-      dueDate:      calculateLoanDetails(amount, org.interestRate).dueDate,
-      totalRepayable: calculateLoanDetails(amount, org.interestRate).totalRepayable,
-      status:       'PENDING',
-      approvalCount: 0,
+    // 1. Auth & basic validations
+    if (!userId || !tenantId || !employeeId) {
+      return res.status(401).json({ message: 'Unauthorized or missing employee link' });
     }
-  });
+    if (!role.includes('EMPLOYEE')) {
+      return res.status(403).json({ message: 'Only employees can apply for loans' });
+    }
+    if (!amount || amount <= 0) {
+      return res.status(400).json({ message: 'Valid loan amount is required' });
+    }
 
-  // 7. If org.approvalSteps === 0 → auto-approve & disburse
-  if (org.approvalSteps === 0) {
-    // a) mark approved
-    loan = await prisma.loan.update({
-      where: { id: loan.id },
-      data: { status: 'APPROVED' }
+    // 2. Load employee + its organization
+    const employee = await prisma.employee.findUnique({
+      where: { id: employeeId },
+      include: { organization: true }
     });
+    if (!employee) {
+      return res.status(400).json({ message: 'Account not linked to an employee record' });
+    }
+    const org = employee.organization;
+    if (!org) {
+      return res.status(500).json({ message: 'Employee has no organization' });
+    }
 
-    // b) create payout record
-    let payout = await prisma.loanPayout.create({
-      data: {
-        loanId:     loan.id,
-        amount:     loan.amount,
-        method:     'MPESA',
-        status:     'PENDING',
-        approvedBy: { connect: { id: userId } },
+    // 3. Compute monthly cap
+    const monthlyCap = employee.grossSalary * org.loanLimitMultiplier;
+    const now        = new Date();
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    const monthEnd   = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+
+    // 4. Sum existing PENDING/APPROVED loans
+    const { _sum } = await prisma.loan.aggregate({
+      _sum: { amount: true },
+      where: {
+        userId,
         tenantId,
+        status:    { in: ['PENDING', 'APPROVED'] },
+        createdAt: { gte: monthStart, lt: monthEnd },
+      },
+    });
+    const takenSoFar = _sum.amount ?? 0;
+    if (takenSoFar + amount > monthlyCap) {
+      return res.status(400).json({
+        message: `Cap exceeded. Borrowed KES ${takenSoFar} of KES ${monthlyCap}.`,
+        takenSoFar,
+        monthlyCap,
+      });
+    }
+
+    // 5. Create the loan (initially PENDING)
+    let loan = await prisma.loan.create({
+      data: {
+        user:           { connect: { id: userId } },
+        organization:   { connect: { id: org.id } },
+        tenant:         { connect: { id: tenantId } },
+        amount,
+        interestRate:   org.interestRate,
+        dueDate:        calculateLoanDetails(amount, org.interestRate).dueDate,
+        totalRepayable: calculateLoanDetails(amount, org.interestRate).totalRepayable,
+        status:         'PENDING',
+        approvalCount:  0,
       }
     });
 
-    // c) normalize phone for disbursement
-    const raw    = userDetails.phoneNumber;
-    const msisdn = raw.startsWith('+254') ? raw.slice(1) : raw.replace(/^0/, '254');
+    // 6. Auto-approve & disburse if no approvals needed
+    if (org.approvalSteps === 0) {
+      // a) mark approved
+      loan = await prisma.loan.update({
+        where: { id: loan.id },
+        data: { status: 'APPROVED' }
+      });
 
-    // d) disburse via your helper
-    try {
-      const { loan: disbursedLoan, mpesaResponse } =
-        await disburseB2CPayment({
-          phoneNumber: msisdn,
-          amount:       loan.amount,
-          loanId:       loan.id,
-          userId,
-          tenantId,
-        });
-
-      loan   = disbursedLoan;
-      payout = await prisma.loanPayout.update({
-        where: { id: payout.id },
+      // b) create payout record
+      let payout = await prisma.loanPayout.create({
         data: {
-          transactionId: mpesaResponse.transactionId,
-          status:        'DISBURSED'
+          loanId:     loan.id,
+          amount:     loan.amount,
+          method:     'MPESA',
+          status:     'PENDING',
+          approvedBy: { connect: { id: userId } },
+          tenantId,
         }
       });
-    } catch (err) {
-      console.error('Auto-disburse failed:', err);
-      await prisma.loanPayout.update({
-        where: { id: payout.id },
-        data: { status: 'FAILED' }
+
+      // c) normalize phone for disbursement
+      const raw    = userPhoneNumber;
+      const msisdn = raw.startsWith('+254') ? raw.slice(1) : raw.replace(/^0/, '254');
+
+      // d) disburse via helper
+      try {
+        const { loan: disbursedLoan, mpesaResponse } =
+          await disburseB2CPayment({
+            phoneNumber: msisdn,
+            amount:       loan.amount,
+            loanId:       loan.id,
+            userId,
+            tenantId,
+          });
+
+        loan   = disbursedLoan;
+        payout = await prisma.loanPayout.update({
+          where: { id: payout.id },
+          data: {
+            transactionId: mpesaResponse.transactionId,
+            status:        'DISBURSED'
+          }
+        });
+      } catch (err) {
+        console.error('Auto-disburse failed:', err);
+        await prisma.loanPayout.update({
+          where: { id: payout.id },
+          data: { status: 'FAILED' }
+        });
+      }
+
+      // e) audit + notify employee
+      await prisma.auditLog.create({
+        data: {
+          tenant:  { connect: { id: tenantId } },
+          user:    { connect: { id: userId } },
+          action:   'AUTO_DISBURSE',
+          resource: 'LOAN',
+          details:  JSON.stringify({ loanId: loan.id, amount }),
+        }
+      });
+
+      const tenant = await prisma.tenant.findUnique({
+        where:  { id: tenantId },
+        select: { name: true }
+      });
+      sendSMS(
+        tenantId,
+        userPhoneNumber,
+        `Dear ${userFirstName}, your KES ${amount} loan at ${tenant?.name} has been auto-approved & disbursed.`
+      ).catch(console.error);
+
+      return res.status(201).json({
+        message: 'Loan auto-approved & disbursed',
+        loan,
+        payout
       });
     }
 
-    // e) audit + notify employee
+    // 7. Otherwise: notify ORG_ADMIN(s), audit, notify applicant
+
+    // 7a) notify all active ORG_ADMINs in this org
+    const orgAdmins = await prisma.user.findMany({
+      where: {
+        tenantId,
+        organizationId: org.id,
+        role:           { has: 'ORG_ADMIN' },
+        status:         'ACTIVE'
+      },
+      select: { firstName: true, lastName: true, phoneNumber: true }
+    });
+    const applicantName = `${userFirstName} ${userLastName}`;
+    orgAdmins.forEach(admin => {
+      sendSMS(
+        tenantId,
+        admin.phoneNumber,
+        `Hello ${admin.firstName}, new loan request #${loan.id} for KES ${amount} by ${applicantName}. Please review.`
+      ).catch(console.error);
+    });
+
+    // 7b) audit & notify the borrower
     await prisma.auditLog.create({
       data: {
         tenant:  { connect: { id: tenantId } },
         user:    { connect: { id: userId } },
-        action:   'AUTO_DISBURSE',
+        action:   'CREATE',
         resource: 'LOAN',
         details:  JSON.stringify({ loanId: loan.id, amount }),
       }
@@ -606,63 +655,23 @@ const createLoan = async (req, res) => {
     });
     sendSMS(
       tenantId,
-      userDetails.phoneNumber,
-      `Dear ${userDetails.firstName}, your KES ${amount} loan at ${tenant?.name} has been auto-approved & disbursed.`
+      userPhoneNumber,
+      `Dear ${userFirstName}, your KES ${amount} loan at ${tenant?.name} is pending approval.`
     ).catch(console.error);
 
     return res.status(201).json({
-      message: 'Loan auto-approved & disbursed',
-      loan,
-      payout
+      message: 'Loan application submitted (pending)',
+      loan
     });
+  } catch (error) {
+    console.error('Error creating loan:', error);
+    return res.status(500).json({ message: 'Internal server error', error: error.message });
   }
-
-  // 8. Otherwise notify ORG_ADMIN(s) + log + notify applicant…
-
-  //   — find and SMS all active ORG_ADMINs in this org
-  const orgAdmins = await prisma.user.findMany({
-    where: {
-      tenantId,
-      organizationId: org.id,
-      role:           { has: 'ORG_ADMIN' },
-      status:         'ACTIVE'
-    },
-    select: { firstName: true, lastName: true, phoneNumber: true }
-  });
-  const applicantName = `${userDetails.firstName} ${userDetails.lastName}`;
-  orgAdmins.forEach(admin => {
-    sendSMS(
-      tenantId,
-      admin.phoneNumber,
-      `Hello ${admin.firstName}, new loan request #${loan.id} for KES ${amount} by ${applicantName}. Please review.`,
-    ).catch(console.error);
-  });
-
-  //   — audit & notify the borrower
-  await prisma.auditLog.create({
-    data: {
-      tenant:  { connect: { id: tenantId } },
-      user:    { connect: { id: userId } },
-      action:   'CREATE',
-      resource: 'LOAN',
-      details:  JSON.stringify({ loanId: loan.id, amount }),
-    }
-  });
-  const tenant = await prisma.tenant.findUnique({
-    where:  { id: tenantId },
-    select: { name: true }
-  });
-  sendSMS(
-    tenantId,
-    userDetails.phoneNumber,
-    `Dear ${userDetails.firstName}, your KES ${amount} loan at ${tenant?.name} is pending approval.`
-  ).catch(console.error);
-
-  return res.status(201).json({
-    message: 'Loan application submitted (pending)',
-    loan
-  });
 };
+
+
+
+
 
 
 
