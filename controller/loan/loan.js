@@ -566,7 +566,7 @@ if (!org) {
           amount:     loan.amount,
           method:     'MPESA',
           status:     'PENDING',
-          approvedBy: { connect: { id: userId } },
+          approvedById: { connect: { id: userId } },
           tenantId,
         }
       });
