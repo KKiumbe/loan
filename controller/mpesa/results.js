@@ -218,7 +218,7 @@ const handleAccountBalanceResult = async (req, res) => {
         transactionID: result.TransactionID,
         workingAccountBalance,
         utilityAccountBalance,
-        boCompletedTime,
+      
         tenantId: 1, // Replace with dynamic tenantId (e.g., req.user.tenantId)
       },
     });
