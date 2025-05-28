@@ -5,6 +5,7 @@ const ROLE_PERMISSIONS = {
     org_admin: ['create', 'read', 'update', 'delete'], // Manage ORG_ADMIN users
     employee: ['create', 'read', 'update', 'delete'], // Manage EMPLOYEE users
     user: ['create', 'read', 'update', 'delete'],
+    mpesa: ['create', 'read', 'update', 'delete'],
  
     loan: ['create', 'read', 'update', 'delete', 'approve', 'reject', 'disburse'],
     payment: ['create', 'read', 'update', 'delete', 'manage'], // ConsolidatedRepayment

@@ -3,7 +3,9 @@ const router = express.Router();
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 const  {settleInvoice}  = require('../../controller/mpesa/paymentSettlement.js');
-const { handleB2CResult, handleB2CTimeout, handleAccountBalanceResult, handleAccountBalanceTimeout } = require('../../controller/mpesa/results.js');
+const { handleB2CResult, handleB2CTimeout, handleAccountBalanceResult, handleAccountBalanceTimeout, getLatestBalance } = require('../../controller/mpesa/results.js');
+const verifyToken = require('../../middleware/verifyToken.js');
+const checkAccess = require('../../middleware/roleVerify.js');
 
 
 router.post('/b2c-result', handleB2CResult);
@@ -88,6 +90,9 @@ router.post('/callback', async (req, res) => {
     res.status(500).json({ message: 'Error processing payment.', error: error.message });
   }
 });
+
+
+router.get('/balance/latest',verifyToken, checkAccess('mpesa', 'read'),getLatestBalance);
 
 // Function to parse TransTime
 function parseTransTime(transTime) {

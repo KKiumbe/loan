@@ -179,5 +179,13 @@ const getTenantSettings = async (tenantId) => {
 };
 
 
+const fetchLatestBalance = async(tenantId)=> {
+  return prisma.mPesaBalance.findFirst({
+    where: { tenantId },
+    orderBy: { createdAt: 'desc' }
+  });
+}
 
-module.exports = { createMPESAConfig, updateMPESAConfig, getTenantSettings };
+
+
+module.exports = { createMPESAConfig, updateMPESAConfig, getTenantSettings,fetchLatestBalance };

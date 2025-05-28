@@ -1,5 +1,5 @@
 const { PrismaClient } = require('@prisma/client');
-const { getTenantSettings } = require('./mpesaConfig');
+const { getTenantSettings, fetchLatestBalance } = require('./mpesaConfig');
 const { getMpesaAccessToken } = require('./token');
 const prisma = new PrismaClient();
 
@@ -232,6 +232,21 @@ const handleAccountBalanceResult = async (req, res) => {
   }
 };
 
+const getLatestBalance = async(req, res) => {
+  try {
+    const tenantId = req.user.tenantId;
+    const latest   = await fetchLatestBalance(tenantId);
+
+    if (!latest) {
+      return res.status(404).json({ message: 'No balance record found' });
+    }
+    return res.status(200).json(latest);
+  } catch (err) {
+    console.error('Error in getLatestBalance:', err);
+    return res.status(500).json({ message: 'Failed to fetch latest balance' });
+  }
+}
+
 
 
 
@@ -258,4 +273,4 @@ const handleAccountBalanceTimeout = async (req, res) => {
 
 
 
-module.exports = { handleB2CResult, handleB2CTimeout, handleAccountBalanceResult, handleAccountBalanceTimeout };
+module.exports = { handleB2CResult, handleB2CTimeout, handleAccountBalanceResult, handleAccountBalanceTimeout,getLatestBalance };
