@@ -469,7 +469,7 @@ const createLoan = async (req, res) => {
       id: userId,
       tenantId,
       role,
-      employeeId, 
+      
       firstName: userFirstName,
       lastName:  userLastName,
       phoneNumber: userPhoneNumber,
@@ -491,17 +491,25 @@ const createLoan = async (req, res) => {
   
 
     // 2. Load employee + its organization
+
     const employee = await prisma.employee.findUnique({
-      where: { phoneNumber: userPhoneNumber },
-      include: { organization: true ,grossSalary: true, },
-    });
-    if (!employee) {
-      return res.status(400).json({ message: 'Account not linked to an employee record' });
-    }
-    const org = employee.organization;
-    if (!org) {
-      return res.status(500).json({ message: 'Employee has no organization' });
-    }
+  where: { phoneNumber: userPhoneNumber },
+  select: {
+    id: true,
+    firstName: true,
+    lastName: true,
+    grossSalary: true,
+    phoneNumber: true,
+    organization: true,
+  },
+});
+if (!employee) {
+  return res.status(400).json({ message: 'Account not linked to an employee record' });
+}
+const org = employee.organization;
+if (!org) {
+  return res.status(500).json({ message: 'Employee has no organization' });
+}
 
     // 3. Compute monthly cap
     const monthlyCap = employee.grossSalary * org.loanLimitMultiplier;
