@@ -478,13 +478,18 @@ const createLoan = async (req, res) => {
   }
 
   // 2. Load user with organization & employee
-  const fullUser = await prisma.user.findUnique({
-    where: { id: user.id },
-    include: {
-      organization: true,     // must contain interestRate, loanLimitMultiplier, approvalSteps
-      employee:     true      // must contain grossSalary
+ 
+const fullUser = await prisma.user.findUnique({
+  where: { id: user.id },
+  include: {
+    employee: {
+      include: {
+        organization: true    // ← pull the org from employee
+      }
     }
-  });
+  }
+});
+
 
   if (!fullUser?.employee) {
     return res.status(400).json({ message: 'Account not linked to employee' });
