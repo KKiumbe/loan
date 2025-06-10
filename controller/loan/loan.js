@@ -390,6 +390,7 @@ const approveLoan = async (req, res) => {
           });
         }
       }
+
     } else if (loan.organization.approvalSteps === 2) {
       if (newApprovalCount === 1) {
         console.time('loanUpdateQuery');
@@ -457,67 +458,72 @@ const approveLoan = async (req, res) => {
 
         // Check balance before disbursement
         if (!loan.disbursedAt) {
-          const balanceRecord = await fetchLatestBalance(loan.tenantId);
-          const availableBalance = balanceRecord?.utilityAccountBalance ?? 0;
 
-          if (availableBalance < loan.amount) {
-            // Update LoanPayout to FAILED due to insufficient funds
-            console.time('loanPayoutUpdateQuery');
-            loanPayout = await prisma.loanPayout.update({
-              where: { id: loanPayout.id },
-              data: { status: 'FAILED' },
-              select: {
-                id: true,
-                loanId: true,
-                amount: true,
-                method: true,
-                status: true,
-                transactionId: true,
-              },
-            });
-            console.timeEnd('loanPayoutUpdateQuery');
+         const balanceRecord = await fetchLatestBalance(loan.tenantId);
+        const availableBalance = balanceRecord?.utilityAccountBalance ?? 0;
+        console.log(
+          `Fetched balance for tenant ${loan.tenantId}: KES ${availableBalance}. Proceeding with disbursement.`
+        );
 
-            // Audit the failure
-            await prisma.auditLog.create({
-              data: {
-                tenant: { connect: { id: loan.tenantId } },
-                user: { connect: { id: user.id } },
-                action: 'DISBURSEMENT_FAILED',
-                resource: 'LOAN',
-                details: JSON.stringify({
-                  loanId: loan.id,
-                  amount: loan.amount,
-                  reason: 'Insufficient funds',
-                  availableBalance,
-                }),
-              },
-            });
+          // if (availableBalance < loan.amount) {
+          //   // Update LoanPayout to FAILED due to insufficient funds
+          //   console.time('loanPayoutUpdateQuery');
+          //   loanPayout = await prisma.loanPayout.update({
+          //     where: { id: loanPayout.id },
+          //     data: { status: 'FAILED' },
+          //     select: {
+          //       id: true,
+          //       loanId: true,
+          //       amount: true,
+          //       method: true,
+          //       status: true,
+          //       transactionId: true,
+          //     },
+          //   });
+          //   console.timeEnd('loanPayoutUpdateQuery');
 
-            // Notify the user
-            const tenant = await prisma.tenant.findUnique({
-              where: { id: loan.tenantId },
-              select: { name: true },
-            });
-            await sendSMS(
-              loan.tenantId,
-              loan.user.phoneNumber,
-              `Dear ${loan.user.firstName}, your loan of KES ${loan.amount} at ${tenant?.name} could not be disbursed due to issues with lender,contact admin.`,
-            ).catch((error) => {
-              console.error(`Failed to send SMS to ${loan.user.phoneNumber}:`, error.message);
-            });
+          //   // Audit the failure
+          //   await prisma.auditLog.create({
+          //     data: {
+          //       tenant: { connect: { id: loan.tenantId } },
+          //       user: { connect: { id: user.id } },
+          //       action: 'DISBURSEMENT_FAILED',
+          //       resource: 'LOAN',
+          //       details: JSON.stringify({
+          //         loanId: loan.id,
+          //         amount: loan.amount,
+          //         reason: 'Insufficient funds',
+          //         availableBalance,
+          //       }),
+          //     },
+          //   });
 
-            return res.status(400).json({
-              message: 'Loan approved but disbursement failed due to issues with the lender',
-              loan: updatedLoan,
-              loanPayout: {
-                message: 'Loan payout record created but disbursement failed',
-                payout: loanPayout,
-              },
-              availableBalance,
-            });
-          }
+          //   // Notify the user
+          //   const tenant = await prisma.tenant.findUnique({
+          //     where: { id: loan.tenantId },
+          //     select: { name: true },
+          //   });
+          //   await sendSMS(
+          //     loan.tenantId,
+          //     loan.user.phoneNumber,
+          //     `Dear ${loan.user.firstName}, your loan of KES ${loan.amount} at ${tenant?.name} could not be disbursed due to issues with lender,contact admin.`,
+          //   ).catch((error) => {
+          //     console.error(`Failed to send SMS to ${loan.user.phoneNumber}:`, error.message);
+          //   });
+
+          //   return res.status(400).json({
+          //     message: 'Loan approved but disbursement failed due to issues with the lender',
+          //     loan: updatedLoan,
+          //     loanPayout: {
+          //       message: 'Loan payout record created but disbursement failed',
+          //       payout: loanPayout,
+          //     },
+          //     availableBalance,
+          //   });
+          // }
 
           // Proceed with disbursement
+          
           const phoneNumber = loan.user.phoneNumber.startsWith('+254')
             ? loan.user.phoneNumber.replace('+', '')
             : `254${loan.user.phoneNumber.replace(/^0/, '')}`;
