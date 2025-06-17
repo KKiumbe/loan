@@ -100,6 +100,7 @@ const initiateB2CPayment = async ({
 const disburseB2CPayment = async ({ phoneNumber, amount, loanId, userId, tenantId }) => {
   const result = { success: false, loan: null, mpesaResponse: null, error: null };
   try {
+    // Validation
     if (!amount || amount <= 0) throw new Error('Invalid amount');
     if (!loanId || !userId || !tenantId) throw new Error('Missing identifiers');
 
@@ -114,7 +115,7 @@ const disburseB2CPayment = async ({ phoneNumber, amount, loanId, userId, tenantI
     if (!settings.success) throw new Error(settings.message || 'Failed to fetch M-Pesa config');
     const { mpesaConfig } = settings;
 
-    // Prepare callback URLs
+    // Callback URLs
     const resultUrl = `${process.env.APP_BASE_URL}/api/b2c-result`;
     const queueTimeoutUrl = `${process.env.APP_BASE_URL}/api/b2c-timeout`;
 
@@ -138,56 +139,57 @@ const disburseB2CPayment = async ({ phoneNumber, amount, loanId, userId, tenantI
     const transactionId = mpesaResponse.TransactionID || mpesaResponse.ConversationID || '';
     const isSuccess = mpesaResponse.ResponseCode === '0';
 
-    // Update Loan record
-    const updatedLoan = await prisma.loan.update({
-      where: { id: parseInt(loanId, 10) },
-      data: {
-        disbursedAt: new Date(),
-        mpesaTransactionId: transactionId,
-        mpesaStatus: isSuccess ? 'SUCCESS' : 'FAILED',
-        status: isSuccess ? 'DISBURSED' : 'APPROVED',
-      },
-    });
-    result.loan = updatedLoan;
-    result.success = isSuccess;
-
     // Extract balance parameters
     const params = mpesaResponse.ResultParameters?.ResultParameter || [];
     const utility = params.find(p => p.Key === 'B2CUtilityAccountAvailableFunds')?.Value;
     const working = params.find(p => p.Key === 'B2CWorkingAccountAvailableFunds')?.Value;
 
-    // Record new balance entry for each successful payment
-    if (isSuccess) {
-      // Check if any payment exists for this tenant
-      // Check if any balance record exists for this tenant
-
-      // Always create a new balance record
-      await prisma.mPesaBalance.create({
+    // Perform loan update, balance recording, and audit in a single transaction
+    const updatedLoan = await prisma.$transaction(async (tx) => {
+      // Update loan status
+      const loanRecord = await tx.loan.update({
+        where: { id: parseInt(loanId, 10) },
         data: {
-          resultType: mpesaResponse.ResultType,
-          resultCode: mpesaResponse.ResultCode,
-          resultDesc: mpesaResponse.ResultDesc,
-          originatorConversationID: mpesaResponse.OriginatorConversationID,
-          conversationID: mpesaResponse.ConversationID,
-          transactionId: transactionId,
-          utilityAccountBalance: utility,
-          workingAccountBalance: working,
-          tenantId: tenantId,
+          disbursedAt: new Date(),
+          mpesaTransactionId: transactionId,
+          mpesaStatus: isSuccess ? 'SUCCESS' : 'FAILED',
+          status: isSuccess ? 'DISBURSED' : 'APPROVED',
         },
       });
-    }
 
-  
-    // Audit the disbursement
-    await prisma.auditLog.create({
-      data: {
-        tenantId: tenantId,
-        user: { connect: { id: userId } },
-        action: isSuccess ? 'DISBURSE' : 'DISBURSE_ERROR',
-        resource: 'LOAN',
-        details: JSON.stringify({ loanId, phoneNumber: sanitizedPhone, transactionId, mpesaResponse }),
-      },
+      // Always create a new balance entry for successful payments
+      if (isSuccess) {
+        await tx.mPesaBalance.create({
+          data: {
+            resultType: mpesaResponse.ResultType,
+            resultCode: mpesaResponse.ResultCode,
+            resultDesc: mpesaResponse.ResultDesc,
+            originatorConversationID: mpesaResponse.OriginatorConversationID,
+            conversationID: mpesaResponse.ConversationID,
+            transactionID: transactionId,
+            utilityAccountBalance: utility,
+            workingAccountBalance: working,
+            tenantId,
+          },
+        });
+      }
+
+      // Audit log
+      await tx.auditLog.create({
+        data: {
+          tenantId,
+          userId,
+          action: isSuccess ? 'DISBURSE' : 'DISBURSE_ERROR',
+          resource: 'LOAN',
+          details: JSON.stringify({ loanId, phoneNumber: sanitizedPhone, transactionId, mpesaResponse }),
+        },
+      });
+
+      return loanRecord;
     });
+
+    result.loan = updatedLoan;
+    result.success = isSuccess;
   } catch (err) {
     result.error = err.message;
   } finally {
@@ -195,6 +197,9 @@ const disburseB2CPayment = async ({ phoneNumber, amount, loanId, userId, tenantI
   }
   return result;
 };
+
+
+
 
 
 
