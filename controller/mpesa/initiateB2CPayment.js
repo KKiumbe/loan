@@ -143,10 +143,10 @@ const disburseB2CPayment = async ({ phoneNumber, amount, loanId, userId, tenantI
     const transactionId = mpesaResponse.TransactionID || mpesaResponse.ConversationID || '';
     const isSuccess = mpesaResponse.ResponseCode === '0';
 
-    // Extract balances from parameters
+    // Extract balances from parameters, with fallback to null if not present
     const params = mpesaResponse.ResultParameters?.ResultParameter || [];
-    const utility = params.find(p => p.Key === 'B2CUtilityAccountAvailableFunds')?.Value;
-    const working = params.find(p => p.Key === 'B2CWorkingAccountAvailableFunds')?.Value;
+    const utility = params.find(p => p.Key === 'B2CUtilityAccountAvailableFunds')?.Value ?? null;
+    const working = params.find(p => p.Key === 'B2CWorkingAccountAvailableFunds')?.Value ?? null;
 
     // Execute DB operations in a transaction
     const updatedLoan = await prisma.$transaction(async (tx) => {
@@ -161,22 +161,20 @@ const disburseB2CPayment = async ({ phoneNumber, amount, loanId, userId, tenantI
         },
       });
 
-      // Create new balance entry only on success
-    
-        await tx.mPesaBalance.create({
-          data: {
-            resultType: mpesaResponse.ResultType,
-            resultCode: mpesaResponse.ResultCode,
-            resultDesc: mpesaResponse.ResultDesc,
-            originatorConversationID: mpesaResponse.OriginatorConversationID,
-            conversationID: mpesaResponse.ConversationID,
-            transactionID: transactionId,
-            utilityAccountBalance: utility,
-            workingAccountBalance: working,
-            tenantId,
-          },
-        });
-      
+      // Create new balance entry (always, regardless of success)
+      await tx.mPesaBalance.create({
+        data: {
+          resultType: mpesaResponse.ResultType ?? 0,
+          resultCode: mpesaResponse.ResultCode ?? 0,
+          resultDesc: mpesaResponse.ResultDesc ?? 'No description provided',
+          originatorConversationID: mpesaResponse.OriginatorConversationID ?? '',
+          conversationID: mpesaResponse.ConversationID ?? '',
+          transactionID: transactionId,
+          utilityAccountBalance: utility !== null ? parseFloat(utility) : null,
+          workingAccountBalance: working !== null ? parseFloat(working) : null,
+          tenantId,
+        },
+      });
 
       // Audit log
       await tx.auditLog.create({
@@ -196,6 +194,35 @@ const disburseB2CPayment = async ({ phoneNumber, amount, loanId, userId, tenantI
     result.success = isSuccess;
   } catch (err) {
     result.error = err.message;
+
+    // Optionally create an mPesaBalance record for failed attempts (if API response is unavailable)
+    if (!result.mpesaResponse) {
+      await prisma.$transaction(async (tx) => {
+        await tx.mPesaBalance.create({
+          data: {
+            resultType: 0,
+            resultCode: -1,
+            resultDesc: `Failed to initiate disbursement: ${err.message}`,
+            originatorConversationID: '',
+            conversationID: '',
+            transactionID: '',
+            utilityAccountBalance: null,
+            workingAccountBalance: null,
+            tenantId,
+          },
+        });
+
+        await tx.auditLog.create({
+          data: {
+            tenantId,
+            userId,
+            action: 'DISBURSE_ERROR',
+            resource: 'LOAN',
+            details: JSON.stringify({ loanId, phoneNumber, error: err.message }),
+          },
+        });
+      });
+    }
   } finally {
     await prisma.$disconnect();
   }
