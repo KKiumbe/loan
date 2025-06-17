@@ -104,23 +104,23 @@ const disburseB2CPayment = async ({ phoneNumber, amount, loanId, userId, tenantI
     if (!amount || amount <= 0) throw new Error('Invalid amount');
     if (!loanId || !userId || !tenantId) throw new Error('Missing identifiers');
 
-    // Sanitize phone
+    // Sanitize phone number
     const sanitizedPhone = sanitizePhoneNumber(phoneNumber);
     if (!/^2547\d{8}$/.test(sanitizedPhone)) {
       throw new Error('Invalid phone number format after sanitization');
     }
 
-    // Fetch tenant-specific M-Pesa settings
+    // Fetch M-Pesa configuration
     const settings = await getTenantSettings(tenantId);
     if (!settings.success) throw new Error(settings.message || 'Failed to fetch M-Pesa config');
     const { mpesaConfig } = settings;
 
-    // Callback URLs
+    // Prepare callback URLs
     const resultUrl = `${process.env.APP_BASE_URL}/api/b2c-result`;
     const queueTimeoutUrl = `${process.env.APP_BASE_URL}/api/b2c-timeout`;
 
-    // Initiate B2C payment
-    const mpesaResponse = await initiateB2CPayment({
+    // Initiate B2C payment and check HTTP status
+    const response = await initiateB2CPayment({
       amount,
       phoneNumber: sanitizedPhone,
       queueTimeoutUrl,
@@ -132,21 +132,25 @@ const disburseB2CPayment = async ({ phoneNumber, amount, loanId, userId, tenantI
       consumerSecret: mpesaConfig.consumerSecret,
       remarks: `Loan ${loanId} disbursement`,
     });
+    if (response.status !== 200) {
+      throw new Error(`M-Pesa API HTTP error: ${response.status}`);
+    }
+    const mpesaResponse = response.data;
     result.mpesaResponse = mpesaResponse;
     console.log(`M-Pesa B2C Response: ${JSON.stringify(mpesaResponse, null, 2)}`);
 
-    // Parse transaction and status
+    // Determine success from response code
     const transactionId = mpesaResponse.TransactionID || mpesaResponse.ConversationID || '';
     const isSuccess = mpesaResponse.ResponseCode === '0';
 
-    // Extract balance parameters
+    // Extract balances from parameters
     const params = mpesaResponse.ResultParameters?.ResultParameter || [];
     const utility = params.find(p => p.Key === 'B2CUtilityAccountAvailableFunds')?.Value;
     const working = params.find(p => p.Key === 'B2CWorkingAccountAvailableFunds')?.Value;
 
-    // Perform loan update, balance recording, and audit in a single transaction
+    // Execute DB operations in a transaction
     const updatedLoan = await prisma.$transaction(async (tx) => {
-      // Update loan status
+      // Update loan record
       const loanRecord = await tx.loan.update({
         where: { id: parseInt(loanId, 10) },
         data: {
@@ -157,7 +161,8 @@ const disburseB2CPayment = async ({ phoneNumber, amount, loanId, userId, tenantI
         },
       });
 
-   
+      // Create new balance entry only on success
+      if (isSuccess) {
         await tx.mPesaBalance.create({
           data: {
             resultType: mpesaResponse.ResultType,
@@ -171,7 +176,7 @@ const disburseB2CPayment = async ({ phoneNumber, amount, loanId, userId, tenantI
             tenantId,
           },
         });
-      
+      }
 
       // Audit log
       await tx.auditLog.create({
@@ -196,6 +201,65 @@ const disburseB2CPayment = async ({ phoneNumber, amount, loanId, userId, tenantI
   }
   return result;
 };
+
+// === Account Balance Retrieval & Recording ===
+async function fetchLatestBalance(tenantId) {
+  try {
+    // Fetch M-Pesa config
+    const settings = await getTenantSettings(tenantId);
+    if (!settings.success) throw new Error(settings.message || 'Failed to fetch M-Pesa config');
+    const { mpesaConfig } = settings;
+
+    // Prepare URLs
+    const resultUrl = `${process.env.APP_BASE_URL}/api/ab-result`;
+    const queueTimeoutUrl = `${process.env.APP_BASE_URL}/api/ab-timeout`;
+
+    // Initiate account balance request and check status
+    const response = await initiateAccountBalance({
+      initiator: mpesaConfig.initiatorName,
+      securityCredential: mpesaConfig.securityCredential,
+      partyA: mpesaConfig.shortCode,
+      identifierType: 4,
+      remarks: 'Account Balance Check',
+      resultUrl,
+      queueTimeoutUrl,
+    });
+    if (response.status !== 200) {
+      throw new Error(`M-Pesa Account Balance HTTP error: ${response.status}`);
+    }
+    const mpesaResponse = response.data;
+    console.log('M-Pesa Account Balance Result:', JSON.stringify(mpesaResponse, null, 2));
+
+    // Extract raw balance string
+    const raw = mpesaResponse.ResultParameters?.ResultParameter.find(p => p.Key === 'AccountBalance')?.Value;
+    if (!raw) throw new Error('AccountBalance key missing in response');
+    const parts = raw.split('&');
+    const parsePart = segment => Number(segment.split('|')[3]);
+    const workingAccountBalance = parsePart(parts[0]);
+    const utilityAccountBalance = parsePart(parts[1]);
+
+    // Save balance record
+    const created = await prisma.mPesaBalance.create({
+      data: {
+        resultType: mpesaResponse.ResultType,
+        resultCode: mpesaResponse.ResultCode,
+        resultDesc: mpesaResponse.ResultDesc,
+        originatorConversationID: mpesaResponse.OriginatorConversationID,
+        conversationID: mpesaResponse.ConversationID,
+        transactionID: mpesaResponse.TransactionID || mpesaResponse.ConversationID,
+        workingAccountBalance,
+        utilityAccountBalance,
+        tenantId,
+      },
+    });
+    console.log('Created M-Pesa balance record:', JSON.stringify(created, null, 2));
+
+    return { workingAccountBalance, utilityAccountBalance };
+  } catch (error) {
+    console.error('Failed to fetch/save latest balance:', error);
+    throw error;
+  }
+}
 
 
 
