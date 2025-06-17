@@ -157,8 +157,7 @@ const disburseB2CPayment = async ({ phoneNumber, amount, loanId, userId, tenantI
         },
       });
 
-      // Always create a new balance entry for successful payments
-      if (isSuccess) {
+   
         await tx.mPesaBalance.create({
           data: {
             resultType: mpesaResponse.ResultType,
@@ -172,7 +171,7 @@ const disburseB2CPayment = async ({ phoneNumber, amount, loanId, userId, tenantI
             tenantId,
           },
         });
-      }
+      
 
       // Audit log
       await tx.auditLog.create({
