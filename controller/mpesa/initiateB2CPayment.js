@@ -161,6 +161,7 @@ const disburseB2CPayment = async ({ phoneNumber, amount, loanId, userId, tenantI
       // Check if any payment exists for this tenant
       // Check if any balance record exists for this tenant
 const anyBalance = await prisma.mPesaBalance.findFirst({ where: { tenantId } });
+console.log(`object anyBalance: ${JSON.stringify(anyBalance)}`);
       // Always create a new balance record
       await prisma.mPesaBalance.create({
         data: {
@@ -169,14 +170,15 @@ const anyBalance = await prisma.mPesaBalance.findFirst({ where: { tenantId } });
           resultDesc: mpesaResponse.ResultDesc,
           originatorConversationID: mpesaResponse.OriginatorConversationID,
           conversationID: mpesaResponse.ConversationID,
-          transactionID,
+          transactionId: transactionId,
           utilityAccountBalance: utility,
           workingAccountBalance: working,
-          tenant: { connect: { id: tenantId } },
+          tenantId: tenantId,
         },
       });
     }
 
+  
     // Audit the disbursement
     await prisma.auditLog.create({
       data: {
