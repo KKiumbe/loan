@@ -160,8 +160,7 @@ const disburseB2CPayment = async ({ phoneNumber, amount, loanId, userId, tenantI
     if (isSuccess) {
       // Check if any payment exists for this tenant
       // Check if any balance record exists for this tenant
-const anyBalance = await prisma.mPesaBalance.findFirst({ where: { tenantId } });
-console.log(`object anyBalance: ${JSON.stringify(anyBalance)}`);
+
       // Always create a new balance record
       await prisma.mPesaBalance.create({
         data: {
