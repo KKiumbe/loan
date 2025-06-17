@@ -95,6 +95,8 @@ const initiateB2CPayment = async ({
  * Disburses a loan via B2C payment, updates loan record, and returns a unified result object.
  * Sanitizes phone numbers to ensure correct format.
  */
+
+
 const disburseB2CPayment = async ({ phoneNumber, amount, loanId, userId, tenantId }) => {
   const result = { success: false, loan: null, mpesaResponse: null, error: null };
   try {
@@ -107,13 +109,16 @@ const disburseB2CPayment = async ({ phoneNumber, amount, loanId, userId, tenantI
       throw new Error('Invalid phone number format after sanitization');
     }
 
+    // Fetch tenant-specific M-Pesa settings
     const settings = await getTenantSettings(tenantId);
     if (!settings.success) throw new Error(settings.message || 'Failed to fetch M-Pesa config');
-
     const { mpesaConfig } = settings;
+
+    // Prepare callback URLs
     const resultUrl = `${process.env.APP_BASE_URL}/api/b2c-result`;
     const queueTimeoutUrl = `${process.env.APP_BASE_URL}/api/b2c-timeout`;
 
+    // Initiate B2C payment
     const mpesaResponse = await initiateB2CPayment({
       amount,
       phoneNumber: sanitizedPhone,
@@ -127,12 +132,13 @@ const disburseB2CPayment = async ({ phoneNumber, amount, loanId, userId, tenantI
       remarks: `Loan ${loanId} disbursement`,
     });
     result.mpesaResponse = mpesaResponse;
-
     console.log(`M-Pesa B2C Response: ${JSON.stringify(mpesaResponse, null, 2)}`);
 
+    // Parse transaction and status
     const transactionId = mpesaResponse.TransactionID || mpesaResponse.ConversationID || '';
     const isSuccess = mpesaResponse.ResponseCode === '0';
 
+    // Update Loan record
     const updatedLoan = await prisma.loan.update({
       where: { id: parseInt(loanId, 10) },
       data: {
@@ -145,13 +151,40 @@ const disburseB2CPayment = async ({ phoneNumber, amount, loanId, userId, tenantI
     result.loan = updatedLoan;
     result.success = isSuccess;
 
+    // Extract balance parameters
+    const params = mpesaResponse.ResultParameters?.ResultParameter || [];
+    const utility = params.find(p => p.Key === 'B2CUtilityAccountAvailableFunds')?.Value;
+    const working = params.find(p => p.Key === 'B2CWorkingAccountAvailableFunds')?.Value;
+
+    // Record new balance entry for each successful payment
+    if (isSuccess) {
+      // Check if any payment exists for this tenant
+      // Check if any balance record exists for this tenant
+const anyBalance = await prisma.mPesaBalance.findFirst({ where: { tenantId } });
+      // Always create a new balance record
+      await prisma.mPesaBalance.create({
+        data: {
+          resultType: mpesaResponse.ResultType,
+          resultCode: mpesaResponse.ResultCode,
+          resultDesc: mpesaResponse.ResultDesc,
+          originatorConversationID: mpesaResponse.OriginatorConversationID,
+          conversationID: mpesaResponse.ConversationID,
+          transactionID,
+          utilityAccountBalance: utility,
+          workingAccountBalance: working,
+          tenant: { connect: { id: tenantId } },
+        },
+      });
+    }
+
+    // Audit the disbursement
     await prisma.auditLog.create({
       data: {
         tenant: { connect: { id: tenantId } },
         user: { connect: { id: userId } },
         action: isSuccess ? 'DISBURSE' : 'DISBURSE_ERROR',
         resource: 'LOAN',
-        details: { loanId, phoneNumber: sanitizedPhone, transactionId, mpesaResponse },
+        details: JSON.stringify({ loanId, phoneNumber: sanitizedPhone, transactionId, mpesaResponse }),
       },
     });
   } catch (err) {
@@ -161,5 +194,7 @@ const disburseB2CPayment = async ({ phoneNumber, amount, loanId, userId, tenantI
   }
   return result;
 };
+
+
 
 module.exports = { initiateB2CPayment, disburseB2CPayment };
