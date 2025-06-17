@@ -182,7 +182,7 @@ console.log(`object anyBalance: ${JSON.stringify(anyBalance)}`);
     // Audit the disbursement
     await prisma.auditLog.create({
       data: {
-        tenant: { connect: { id: tenantId } },
+        tenantId: tenantId,
         user: { connect: { id: userId } },
         action: isSuccess ? 'DISBURSE' : 'DISBURSE_ERROR',
         resource: 'LOAN',
