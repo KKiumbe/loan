@@ -463,28 +463,48 @@ const createLoan = async (req, res) => {
 
     const applicantName = `${userFirstName} ${userLastName}`;
 
-    // STEP 1: Notify ORG_ADMINs
-    const orgAdmins = await prisma.user.findMany({
-      where: {
-        tenantId,
-        organizationId: org.id,
-        role: { has: 'ORG_ADMIN' },
-        status: 'ACTIVE',
-      },
-      select: { firstName: true, phoneNumber: true },
-    });
+   
+// STEP 1: Notify ORG_ADMINs (or fallback to ADMINs)
+const orgAdmins = await prisma.user.findMany({
+  where: {
+    tenantId,
+    organizationId: org.id,
+    role: { has: 'ORG_ADMIN' },
+    status: 'ACTIVE',
+  },
+  select: { firstName: true, phoneNumber: true },
+});
 
-    if (orgAdmins.length === 0) {
-      console.warn(`No ORG_ADMINs found for org ${org.id}`);
-    } else {
-      orgAdmins.forEach((admin) => {
-        sendSMS(
-          tenantId,
-          admin.phoneNumber,
-          `Hello ${admin.firstName}, new loan request #${loan.id} for KES ${amount} by ${applicantName}. Please review.`,
-        ).catch(console.error);
-      });
-    }
+const applicantName = `${userFirstName} ${userLastName}`;
+
+if (orgAdmins.length === 0) {
+  console.warn(`No ORG_ADMINs found for org ${org.id}, notifying tenant-level ADMINs...`);
+
+  const tenantAdmins = await prisma.user.findMany({
+    where: {
+      tenantId,
+      role: { has: 'ADMIN' },
+      status: 'ACTIVE',
+    },
+    select: { firstName: true, phoneNumber: true },
+  });
+
+  tenantAdmins.forEach((admin) => {
+    sendSMS(
+      tenantId,
+      admin.phoneNumber,
+      `Hello ${admin.firstName}, new loan request #${loan.id} for KES ${amount} by ${applicantName}. Please review.`,
+    ).catch(console.error);
+  });
+} else {
+  orgAdmins.forEach((admin) => {
+    sendSMS(
+      tenantId,
+      admin.phoneNumber,
+      `Hello ${admin.firstName}, new loan request #${loan.id} for KES ${amount} by ${applicantName}. Please review.`,
+    ).catch(console.error);
+  });
+}
 
     // STEP 2: Log audit
     await prisma.auditLog.create({
