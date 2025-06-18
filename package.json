@@ -7,7 +7,7 @@
     "bull": "^4.16.3",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
-    "csv-parser": "^3.0.0",
+    "csv-parser": "^3.2.0",
     "dayjs": "^1.11.13",
     "expo-location": "~17.0.1",
     "express": "^4.21.2",
@@ -24,6 +24,7 @@
     "pdfkit-table": "^0.1.99",
     "pdfmake": "^0.2.18",
     "prisma": "^5.22.0",
+    "streamifier": "^0.1.1",
     "uuid": "^11.0.2"
   },
   "engines": {

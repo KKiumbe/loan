@@ -403,6 +403,69 @@ const getOrganizationById = async (req, res, next) => {
 };
 
 
+const updateOrganization = async (req, res, next) => {
+  try {
+    const orgId = parseInt(req.params.id, 10);
+    if (isNaN(orgId)) {
+      return res.status(400).json({ error: 'Invalid organization ID' });
+    }
+
+    const { tenantId } = req.user; // from your auth middleware
+    const { name, approvalSteps, loanLimitMultiplier, interestRate } = req.body;
+
+    // Step 1: Check organization exists and belongs to tenant
+    const existingOrg = await prisma.organization.findFirst({
+      where: { id: orgId, tenantId },
+    });
+
+    if (!existingOrg) {
+      return res.status(404).json({ error: 'Organization not found or unauthorized' });
+    }
+
+    // Step 2: Build update data object with validation
+    const updateData = {};
+
+    if (name) updateData.name = name.trim();
+
+    if (approvalSteps !== undefined) {
+      const steps = Number(approvalSteps);
+      if (!Number.isInteger(steps) || steps < 0) {
+        return res.status(400).json({ error: 'Approval steps must be a non-negative integer' });
+      }
+      updateData.approvalSteps = steps;
+    }
+
+    if (loanLimitMultiplier !== undefined) {
+      const multiplier = Number(loanLimitMultiplier);
+      if (isNaN(multiplier) || multiplier <= 0) {
+        return res.status(400).json({ error: 'Loan limit multiplier must be a positive number' });
+      }
+      updateData.loanLimitMultiplier = multiplier;
+    }
+
+    if (interestRate !== undefined) {
+      const rate = Number(interestRate);
+      if (isNaN(rate) || rate < 0) {
+        return res.status(400).json({ error: 'Interest rate must be a non-negative number' });
+      }
+      updateData.interestRate = rate;
+    }
+
+    // Step 3: Update the organization
+    const updatedOrg = await prisma.organization.update({
+      where: { id: orgId },
+      data: updateData,
+    });
+
+    res.status(200).json({ message: 'Organization updated successfully', organization: updatedOrg });
+  } catch (err) {
+    console.error('Error updating organization:', err);
+    next(err);
+  }
+};
+
+
+
 
 
 
@@ -466,6 +529,6 @@ module.exports = {
   getBorrowerOrganizations,
   updateBorrowerOrganization,
   deleteBorrowerOrganization,
-
+  updateOrganization,
   getOrganizations,getOrganizationAdmins,searchOrganizations,getOrganizationById
 };

@@ -297,118 +297,125 @@ async function searchEmployeeByPhone(req, res) {
 
 
 
-
 const updateEmployee = async (req, res) => {
-  // const { employeeId } = req.params;
-  // const { phoneNumber, idNumber, firstName, lastName, grossSalary, jobId, secondaryPhoneNumber } = req.body;
+  const { userId } = req.params; // Accept user ID
+  const {
+    phoneNumber,
+    idNumber,
+    firstName,
+    lastName,
+    grossSalary,
+    jobId,
+    secondaryPhoneNumber,
+  } = req.body;
 
-  // try {
-  //   const employee = await prisma.employee.findUnique({
-  //     where: { id: parseInt(employeeId) },
-  //     include: { user: true },
-  //   });
-  //   if (!employee) {
-  //     console.error(`Employee not found: employeeId ${employeeId}`);
-  //     return res.status(404).json({ error: 'Employee not found' });
-  //   }
+  try {
+    // 1. Find the user and include linked employee
+  const user = await prisma.user.findUnique({
+  where: { id: parseInt(userId) },
+  include: { employee: true },
+});
 
-  //   // Tenant scoping
-  //   if (employee.tenantId !== req.user.tenantId) {
-  //     console.error(`Access denied: User tenantId ${req.user.tenantId} does not match employee tenantId ${employee.tenantId}`);
-  //     return res.status(403).json({ error: 'You can only update employees in your tenant' });
-  //   }
+if (!user || !user.employee) {
+  console.error(`No employee record linked to user ${userId}`);
+  return res.status(404).json({ error: 'Employee not found for this user' });
+}
 
-  //   // Borrower organization scoping for ORG_ADMIN
-  //   if (req.user.role.includes('ORG_ADMIN') && employee.organizationId !== req.user.organizationId) {
-  //     console.error(`Access denied: User organizationId ${req.user.organizationId} does not match employee organizationId ${employee.organizationId}`);
-  //     return res.status(403).json({ error: 'You can only update employees in your borrower organization' });
-  //   }
 
-  //   // Self-specific scoping for EMPLOYEE
-  //   if (req.user.role.includes('EMPLOYEE') && employee.user?.id !== req.user.id) {
-  //     console.error(`Access denied: User ${req.user.id} cannot update employee ${employeeId}`);
-  //     return res.status(403).json({ error: 'You can only update your own employee record' });
-  //   }
+    const employee = user.employee;
 
-  //   // Validate inputs
-  //   if (grossSalary !== undefined && grossSalary <= 0) {
-  //     console.error(`Invalid grossSalary: ${grossSalary}`);
-  //     return res.status(400).json({ error: 'Gross salary must be a positive number' });
-  //   }
-  //   if (phoneNumber) {
-  //     const existingPhone = await prisma.employee.findFirst({
-  //       where: { phoneNumber, NOT: { id: parseInt(employeeId) } },
-  //     });
-  //     if (existingPhone) {
-  //       console.error(`Phone number already in use: ${phoneNumber}`);
-  //       return res.status(400).json({ error: 'Phone number already in use' });
-  //     }
-  //   }
-  //   if (idNumber) {
-  //     const existingId = await prisma.employee.findFirst({
-  //       where: { idNumber, NOT: { id: parseInt(employeeId) } },
-  //     });
-  //     if (existingId) {
-  //       console.error(`ID number already in use: ${idNumber}`);
-  //       return res.status(400).json({ error: 'ID number already in use' });
-  //     }
-  //   }
+    // 2. Tenant and role-based scoping
+    if (employee.tenantId !== req.user.tenantId) {
+      return res.status(403).json({ error: 'Unauthorized tenant access' });
+    }
 
-  //   const updateData = {};
-  //   if (phoneNumber) updateData.phoneNumber = phoneNumber;
-  //   if (idNumber) updateData.idNumber = idNumber;
-  //   if (firstName) updateData.firstName = firstName;
-  //   if (lastName) updateData.lastName = lastName;
-  //   if (grossSalary !== undefined) updateData.grossSalary = grossSalary;
-  //   if (jobId !== undefined) updateData.jobId = jobId;
-  //   if (secondaryPhoneNumber !== undefined) updateData.secondaryPhoneNumber = secondaryPhoneNumber;
+    if (req.user.role.includes('ORG_ADMIN') && employee.organizationId !== req.user.organizationId) {
+      return res.status(403).json({ error: 'Unauthorized organization access' });
+    }
 
-  //   const updatedEmployee = await prisma.employee.update({
-  //     where: { id: parseInt(employeeId) },
-  //     data: updateData,
-  //   });
+    if (req.user.role.includes('EMPLOYEE') && user.id !== req.user.id) {
+      return res.status(403).json({ error: 'Employees can only update their own profile' });
+    }
 
-  //   // If employee has a linked User, update User to match firstName, lastName, and phoneNumber
-  //   if (employee.user && (firstName || lastName || phoneNumber)) {
-  //     const userUpdateData = {};
-  //     if (firstName) userUpdateData.firstName = firstName;
-  //     if (lastName) userUpdateData.lastName = lastName;
-  //     if (phoneNumber) {
-  //       const existingUserPhone = await prisma.user.findFirst({
-  //         where: { phoneNumber, NOT: { id: employee.user.id } },
-  //       });
-  //       if (existingUserPhone) {
-  //         console.error(`User phone number already in use: ${phoneNumber}`);
-  //         return res.status(400).json({ error: 'User phone number already in use' });
-  //       }
-  //       userUpdateData.phoneNumber = phoneNumber;
-  //     }
+    // 3. Validation
+    if (grossSalary !== undefined && grossSalary <= 0) {
+      return res.status(400).json({ error: 'Gross salary must be a positive number' });
+    }
 
-  //     if (Object.keys(userUpdateData).length > 0) {
-  //       await prisma.user.update({
-  //         where: { id: employee.user.id },
-  //         data: userUpdateData,
-  //       });
-  //     }
-  //   }
+    if (phoneNumber) {
+      const existingPhone = await prisma.employee.findFirst({
+        where: { phoneNumber, NOT: { id: employee.id } },
+      });
+      if (existingPhone) {
+        return res.status(400).json({ error: 'Phone number already in use' });
+      }
+    }
 
-  //   await prisma.auditLog.create({
-  //     data: {
-  //       tenantId: employee.tenantId,
-  //       userId: req.user.id,
-  //       action: 'UPDATE_EMPLOYEE',
-  //       resource: 'Employee',
-  //       details: { employeeId, changes: updateData },
-  //     },
-  //   });
+    if (idNumber) {
+      const existingId = await prisma.employee.findFirst({
+        where: { idNumber, NOT: { id: employee.id } },
+      });
+      if (existingId) {
+        return res.status(400).json({ error: 'ID number already in use' });
+      }
+    }
 
-  //   console.log(`Employee updated: employeeId ${employeeId}`);
-  //   res.status(200).json({ message: 'Employee updated successfully', employee: updatedEmployee });
-  // } catch (error) {
-  //   console.error('Failed to update employee:', error.message);
-  //   res.status(500).json({ error: 'Failed to update employee' });
-  // }
+    // 4. Prepare updates
+    const updateData = {};
+    if (phoneNumber) updateData.phoneNumber = phoneNumber;
+    if (idNumber) updateData.idNumber = idNumber;
+    if (firstName) updateData.firstName = firstName;
+    if (lastName) updateData.lastName = lastName;
+    if (grossSalary !== undefined) updateData.grossSalary = grossSalary;
+    if (jobId !== undefined) updateData.jobId = jobId;
+    if (secondaryPhoneNumber !== undefined) updateData.secondaryPhoneNumber = secondaryPhoneNumber;
+
+    const updatedEmployee = await prisma.employee.update({
+      where: { id: employee.id },
+      data: updateData,
+    });
+
+    // 5. Sync User table
+    const userUpdateData = {};
+    if (firstName) userUpdateData.firstName = firstName;
+    if (lastName) userUpdateData.lastName = lastName;
+    if (phoneNumber) {
+      const existingUser = await prisma.user.findFirst({
+        where: { phoneNumber, NOT: { id: user.id } },
+      });
+      if (existingUser) {
+        return res.status(400).json({ error: 'User phone number already in use' });
+      }
+      userUpdateData.phoneNumber = phoneNumber;
+    }
+
+    if (Object.keys(userUpdateData).length > 0) {
+      await prisma.user.update({
+        where: { id: user.id },
+        data: userUpdateData,
+      });
+    }
+
+    await prisma.auditLog.create({
+      data: {
+        tenantId: employee.tenantId,
+        userId: req.user.id,
+        action: 'UPDATE_EMPLOYEE',
+        resource: 'Employee',
+        details: { userId, changes: updateData },
+      },
+    });
+
+    res.status(200).json({
+      message: 'Employee updated successfully',
+      employee: updatedEmployee,
+    });
+  } catch (error) {
+    console.error('Failed to update employee:', error.message);
+    res.status(500).json({ error: 'Internal server error' });
+  }
 };
+
 
 const deleteEmployee = async (req, res) => {
   const { employeeId } = req.params;
