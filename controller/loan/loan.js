@@ -461,7 +461,7 @@ const createLoan = async (req, res) => {
       },
     });
 
-    const applicantName = `${userFirstName} ${userLastName}`;
+  const applicantName = `${userFirstName} ${userLastName}`;
 
    
 // STEP 1: Notify ORG_ADMINs (or fallback to ADMINs)
@@ -475,7 +475,7 @@ const orgAdmins = await prisma.user.findMany({
   select: { firstName: true, phoneNumber: true },
 });
 
-const applicantName = `${userFirstName} ${userLastName}`;
+
 
 if (orgAdmins.length === 0) {
   console.warn(`No ORG_ADMINs found for org ${org.id}, notifying tenant-level ADMINs...`);
