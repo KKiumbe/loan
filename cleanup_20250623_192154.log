@@ -1,0 +1,39 @@
+Starting cleanup of empty or NULL originatorConversationID values...
+Error updating rows: PrismaClientValidationError: 
+Invalid `prisma.mPesaBalance.findMany()` invocation in
+/Volumes/Software/loan/api/cleanup.js:9:44
+
+  6 try {
+  7   console.log('Starting cleanup of empty or NULL originatorConversationID values...');
+  8 
+→ 9   const rows = await prisma.mPesaBalance.findMany({
+        where: {
+          OR: [
+            {
+              originatorConversationID: ""
+            },
+            {
+              originatorConversationID: null
+            }
+          ]
+        },
+        select: {
+          id: true,
+          originatorConversationID: true,
+          conversationID: true,
+          transactionID: true,
+          tenantId: true,
+          resultCode: true,
+          resultDesc: true
+        }
+      })
+
+Argument `originatorConversationID` is missing.
+    at wn (/Volumes/Software/loan/api/node_modules/@prisma/client/runtime/library.js:29:1363)
+    at $n.handleRequestError (/Volumes/Software/loan/api/node_modules/@prisma/client/runtime/library.js:121:6958)
+    at $n.handleAndLogRequestError (/Volumes/Software/loan/api/node_modules/@prisma/client/runtime/library.js:121:6623)
+    at $n.request (/Volumes/Software/loan/api/node_modules/@prisma/client/runtime/library.js:121:6307)
+    at async l (/Volumes/Software/loan/api/node_modules/@prisma/client/runtime/library.js:130:9633)
+    at async updateEmptyOriginatorConversationIDs (/Volumes/Software/loan/api/cleanup.js:9:18) {
+  clientVersion: '5.22.0'
+}

@@ -4,6 +4,8 @@ const prisma = new PrismaClient();
 
 async function updateEmptyOriginatorConversationIDs() {
   try {
+    console.log('Starting cleanup of empty or NULL originatorConversationID values...');
+
     const rows = await prisma.mPesaBalance.findMany({
       where: {
         OR: [
@@ -11,9 +13,24 @@ async function updateEmptyOriginatorConversationIDs() {
           { originatorConversationID: null },
         ],
       },
+      select: {
+        id: true,
+        originatorConversationID: true,
+        conversationID: true,
+        transactionID: true,
+        tenantId: true,
+        resultCode: true,
+        resultDesc: true,
+      },
     });
 
-    console.log(`Found ${rows.length} rows to update`);
+    console.log(`Found ${rows.length} rows with empty or NULL originatorConversationID:`);
+    console.log(JSON.stringify(rows, null, 2));
+
+    if (rows.length === 0) {
+      console.log('No rows to update. Exiting.');
+      return;
+    }
 
     for (const row of rows) {
       const newUUID = uuidv4();
@@ -24,7 +41,7 @@ async function updateEmptyOriginatorConversationIDs() {
       console.log(`Updated row ${row.id} with UUID: ${newUUID}`);
     }
 
-    console.log('Update complete');
+    console.log('Cleanup complete');
   } catch (error) {
     console.error('Error updating rows:', error);
   } finally {
