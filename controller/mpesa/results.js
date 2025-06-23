@@ -8,8 +8,6 @@ require('dotenv').config();
 
 
 
-
-
 const handleB2CResult = async (req, res) => {
   const result = req.body.Result;
   console.log('M-Pesa B2C Result:', JSON.stringify(result, null, 2));
@@ -82,7 +80,7 @@ const handleB2CResult = async (req, res) => {
 
       // Upsert mPesaBalance record
       await tx.mPesaBalance.upsert({
-        where: { originatorConversationID: OriginatorConversationID || ConversationID },
+        where: { originatorConversationID: OriginatorConversationID }, // Now valid due to @unique
         update: {
           resultType: result.ResultType ?? 0,
           resultCode: ResultCode ?? 0,
@@ -97,7 +95,7 @@ const handleB2CResult = async (req, res) => {
           resultType: result.ResultType ?? 0,
           resultCode: ResultCode ?? 0,
           resultDesc: ResultDesc ?? 'No description provided',
-          originatorConversationID: OriginatorConversationID || '',
+          originatorConversationID: OriginatorConversationID,
           conversationID: ConversationID,
           transactionID: TransactionID || '',
           utilityAccountBalance: utilityBalance !== null ? parseFloat(utilityBalance) : null,
@@ -131,7 +129,7 @@ const handleB2CResult = async (req, res) => {
     });
     console.timeEnd('loanResultTransaction');
 
-    // Fetch account balance (keep existing logic)
+    // Fetch account balance
     try {
       const settingsRes = await getTenantSettings(loan.tenantId);
       if (settingsRes.success) {
@@ -169,6 +167,7 @@ const handleB2CResult = async (req, res) => {
     await prisma.$disconnect();
   }
 };
+
 
 
 
