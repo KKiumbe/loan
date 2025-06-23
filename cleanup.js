@@ -6,23 +6,23 @@ async function updateEmptyOriginatorConversationIDs() {
   try {
     console.log('Starting cleanup of empty or NULL originatorConversationID values...');
 
-    const rows = await prisma.mPesaBalance.findMany({
-      where: {
-        OR: [
-          { originatorConversationID: '' },
-          { originatorConversationID: null },
-        ],
-      },
-      select: {
-        id: true,
-        originatorConversationID: true,
-        conversationID: true,
-        transactionID: true,
-        tenantId: true,
-        resultCode: true,
-        resultDesc: true,
-      },
-    });
+ const rows = await prisma.mPesaBalance.findMany({
+  where: {
+    originatorConversationID: ''
+  },
+  select: {
+    id: true,
+    originatorConversationID: true,
+    conversationID: true,
+    transactionID: true,
+    tenantId: true,
+    resultCode: true,
+    resultDesc: true
+  }
+});
+
+
+
 
     console.log(`Found ${rows.length} rows with empty or NULL originatorConversationID:`);
     console.log(JSON.stringify(rows, null, 2));
