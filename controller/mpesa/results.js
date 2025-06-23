@@ -6,85 +6,148 @@ const prisma = new PrismaClient();
 const axios = require('axios');
 require('dotenv').config();
 
+
+
+
+
 const handleB2CResult = async (req, res) => {
   const result = req.body.Result;
   console.log('M-Pesa B2C Result:', JSON.stringify(result, null, 2));
 
-  // Validate payload: must include either ConversationID or OriginatorConversationID
-  if (!result || (!result.ConversationID && !result.OriginatorConversationID) || result.ResultCode === undefined) {
+  // Validate payload: must include ConversationID
+  if (!result || !result.ConversationID || result.ResultCode === undefined) {
     console.error('Invalid B2C result payload:', req.body);
-    return res.status(400).json({ message: 'Invalid payload' });
+    return res.status(400).json({ message: 'Invalid payload: Missing ConversationID or ResultCode' });
   }
 
   try {
-    // Use ConversationID if present, otherwise OriginatorConversationID from callback
-    const transactionId = result.ConversationID || result.OriginatorConversationID;
-    const status = result.ResultCode === 0 ? 'SUCCESS' : 'FAILED';
+    const {
+      ConversationID,
+      OriginatorConversationID,
+      ResultCode,
+      ResultDesc,
+      TransactionID,
+      ResultParameters: { ResultParameter = [] },
+    } = result;
 
-    // Fetch loan by mpesaTransactionId
+    const mpesaStatus = ResultCode === 0 ? 'SUCCESS' : 'FAILED';
+    const loanStatus = ResultCode === 0 ? 'DISBURSED' : 'APPROVED';
+
+    // Fetch loan by ConversationID (stored in mpesaTransactionId) or OriginatorConversationID
     console.time('loanResultQuery');
     const loan = await prisma.loan.findFirst({
-      where: { mpesaTransactionId: transactionId },
-      select: { id: true, tenantId: true, userId: true },
+      where: {
+        OR: [
+          { mpesaTransactionId: ConversationID },
+          { originatorConversationID: OriginatorConversationID },
+        ],
+      },
+      select: { id: true, tenantId: true, userId: true, status: true, mpesaStatus: true },
     });
     console.timeEnd('loanResultQuery');
 
     if (!loan) {
-      console.error('No loan found for transactionId:', transactionId);
+      console.error(`No loan found for ConversationID: ${ConversationID} or OriginatorConversationID: ${OriginatorConversationID}`);
       return res.status(404).json({ message: 'Loan not found for transaction' });
     }
 
-    // Update loan status
-    console.time('loanResultUpdateQuery');
-    await prisma.loan.updateMany({
-      where: { mpesaTransactionId: transactionId },
-      data: { mpesaStatus: status },
-    });
-    console.timeEnd('loanResultUpdateQuery');
+    // Skip if already processed
+    if (loan.mpesaStatus === 'SUCCESS' || loan.mpesaStatus === 'FAILED') {
+      console.log(`Loan ${loan.id} already processed with status ${loan.mpesaStatus}`);
+      return res.status(200).json({ message: 'Result already processed' });
+    }
 
-    // Log the result with OriginatorConversationID
-    console.time('auditLogResultQuery');
-    await prisma.auditLog.create({
-      data: {
-        tenant: { connect: { id: loan.tenantId } },
-        user: { connect: { id: loan.userId } },
-        action: 'MPESA_B2C_RESULT',
-        resource: 'LOAN',
-        details: {
-          loanId: loan.id,
-          transactionId,
-          originatorConversationId: result.OriginatorConversationID,
-          resultCode: result.ResultCode,
-          resultDesc: result.ResultDesc || result.errorMessage,
-          message: `B2C transaction ${transactionId} ${status}`,
+    // Extract additional details from ResultParameters
+    const transactionAmount = ResultParameter.find(p => p.Key === 'TransactionAmount')?.Value ?? null;
+    const transactionReceipt = ResultParameter.find(p => p.Key === 'TransactionReceipt')?.Value ?? null;
+    const receiverParty = ResultParameter.find(p => p.Key === 'ReceiverPartyPublicName')?.Value ?? null;
+    const transactionDateTime = ResultParameter.find(p => p.Key === 'TransactionCompletedDateTime')?.Value ?? null;
+    const utilityBalance = ResultParameter.find(p => p.Key === 'B2CUtilityAccountAvailableFunds')?.Value ?? null;
+    const workingBalance = ResultParameter.find(p => p.Key === 'B2CWorkingAccountAvailableFunds')?.Value ?? null;
+
+    // Update loan and related records in a transaction
+    console.time('loanResultTransaction');
+    await prisma.$transaction(async (tx) => {
+      // Update loan
+      await tx.loan.update({
+        where: { id: loan.id },
+        data: {
+          mpesaStatus,
+          status: loanStatus,
+          mpesaTransactionId: TransactionID || ConversationID, // Store TransactionID if available
+          originatorConversationID: OriginatorConversationID || loan.originatorConversationID,
+          disbursedAt: ResultCode === 0 ? new Date() : loan.disbursedAt, // Set disbursedAt on success
         },
-      },
-    });
-    console.timeEnd('auditLogResultQuery');
+      });
 
-    // Optionally fetch account balance after disbursement
+      // Upsert mPesaBalance record
+      await tx.mPesaBalance.upsert({
+        where: { originatorConversationID: OriginatorConversationID || ConversationID },
+        update: {
+          resultType: result.ResultType ?? 0,
+          resultCode: ResultCode ?? 0,
+          resultDesc: ResultDesc ?? 'No description provided',
+          transactionID: TransactionID || '',
+          conversationID: ConversationID,
+          utilityAccountBalance: utilityBalance !== null ? parseFloat(utilityBalance) : null,
+          workingAccountBalance: workingBalance !== null ? parseFloat(workingBalance) : null,
+          updatedAt: new Date(),
+        },
+        create: {
+          resultType: result.ResultType ?? 0,
+          resultCode: ResultCode ?? 0,
+          resultDesc: ResultDesc ?? 'No description provided',
+          originatorConversationID: OriginatorConversationID || '',
+          conversationID: ConversationID,
+          transactionID: TransactionID || '',
+          utilityAccountBalance: utilityBalance !== null ? parseFloat(utilityBalance) : null,
+          workingAccountBalance: workingBalance !== null ? parseFloat(workingBalance) : null,
+          tenantId: loan.tenantId,
+        },
+      });
+
+      // Create audit log
+      await tx.auditLog.create({
+        data: {
+          tenantId: loan.tenantId,
+          userId: loan.userId,
+          action: `MPESA_B2C_RESULT_${mpesaStatus}`,
+          resource: 'LOAN',
+          details: {
+            loanId: loan.id,
+            conversationId: ConversationID,
+            originatorConversationId: OriginatorConversationID,
+            transactionId: TransactionID,
+            transactionAmount,
+            transactionReceipt,
+            receiverParty,
+            transactionDateTime,
+            resultCode: ResultCode,
+            resultDesc: ResultDesc || result.errorMessage,
+            message: `B2C transaction ${ConversationID} ${mpesaStatus}`,
+          },
+        },
+      });
+    });
+    console.timeEnd('loanResultTransaction');
+
+    // Fetch account balance (keep existing logic)
     try {
       const settingsRes = await getTenantSettings(loan.tenantId);
-
-      console.log(`this us tenant settings ${JSON.stringify(settingsRes)}`);
-
-
       if (settingsRes.success) {
         const cfg = settingsRes.mpesaConfig;
         const accessToken = await getMpesaAccessToken(cfg.consumerKey, cfg.consumerSecret);
-    
 
-const balancePayload = {
-  Initiator:          cfg.initiatorName,       // field must be “Initiator” not “InitiatorName”
-  SecurityCredential: cfg.securityCredential,
-  CommandID:          'AccountBalance',
-  PartyA:             cfg.b2cShortCode,
-  IdentifierType:     '4',
-  Remarks:            'OK',
-  QueueTimeOutURL:    `${process.env.APP_BASE_URL}/api/accountbalance-timeout`,
-  ResultURL:          `${process.env.APP_BASE_URL}/api/accountbalance-result`,
-};
-
+        const balancePayload = {
+          Initiator: cfg.initiatorName,
+          SecurityCredential: cfg.securityCredential,
+          CommandID: 'AccountBalance',
+          PartyA: cfg.b2cShortCode,
+          IdentifierType: '4',
+          Remarks: 'OK',
+          QueueTimeOutURL: `${process.env.APP_BASE_URL}/api/accountbalance-timeout`,
+          ResultURL: `${process.env.APP_BASE_URL}/api/accountbalance-result`,
+        };
 
         console.log('Sending AccountBalance request:', balancePayload);
         const balRes = await axios.post(
@@ -98,14 +161,16 @@ const balancePayload = {
       console.error('Error invoking account balance query:', balErr);
     }
 
-    return res.status(200).json({ message: 'Result processed' });
+    return res.status(200).json({ message: 'Result processed successfully' });
   } catch (error) {
     console.error('Error processing B2C result:', error);
-    return res.status(200).json({ message: 'Result received but processing failed' });
+    return res.status(200).json({ message: 'Result received but processing failed', error: error.message });
   } finally {
     await prisma.$disconnect();
   }
 };
+
+
 
 /**
  * Handle M-Pesa B2C timeout callback (QueueTimeOutURL)

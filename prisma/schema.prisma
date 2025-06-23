@@ -142,34 +142,32 @@ model Employee {
 
 
 model Loan {
-  id                Int            @id @default(autoincrement())
-  userId            Int
-  user              User           @relation(fields: [userId], references: [id])
-  organizationId    Int
-  organization      Organization   @relation(fields: [organizationId], references: [id])
-  amount            Float
-  interestRate      Float          // Monthly interest rate (e.g., 0.1 for 10%)
-  duration          Int            @default(30) // 30 days
-  status            LoanStatus     @default(PENDING)
-  createdAt         DateTime       @default(now())
-  updatedAt         DateTime       @updatedAt
-  disbursedAt      DateTime?
-  tenantId          Int
-  tenant            Tenant         @relation(fields: [tenantId], references: [id])
-  consolidatedRepaymentId Int?                  // Foreign key, nullable
-  approvalCount      Int @default(0)
-  consolidatedRepayment ConsolidatedRepayment? @relation(fields: [consolidatedRepaymentId], references: [id]) // Added relation
-  firstApproverId        Int?                   // New: User ID of first approver
-  secondApproverId       Int? 
-  thirdApproverId       Int?     
-  mpesaTransactionId     String?                // New: M-Pesa transaction ID
-  mpesaStatus            String?                // New: M-Pesa transaction status
-  
-                  // New: User ID of second approver
-  dueDate           DateTime       // Calculated as createdAt + 30 days
-  totalRepayable    Float          // amount + (amount * interestRate)
-
-  LoanPayout LoanPayout[]
+  id                       Int            @id @default(autoincrement())
+  userId                   Int
+  user                     User           @relation(fields: [userId], references: [id])
+  organizationId           Int
+  organization             Organization   @relation(fields: [organizationId], references: [id])
+  amount                   Float
+  interestRate             Float          // Monthly interest rate (e.g., 0.1 for 10%)
+  duration                 Int            @default(30) // 30 days
+  status                   LoanStatus     @default(PENDING)
+  createdAt                DateTime       @default(now())
+  updatedAt                DateTime       @updatedAt
+  disbursedAt              DateTime?
+  tenantId                 Int
+  tenant                   Tenant         @relation(fields: [tenantId], references: [id])
+  consolidatedRepaymentId  Int?           // Foreign key, nullable
+  approvalCount            Int            @default(0)
+  consolidatedRepayment    ConsolidatedRepayment? @relation(fields: [consolidatedRepaymentId], references: [id])
+  firstApproverId          Int?           // User ID of first approver
+  secondApproverId         Int?           // User ID of second approver
+  thirdApproverId          Int?           // User ID of third approver
+  mpesaTransactionId       String?        // M-Pesa transaction ID
+  mpesaStatus              String?        // M-Pesa transaction status
+  originatorConversationID String?        // New: OriginatorConversationID for B2C payment
+  dueDate                  DateTime       // Calculated as createdAt + 30 days
+  totalRepayable           Float          // amount + (amount * interestRate)
+  LoanPayout               LoanPayout[]
 }
 
 enum LoanStatus {

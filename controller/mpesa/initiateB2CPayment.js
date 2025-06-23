@@ -99,6 +99,8 @@ const initiateB2CPayment = async ({
 
 const disburseB2CPayment = async ({ phoneNumber, amount, loanId, userId, tenantId }) => {
   const result = { success: false, loan: null, mpesaResponse: null, error: null };
+  const originatorConversationID = uuidv4(); // Generate OriginatorConversationID early
+
   try {
     // Validation
     if (!amount || amount <= 0) throw new Error('Invalid amount');
@@ -119,7 +121,13 @@ const disburseB2CPayment = async ({ phoneNumber, amount, loanId, userId, tenantI
     const resultUrl = `${process.env.APP_BASE_URL}/api/b2c-result`;
     const queueTimeoutUrl = `${process.env.APP_BASE_URL}/api/b2c-timeout`;
 
-    // Initiate B2C payment and check HTTP status
+    // Store OriginatorConversationID in Loan record before initiating payment
+    await prisma.loan.update({
+      where: { id: parseInt(loanId, 10) },
+      data: { originatorConversationID },
+    });
+
+    // Initiate B2C payment
     const response = await initiateB2CPayment({
       amount,
       phoneNumber: sanitizedPhone,
@@ -131,13 +139,16 @@ const disburseB2CPayment = async ({ phoneNumber, amount, loanId, userId, tenantI
       consumerKey: mpesaConfig.consumerKey,
       consumerSecret: mpesaConfig.consumerSecret,
       remarks: `Loan ${loanId} disbursement`,
+      originatorConversationID, // Pass the generated ID
     });
-    if (response.status !== 200) {
-      throw new Error(`M-Pesa API HTTP error: ${response.status}`);
+
+    if (response.error) {
+      throw new Error(response.error);
     }
-    const mpesaResponse = response.data;
+
+    const mpesaResponse = response;
     result.mpesaResponse = mpesaResponse;
-    console.log(`M-Pesa B2C Response: ${JSON.stringify(response, null, 2)}`);
+    console.log(`M-Pesa B2C Response: ${JSON.stringify(mpesaResponse, null, 2)}`);
 
     // Determine success from response code
     const transactionId = mpesaResponse.TransactionID || mpesaResponse.ConversationID || '';
@@ -156,18 +167,19 @@ const disburseB2CPayment = async ({ phoneNumber, amount, loanId, userId, tenantI
         data: {
           disbursedAt: new Date(),
           mpesaTransactionId: transactionId,
-          mpesaStatus: isSuccess ? 'SUCCESS' : 'FAILED',
+          mpesaStatus: isSuccess ? 'Pending' : 'Failed',
           status: isSuccess ? 'DISBURSED' : 'APPROVED',
+          originatorConversationID, // Ensure it's saved
         },
       });
 
-      // Create new balance entry (always, regardless of success)
+      // Create new balance entry
       await tx.mPesaBalance.create({
         data: {
           resultType: mpesaResponse.ResultType ?? 0,
           resultCode: mpesaResponse.ResultCode ?? 0,
           resultDesc: mpesaResponse.ResultDesc ?? 'No description provided',
-          originatorConversationID: mpesaResponse.OriginatorConversationID ?? '',
+          originatorConversationID,
           conversationID: mpesaResponse.ConversationID ?? '',
           transactionID: transactionId,
           utilityAccountBalance: utility !== null ? parseFloat(utility) : null,
@@ -183,7 +195,7 @@ const disburseB2CPayment = async ({ phoneNumber, amount, loanId, userId, tenantI
           userId,
           action: isSuccess ? 'DISBURSE' : 'DISBURSE_ERROR',
           resource: 'LOAN',
-          details: JSON.stringify({ loanId, phoneNumber: sanitizedPhone, transactionId, mpesaResponse }),
+          details: JSON.stringify({ loanId, phoneNumber: sanitizedPhone, transactionId, originatorConversationID, mpesaResponse }),
         },
       });
 
@@ -195,19 +207,20 @@ const disburseB2CPayment = async ({ phoneNumber, amount, loanId, userId, tenantI
   } catch (err) {
     result.error = err.message;
 
-    // Optionally create an mPesaBalance record for failed attempts (if API response is unavailable)
+    // Create an mPesaBalance record for failed attempts
     if (!result.mpesaResponse) {
-      await prisma.$transaction(async (tx) => {
+      await prisma.$transaction(async () => {
         await tx.mPesaBalance.create({
           data: {
             resultType: 0,
             resultCode: -1,
-            resultDesc: `Failed to initiate disbursement: ${err.message}`,
-            originatorConversationID: '',
+            resultDesc: 'Failed to initiate disbursement: ${err.message}',
+            originatorConversationID,
             conversationID: '',
             transactionID: '',
             utilityAccountBalance: null,
             workingAccountBalance: null,
+            workingAccount,
             tenantId,
           },
         });
@@ -218,7 +231,7 @@ const disburseB2CPayment = async ({ phoneNumber, amount, loanId, userId, tenantI
             userId,
             action: 'DISBURSE_ERROR',
             resource: 'LOAN',
-            details: JSON.stringify({ loanId, phoneNumber, error: err.message }),
+            details: JSON.stringify({ loanId, phoneNumber, error: err.message, originatorConversationID }),
           },
         });
       });
