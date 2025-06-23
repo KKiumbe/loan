@@ -237,7 +237,7 @@ model MPesaBalance {
   resultType            Int
   resultCode            Int
   resultDesc            String
-  originatorConversationID String @unique
+originatorConversationID String @unique @default(uuid())
   
   conversationID        String
   transactionID         String
