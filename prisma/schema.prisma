@@ -237,8 +237,8 @@ model MPesaBalance {
   resultType            Int
   resultCode            Int
   resultDesc            String
-originatorConversationID String @default(uuid())
-  
+originatorConversationID String 
+ 
   conversationID        String
   transactionID         String
   workingAccountBalance Float? // Working Account available balance
