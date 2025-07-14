@@ -5,7 +5,7 @@ import { disburseB2CPayment } from '../mpesa/initiateB2CPayment';
 import { sendSMS } from '../sms/sms';
 import { fetchLatestBalance } from '../mpesa/mpesaConfig';
 import { AuthenticatedRequest } from '../../middleware/verifyToken';
-import { ApiResponse, AutoApprovalResponse, DisbursementResult, ErrorResponse, Loan, LoanbyId, LoanDetails, LoanPayout, Organization, UnpaidLoan, User } from '../../types/loan';
+import { ApiResponse, AutoApprovalResponse, DisbursementResult, ErrorResponse, Loan, LoanbyId, LoanDetails, LoanPayout, MinimalLoanForDisbursement, Organization, UnpaidLoan, User } from '../../types/loan';
 import { Employee, LoanToDisburse, MpesaResponseDisburse } from '../../types/disburse';
 
 const prisma = new PrismaClient();
@@ -43,6 +43,7 @@ type MinimalLoan = {
 };
 
 
+
 export const createLoan = async (
   req: AuthenticatedRequest,
   res: Response<ApiResponse<AutoApprovalResponse> | ErrorResponse>
@@ -78,17 +79,12 @@ export const createLoan = async (
       },
     });
 
-    if (!employee) {
-      res.status(400).json({ message: 'Account not linked to an employee record' });
+    if (!employee || !employee.organization) {
+      res.status(400).json({ message: 'Employee or organization not found' });
       return;
     }
 
     const org = employee.organization;
-    if (!org) {
-      res.status(500).json({ message: 'Employee has no organization' });
-      return;
-    }
-
     const monthlyCap = employee.grossSalary * org.loanLimitMultiplier;
     const now = new Date();
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -114,7 +110,6 @@ export const createLoan = async (
 
     const { dueDate, totalRepayable } = calculateLoanDetails(amount, org.interestRate);
 
-    // Create loan with initial status based on approvalSteps
     const loan = await prisma.loan.create({
       data: {
         user: { connect: { id: userId } },
@@ -125,18 +120,16 @@ export const createLoan = async (
         dueDate,
         totalRepayable,
         status: org.approvalSteps === 0 ? 'APPROVED' : 'PENDING',
-        approvalCount: org.approvalSteps === 0 ? 0 : 0,
-       
+        approvalCount: 0,
       },
       include: {
-        organization: { select: { id: true, name: true, approvalSteps: true ,loanLimitMultiplier:true, interestRate:true} },
-        user: { select: { id: true, firstName: true, phoneNumber: true ,lastName:true} },
-        consolidatedRepayment:true,
-        LoanPayout:true
+        organization: { select: { id: true, name: true, approvalSteps: true, loanLimitMultiplier: true, interestRate: true } },
+        user: { select: { id: true, firstName: true, phoneNumber: true, lastName: true } },
+        consolidatedRepayment: true,
+        LoanPayout: true,
       },
     });
 
-    // Audit log for loan creation
     await prisma.auditLog.create({
       data: {
         tenant: { connect: { id: tenantId } },
@@ -147,70 +140,41 @@ export const createLoan = async (
       },
     });
 
-    // Handle auto-approval for approvalSteps === 0
+    // === Auto Approval & Disbursement ===
     if (org.approvalSteps === 0) {
+      const disbursableLoan = {
+        id: loan.id,
+        amount: loan.amount,
+        tenantId: loan.tenantId,
+        disbursedAt: loan.disbursedAt,
+        user: {
+          id: loan.user.id,
+          firstName: loan.user.firstName,
+          phoneNumber: loan.user.phoneNumber,
+          lastName: loan.user.lastName
+        },
+        organization: {
+          id: loan.organization.id,
+          name: loan.organization.name,
+        },
+      };
 
+      const { loanPayout, disbursement, updatedLoan } = await createPayoutAndDisburse(disbursableLoan, prisma);
 
-
-
-//    const sanitizedLoan: MinimalLoan & {
-//   user: { id: number; firstName: string; phoneNumber: string };
-//   organization: { id: number; name: string };
-  
-//   tenantId: number;
-// } = {
-//   ...loan,
-//   user: { id: userId, firstName, phoneNumber ,lastName},
-//   organization: {
-//     id: org.id,
-//     name: org.name,
-//   },
-// };
-type DisbursableLoan = Pick<Loan, 'id' | 'amount' | 'tenantId' | 'disbursedAt'> & {
-  user: Pick<User, 'id' | 'firstName' | 'phoneNumber'| 'lastName'>;
-  organization: Pick<Organization, 'id' | 'name'>;
-};
-
-
-const disbursableLoan = {
-  id: loan.id,
-  amount: loan.amount,
-  tenantId: loan.tenantId,
-  disbursedAt: loan.disbursedAt,
-  user: {
-    id: loan.user.id,
-    firstName: loan.user.firstName,
-    phoneNumber: loan.user.phoneNumber,
-    lastName: loan.user.lastName
-  },
-  organization: {
-    id: loan.organization.id,
-    name: loan.organization.name,
-  },
-} satisfies DisbursableLoan;
-
-
-
-await createPayoutAndDisburse(disbursableLoan, prisma);
-
-
-
-      if ('message' in disbursableLoan) {
-        // Disbursement failed
-
+      if ('message' in loanPayout) {
         res.status(400).json({
           success: false,
           message: 'Loan auto-approved but disbursement failed',
-          data: loan, // assuming loan is a Loan object
+          data: {
+            loan: updatedLoan || disbursableLoan,
+            loanPayout,
+            disbursement: null
+          },
           error: 'Disbursement failed'
-        } as unknown as ApiResponse<AutoApprovalResponse>);
-
-   
- 
+        });
         return;
       }
 
-      // Audit log for auto-approval
       await prisma.auditLog.create({
         data: {
           tenant: { connect: { id: tenantId } },
@@ -224,7 +188,6 @@ await createPayoutAndDisburse(disbursableLoan, prisma);
         },
       });
 
-      // Notify user of auto-approval
       const tenant = await prisma.tenant.findUnique({
         where: { id: tenantId },
         select: { name: true },
@@ -233,50 +196,45 @@ await createPayoutAndDisburse(disbursableLoan, prisma);
       await sendSMS(
         tenantId,
         phoneNumber,
-        `Dear ${firstName}, your loan of KES ${amount} at ${tenant?.name ?? 'the organization'} has been auto-approved. Disbursement initiated. Contact support for queries.`
-      ).catch((error) => console.error(`Failed to send SMS to ${phoneNumber}:`, error));
+        `Dear ${firstName}, your loan of KES ${amount} at ${tenant?.name ?? 'the organization'} has been auto-approved. Disbursement initiated.`
+      ).catch(err => console.error('SMS error:', err));
 
       res.status(201).json({
         message: 'Loan auto-approved and disbursement initiated',
-        data: { loan: updatedLoan || loan, loanPayout, disbursement },
+        success: true,
+        data: {
+          loan: updatedLoan || disbursableLoan,
+          loanPayout,
+          disbursement
+        },
+        error: null
       });
       return;
     }
 
-    // Handle manual approval cases (approvalSteps > 0)
+    // === Manual Approval Notifications ===
     const applicantName = `${firstName} ${lastName}`;
     const orgAdmins = await prisma.user.findMany({
       where: { tenantId, organizationId: org.id, role: { has: 'ORG_ADMIN' }, status: 'ACTIVE' },
       select: { id: true, firstName: true, lastName: true, phoneNumber: true },
     });
 
-    if (orgAdmins.length === 0) {
-      console.warn(`No ORG_ADMINs found for org ${org.id}, notifying tenant-level ADMINs...`);
-      const tenantAdmins = await prisma.user.findMany({
-        where: { tenantId, role: { has: 'ADMIN' }, status: 'ACTIVE' },
-        select: { id: true, firstName: true, lastName: true, phoneNumber: true },
-      });
+    const notifyUsers = orgAdmins.length > 0
+      ? orgAdmins
+      : await prisma.user.findMany({
+          where: { tenantId, role: { has: 'ADMIN' }, status: 'ACTIVE' },
+          select: { id: true, firstName: true, lastName: true, phoneNumber: true },
+        });
 
-      await Promise.all(
-        tenantAdmins.map((admin) =>
-          sendSMS(
-            tenantId,
-            admin.phoneNumber,
-            `Hello ${admin.firstName}, new loan request #${loan.id} for KES ${amount} by ${applicantName}. Please review.`
-          ).catch((error) => console.error(`Failed to send SMS to ${admin.phoneNumber}:`, error))
-        )
-      );
-    } else {
-      await Promise.all(
-        orgAdmins.map((admin) =>
-          sendSMS(
-            tenantId,
-            admin.phoneNumber,
-            `Hello ${admin.firstName}, new loan request #${loan.id} for KES ${amount} by ${applicantName}. Please review.`
-          ).catch((error) => console.error(`Failed to send SMS to ${admin.phoneNumber}:`, error))
-        )
-      );
-    }
+    await Promise.all(
+      notifyUsers.map((admin) =>
+        sendSMS(
+          tenantId,
+          admin.phoneNumber,
+          `Hello ${admin.firstName}, new loan request #${loan.id} for KES ${amount} by ${applicantName}. Please review.`
+        ).catch(err => console.error(`Failed to send SMS to ${admin.phoneNumber}:`, err))
+      )
+    );
 
     const tenant = await prisma.tenant.findUnique({
       where: { id: tenantId },
@@ -287,43 +245,37 @@ await createPayoutAndDisburse(disbursableLoan, prisma);
       tenantId,
       phoneNumber,
       `Dear ${firstName}, your KES ${amount} loan at ${tenant?.name ?? 'the organization'} is pending approval.`
-    ).catch((error) => console.error(`Failed to send SMS to ${phoneNumber}:`, error));
+    ).catch(err => console.error(`Failed to send SMS to ${phoneNumber}:`, err));
 
-    res.status(201).json({ 
-  message: 'Loan auto-approved but disbursement failed', 
-  data: { 
-    loan: loan, 
-    loanPayout: null, 
-    disbursement: null 
-  } as AutoApprovalResponse 
-});
-    return;
+    res.status(201).json({
+      message: 'Loan created and pending approval',
+      success: true,
+      data: {
+        loan,
+        loanPayout: null,
+        disbursement: null
+      },
+      error: null
+    });
   } catch (error: unknown) {
     console.error('Error creating loan:', error);
     res.status(500).json({ message: 'Internal server error', error: (error as Error).message });
-    return;
   }
 };
 
 
 const createPayoutAndDisburse = async (
-  loan: MinimalLoan & {
-    user: { id: number; firstName: string; phoneNumber: string };
-    organization: { id: number; name: string };
-    tenantId: number;
-  },
-  //approverId: string | null, // null for auto-approval
+    loan: MinimalLoanForDisbursement,
   prisma: PrismaClient
 ): Promise<{
   loanPayout: LoanPayout | { message: string; payout: LoanPayout };
-  disbursement?: DisbursementResult | undefined;
-  updatedLoan: MinimalLoan | null;
+  disbursement?: DisbursementResult;
+   updatedLoan: MinimalLoanForDisbursement | null;
 }> => {
   let loanPayout: LoanPayout | null = null;
   let disbursementResult: DisbursementResult | undefined;
-  let updatedLoan: MinimalLoan | null = null;
+  let updatedLoan: typeof loan | null = null;
 
-  // Create payout record
   loanPayout = await prisma.loanPayout.create({
     data: {
       loanId: loan.id,
@@ -339,7 +291,6 @@ const createPayoutAndDisburse = async (
   if (!loan.disbursedAt) {
     const balanceRecord = await fetchLatestBalance(loan.tenantId);
     const availableBalance = balanceRecord?.utilityAccountBalance ?? 0;
-    console.log(`Fetched balance for tenant ${loan.tenantId}: KES ${availableBalance}. Proceeding with disbursement.`);
 
     if (availableBalance < loan.amount) {
       await prisma.loanPayout.update({
@@ -366,7 +317,7 @@ const createPayoutAndDisburse = async (
         loan.tenantId,
         loan.user.phoneNumber,
         `Dear ${loan.user.firstName}, your loan of KES ${loan.amount} at ${tenant?.name} could not be disbursed due to insufficient funds.`
-      ).catch((e: Error) => console.error(`SMS failed: ${e.message}`));
+      ).catch(err => console.error('SMS error:', err));
 
       return {
         loanPayout: { message: 'Payout created but failed due to insufficient balance', payout: loanPayout },
@@ -375,55 +326,37 @@ const createPayoutAndDisburse = async (
       };
     }
 
-    const phoneNumber = loan.user.phoneNumber.startsWith('+254')
-      ? loan.user.phoneNumber.replace('+', '')
-      : `254${loan.user.phoneNumber.replace(/^0/, '')}`;
-
     try {
+      const formattedPhone = loan.user.phoneNumber.startsWith('+254')
+        ? loan.user.phoneNumber.replace('+', '')
+        : `254${loan.user.phoneNumber.replace(/^0/, '')}`;
+
       disbursementResult = await disburseB2CPayment({
-        phoneNumber,
+        phoneNumber: formattedPhone,
         amount: loan.amount,
         loanId: loan.id,
         userId: loan.user.id,
         tenantId: loan.tenantId,
       });
 
-      if (!disbursementResult || !disbursementResult.mpesaResponse) {
-        throw new Error('Disbursement failed: No MPESA response received');
+      if (!disbursementResult?.mpesaResponse) {
+        throw new Error('Disbursement failed: No MPESA response');
       }
 
-      updatedLoan = await prisma.loan.findUnique({
-        where: { id: loan.id },
-        include: {
-          organization: {
-            select: {
-              id: true,
-              name: true,
-              approvalSteps: true,
-              loanLimitMultiplier: true,
-              interestRate: true,
-            },
-          },
-          consolidatedRepayment: true,
-          LoanPayout: true,
-          user: { select: { id: true, firstName: true, phoneNumber: true ,lastName:true} },
-        },
-      });
+      updatedLoan = {
+        ...loan,
+        disbursedAt: new Date()
+      };
 
-      if (!updatedLoan) {
-        throw new Error('Loan not found after disbursement');
-      }
-
-      loanPayout = await prisma.loanPayout.update({
+      await prisma.loanPayout.update({
         where: { id: loanPayout.id },
         data: {
           transactionId: disbursementResult.mpesaResponse.transactionId,
           status: PayoutStatus.DISBURSED,
         },
       });
-    } catch (err: unknown) {
-      console.error('Disbursement failed:', JSON.stringify(err, null, 2));
-      loanPayout = await prisma.loanPayout.update({
+    } catch (err) {
+      await prisma.loanPayout.update({
         where: { id: loanPayout.id },
         data: { status: PayoutStatus.FAILED },
       });
@@ -447,7 +380,7 @@ const createPayoutAndDisburse = async (
         loan.tenantId,
         loan.user.phoneNumber,
         `Dear ${loan.user.firstName}, your loan of KES ${loan.amount} at ${tenant?.name} could not be disbursed due to an error.`
-      ).catch((e: Error) => console.error(`SMS failed: ${e.message}`));
+      ).catch(e => console.error('SMS failed:', e));
 
       return {
         loanPayout: { message: 'Payout created but failed due to error', payout: loanPayout },
@@ -459,6 +392,7 @@ const createPayoutAndDisburse = async (
 
   return { loanPayout, disbursement: disbursementResult, updatedLoan };
 };
+
 
 
 export const getLoans = async (
