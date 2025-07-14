@@ -33,6 +33,14 @@ export const calculateLoanDetails = (amount: number, interestRate: number): Loan
   return { dueDate, totalRepayable };
 };
 
+type MinimalLoan = {
+  id: number;
+  amount: number;
+  tenantId: number;
+  disbursedAt: Date | null;
+  user: { id: number; firstName: string; phoneNumber: string , lastName: string};
+  organization: { id: number; name: string };
+};
 
 
 export const createLoan = async (
@@ -145,9 +153,10 @@ export const createLoan = async (
 
 
 
-   const sanitizedLoan: Loan & {
+   const sanitizedLoan: MinimalLoan & {
   user: { id: number; firstName: string; phoneNumber: string };
   organization: { id: number; name: string };
+  
   tenantId: number;
 } = {
   ...loan,
@@ -278,7 +287,7 @@ const { loanPayout, disbursement, updatedLoan } = await createPayoutAndDisburse(
 
 
 const createPayoutAndDisburse = async (
-  loan: Loan & {
+  loan: MinimalLoan & {
     user: { id: number; firstName: string; phoneNumber: string };
     organization: { id: number; name: string };
     tenantId: number;
@@ -288,11 +297,11 @@ const createPayoutAndDisburse = async (
 ): Promise<{
   loanPayout: LoanPayout | { message: string; payout: LoanPayout };
   disbursement?: DisbursementResult | undefined;
-  updatedLoan: Loan | null;
+  updatedLoan: MinimalLoan | null;
 }> => {
   let loanPayout: LoanPayout | null = null;
   let disbursementResult: DisbursementResult | undefined;
-  let updatedLoan: Loan | null = null;
+  let updatedLoan: MinimalLoan | null = null;
 
   // Create payout record
   loanPayout = await prisma.loanPayout.create({
@@ -377,6 +386,7 @@ const createPayoutAndDisburse = async (
           },
           consolidatedRepayment: true,
           LoanPayout: true,
+          user: { select: { id: true, firstName: true, phoneNumber: true ,lastName:true} },
         },
       });
 
@@ -444,7 +454,7 @@ export const getLoans = async (
       return;
     }
 
-    let loans: Loan[] = [];
+    let loans: MinimalLoan[] = [];
 
     if (role.includes('EMPLOYEE')) {
       loans = await prisma.loan.findMany({
@@ -459,22 +469,8 @@ export const getLoans = async (
               interestRate: true,
             },
           },
-          consolidatedRepayment: {
-            select: {
-              id: true,
-
-              userId: true,
-  organizationId: true,
-  tenantId: true,
-  amount: true,
-  totalAmount: true,
-  paidAt: true,
-  status: true,
-  createdAt: true,
-  updatedAt: true
-              
-            },
-          },
+          consolidatedRepayment: true,
+          user: { select: { id: true, firstName: true, lastName: true, phoneNumber: true  } },
         },
       });
     } else if (role.includes('ORG_ADMIN')) {
@@ -499,22 +495,9 @@ export const getLoans = async (
               interestRate: true,
             },
           },
-          consolidatedRepayment: {
-            select: {
-              id: true,
-
-              userId: true,
-  organizationId: true,
-  tenantId: true,
-  amount: true,
-  totalAmount: true,
-  paidAt: true,
-  status: true,
-  createdAt: true,
-  updatedAt: true
-              
-            },
-          },
+          consolidatedRepayment: true,
+          
+          
           
         },
       });
@@ -532,22 +515,7 @@ export const getLoans = async (
               interestRate: true,
             },
           },
-          consolidatedRepayment: {
-            select: {
-              id: true,
-
-              userId: true,
-  organizationId: true,
-  tenantId: true,
-  amount: true,
-  totalAmount: true,
-  paidAt: true,
-  status: true,
-  createdAt: true,
-  updatedAt: true
-              
-            },
-          },
+          consolidatedRepayment: true,
         },
       });
     } else {

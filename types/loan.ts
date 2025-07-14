@@ -120,8 +120,8 @@ export  interface Loan {
   duration: number;
   user: User;
   organization: Partial<Organization>;
-  consolidatedRepayment: ConsolidatedRepayment | null;
-  LoanPayout?: LoanPayout[];
+  consolidatedRepayment: Partial<ConsolidatedRepayment> | null;
+  LoanPayout?: Partial<LoanPayout>[];
 }
 
 
