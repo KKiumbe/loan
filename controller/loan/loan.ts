@@ -141,15 +141,30 @@ export const createLoan = async (
 
     // Handle auto-approval for approvalSteps === 0
     if (org.approvalSteps === 0) {
-      const { loanPayout, disbursement, updatedLoan } = await createPayoutAndDisburse(
 
 
-        { ...loan, user: { id:userId, firstName,lastName, phoneNumber }, organization: org },
-        // No approver for auto-approval
 
-        prisma
-       
-      );
+
+   const sanitizedLoan: Loan & {
+  user: { id: number; firstName: string; phoneNumber: string };
+  organization: { id: number; name: string };
+  tenantId: number;
+} = {
+  ...loan,
+  user: { id: userId, firstName, phoneNumber ,lastName},
+  organization: {
+    id: org.id,
+    name: org.name,
+  },
+};
+
+
+
+const { loanPayout, disbursement, updatedLoan } = await createPayoutAndDisburse(
+  sanitizedLoan,
+  prisma
+);
+
 
       if ('message' in loanPayout) {
         // Disbursement failed

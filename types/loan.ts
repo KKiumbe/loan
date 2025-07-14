@@ -118,7 +118,7 @@ export  interface Loan {
   mpesaStatus: string | null;
   originatorConversationID: string | null;
   duration: number;
-  user?: User;
+  user: User;
   organization: Partial<Organization>;
   consolidatedRepayment: ConsolidatedRepayment | null;
   LoanPayout?: LoanPayout[];
