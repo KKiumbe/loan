@@ -5,7 +5,7 @@ import { disburseB2CPayment } from '../mpesa/initiateB2CPayment';
 import { sendSMS } from '../sms/sms';
 import { fetchLatestBalance } from '../mpesa/mpesaConfig';
 import { AuthenticatedRequest } from '../../middleware/verifyToken';
-import { ApiResponse, AutoApprovalResponse, DisbursementResult, ErrorResponse, Loan, LoanbyId, LoanDetails, LoanPayout, Organization, UnpaidLoan } from '../../types/loan';
+import { ApiResponse, AutoApprovalResponse, DisbursementResult, ErrorResponse, Loan, LoanbyId, LoanDetails, LoanPayout, Organization, UnpaidLoan, User } from '../../types/loan';
 import { Employee, LoanToDisburse, MpesaResponseDisburse } from '../../types/disburse';
 
 const prisma = new PrismaClient();
@@ -153,29 +153,49 @@ export const createLoan = async (
 
 
 
-   const sanitizedLoan: MinimalLoan & {
-  user: { id: number; firstName: string; phoneNumber: string };
-  organization: { id: number; name: string };
+//    const sanitizedLoan: MinimalLoan & {
+//   user: { id: number; firstName: string; phoneNumber: string };
+//   organization: { id: number; name: string };
   
-  tenantId: number;
-} = {
-  ...loan,
-  user: { id: userId, firstName, phoneNumber ,lastName},
-  organization: {
-    id: org.id,
-    name: org.name,
-  },
+//   tenantId: number;
+// } = {
+//   ...loan,
+//   user: { id: userId, firstName, phoneNumber ,lastName},
+//   organization: {
+//     id: org.id,
+//     name: org.name,
+//   },
+// };
+type DisbursableLoan = Pick<Loan, 'id' | 'amount' | 'tenantId' | 'disbursedAt'> & {
+  user: Pick<User, 'id' | 'firstName' | 'phoneNumber'| 'lastName'>;
+  organization: Pick<Organization, 'id' | 'name'>;
 };
 
 
+const disbursableLoan = {
+  id: loan.id,
+  amount: loan.amount,
+  tenantId: loan.tenantId,
+  disbursedAt: loan.disbursedAt,
+  user: {
+    id: loan.user.id,
+    firstName: loan.user.firstName,
+    phoneNumber: loan.user.phoneNumber,
+    lastName: loan.user.lastName
+  },
+  organization: {
+    id: loan.organization.id,
+    name: loan.organization.name,
+  },
+} satisfies DisbursableLoan;
 
-const { loanPayout, disbursement, updatedLoan } = await createPayoutAndDisburse(
-  sanitizedLoan,
-  prisma
-);
 
 
-      if ('message' in loanPayout) {
+await createPayoutAndDisburse(disbursableLoan, prisma);
+
+
+
+      if ('message' in disbursableLoan) {
         // Disbursement failed
 
         res.status(400).json({
