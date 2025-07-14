@@ -1,5 +1,7 @@
 // src/interfaces/mpesaInterfaces.ts
 
+import { Organization, Tenant, User } from "./loan";
+
 export interface MpesaResult {
   ResultType?: number;
   ResultCode: number;
@@ -214,3 +216,21 @@ export type PaymentConfirmationCreateNestedManyWithoutPaymentBatchInput = {
   create: PaymentConfirmation[];
   connect: PaymentConfirmation[];
 };
+
+
+export interface ConsolidatedRepayment {
+  id: number;
+  userId: number;
+  organizationId: number;
+  tenantId: number;
+  amount: number;
+  totalAmount: number | null;
+  paidAt?: Date | null;
+  status?: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+  user: User;
+  organization: Organization;
+  tenant: Tenant;
+  loans: Loan[];
+}

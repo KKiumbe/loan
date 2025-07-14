@@ -1,7 +1,9 @@
 import { Request, Response } from 'express';
-import { ConsolidatedRepayment, PrismaClient } from '@prisma/client';
+import {  PrismaClient } from '@prisma/client';
 import { APIResponse } from '../../types/sms';
 import { AuthenticatedRequest } from '../../middleware/verifyToken';
+import users from '../users/users';
+import { ConsolidatedRepayment } from '../../types/loansPayments';
 
 
 // Initialize Prisma client
@@ -136,22 +138,34 @@ const createRepayment = async (req: AuthenticatedRequest, res: Response)
     // Create repayment and update loans in a transaction
     console.time('repaymentTransaction');
     const repayment = await prisma.$transaction(async (prisma) => {
+      
+
+      
+
       const newRepayment: ConsolidatedRepayment = await prisma.consolidatedRepayment.create({
-        data: {
-          userId: id,
-          organizationId:userOrganizationId!,
-          tenantId: tenantId,
-         
-          amount,
-          paidAt: new Date(),
-          updatedAt: new Date(),
-          totalAmount: totalRepayable,
-          createdAt: new Date(),
-          status: 'PENDING',
+  data: {
+    userId: id,
+    organizationId: userOrganizationId!,
+    tenantId: tenantId,
+    amount,
+    paidAt: new Date(), // You don't need `|| null` here since you're explicitly giving a Date
+    totalAmount: totalRepayable ?? null,
+    status: 'REPAID',
+    // createdAt and updatedAt are automatically handled by Prisma unless you're overriding them
+  },
+  include: {
+    user: true,
+    organization: true,
+    tenant: true,
+    loans: {
+      include: {
+        user: true,
+        organization: true,
+      },
+    },
+  },
+});
 
-
-        },
-      });
 
     
       await prisma.loan.updateMany({
