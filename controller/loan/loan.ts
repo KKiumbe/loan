@@ -5,7 +5,7 @@ import { disburseB2CPayment } from '../mpesa/initiateB2CPayment';
 import { sendSMS } from '../sms/sms';
 import { fetchLatestBalance } from '../mpesa/mpesaConfig';
 import { AuthenticatedRequest } from '../../middleware/verifyToken';
-import { ApiResponse, AutoApprovalResponse, DisbursementResult, ErrorResponse, Loan, LoanbyId, LoanDetails, LoanPayout, UnpaidLoan } from '../../types/loan';
+import { ApiResponse, AutoApprovalResponse, DisbursementResult, ErrorResponse, Loan, LoanbyId, LoanDetails, LoanPayout, Organization, UnpaidLoan } from '../../types/loan';
 import { Employee, LoanToDisburse, MpesaResponseDisburse } from '../../types/disburse';
 
 const prisma = new PrismaClient();
@@ -1761,13 +1761,16 @@ export const getPendingLoans = async (
 
 
 // Get user loans
+
+
+
+
 export const getUserLoans = async (
   req: AuthenticatedRequest,
   res: Response<ApiResponse<Record<string, Loan[]>> | ErrorResponse>,
-  
 ): Promise<void> => {
   const { id: userId } = req.user!;
-
+type LoanWithOrg = Loan & { organization: Organization };
   try {
     const loans = await prisma.loan.findMany({
       where: { userId },
@@ -1775,66 +1778,35 @@ export const getUserLoans = async (
       include: {
         organization: true,
         consolidatedRepayment: {
-            select: {
-              id: true,
-
-              userId: true,
-  organizationId: true,
-  tenantId: true,
-  amount: true,
-  totalAmount: true,
-  paidAt: true,
-  status: true,
-  createdAt: true,
-  updatedAt: true
-              
-            },
+          select: {
+            id: true,
+            userId: true,
+            organizationId: true,
+            tenantId: true,
+            amount: true,
+            totalAmount: true,
+            paidAt: true,
+            status: true,
+            createdAt: true,
+            updatedAt: true,
           },
+        },
       },
-    });
+    }) as LoanWithOrg[];
 
-  const grouped = {
-  pending: loans.filter((loan) => loan.status === 'PENDING' || loan.status === 'APPROVED').map((loan) => ({
-    ...loan,
-    organization: {
-      id: loan.organization.id,
-      name: loan.organization.name,
-      approvalSteps: loan.organization.approvalSteps,
-      loanLimitMultiplier: loan.organization.loanLimitMultiplier,
-      interestRate: loan.organization.interestRate,
-    },
-  })),
-  disbursed: loans.filter((loan) => loan.status === 'DISBURSED').map((loan) => ({
-    ...loan,
-    organization: {
-      id: loan.organization.id,
-      name: loan.organization.name,
-      approvalSteps: loan.organization.approvalSteps,
-      loanLimitMultiplier: loan.organization.loanLimitMultiplier,
-      interestRate: loan.organization.interestRate,
-    },
-  })),
-  rejected: loans.filter((loan) => loan.status === 'REJECTED').map((loan) => ({
-    ...loan,
-    organization: {
-      id: loan.organization.id,
-      name: loan.organization.name,
-      approvalSteps: loan.organization.approvalSteps,
-      loanLimitMultiplier: loan.organization.loanLimitMultiplier,
-      interestRate: loan.organization.interestRate,
-    },
-  })),
-};;
+    const grouped = {
+      pending: loans.filter((loan) => loan.status === 'PENDING' || loan.status === 'APPROVED'),
+      disbursed: loans.filter((loan) => loan.status === 'DISBURSED'),
+      rejected: loans.filter((loan) => loan.status === 'REJECTED'),
+    };
 
     res.status(200).json({ message: 'User loans retrieved successfully', data: grouped });
-    return;
   } catch (error: unknown) {
     console.error('Error fetching user loans:', error);
     res.status(500).json({ message: 'Could not retrieve loans', error: (error as Error).message });
-    return;
- 
+  }
 };
-}
+
 
 
 
