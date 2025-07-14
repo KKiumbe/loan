@@ -230,7 +230,7 @@ export interface ConsolidatedRepayment {
   createdAt: Date;
   updatedAt: Date;
   user: User;
-  organization: Organization;
-  tenant: Tenant;
-  loans: Loan[];
+  organization: Partial<Organization>;
+  tenant: Partial<Tenant>;
+  loans: Partial<Loan>[];
 }

@@ -139,19 +139,20 @@ const createRepayment = async (req: AuthenticatedRequest, res: Response)
     console.time('repaymentTransaction');
     const repayment = await prisma.$transaction(async (prisma) => {
       
+const userExists = await prisma.user.findUnique({ where: { id } });
+if (!userExists) {
+  throw new Error(`User with ID ${id} does not exist`);
+}
 
-      
-
-      const newRepayment: ConsolidatedRepayment = await prisma.consolidatedRepayment.create({
+const newRepayment: ConsolidatedRepayment = await prisma.consolidatedRepayment.create({
   data: {
-    userId: id,
-    organizationId: userOrganizationId!,
-    tenantId: tenantId,
+    user: { connect: { id } },
+    organization: { connect: { id: userOrganizationId! } },
+    tenant: { connect: { id: tenantId } },
     amount,
-    paidAt: new Date(), // You don't need `|| null` here since you're explicitly giving a Date
     totalAmount: totalRepayable ?? null,
+    paidAt: new Date(),
     status: 'REPAID',
-    // createdAt and updatedAt are automatically handled by Prisma unless you're overriding them
   },
   include: {
     user: true,
@@ -165,6 +166,9 @@ const createRepayment = async (req: AuthenticatedRequest, res: Response)
     },
   },
 });
+
+      
+
 
 
     

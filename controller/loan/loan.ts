@@ -182,12 +182,12 @@ export const getLoanById = async (
       where: { id: parseInt(id) },
       include: {
         user: { select: { id: true, firstName: true, lastName: true, phoneNumber: true } },
-        organization: { select: { id: true, name: true, approvalSteps: true } },
+        organization: { select: { id: true, name: true, approvalSteps: true ,loanLimitMultiplier: true, interestRate: true} },
         consolidatedRepayment: {
             select: {
               id: true,
 
-              userId: true,
+             // userId: true,
   organizationId: true,
   tenantId: true,
   amount: true,
@@ -296,7 +296,7 @@ export const approveLoan = async (
             select: {
               id: true,
 
-              userId: true,
+             // userId: true,
   organizationId: true,
   tenantId: true,
   amount: true,
@@ -365,7 +365,7 @@ export const approveLoan = async (
     let loanPayout: LoanPayout | null = null;
     let disbursementResult: DisbursementResult | null = null;
 
-    if (loan.organization.approvalSteps === 1) {
+    if (loan?.organization?.approvalSteps === 1) {
       updatedLoan = await prisma.loan.update({
         where: { id: parseInt(id) },
         data: { status: 'APPROVED', approvalCount: loan.approvalCount + 1, firstApproverId: userId },
@@ -384,7 +384,7 @@ export const approveLoan = async (
             select: {
               id: true,
 
-              userId: true,
+              //userId: true,
   organizationId: true,
   tenantId: true,
   amount: true,
@@ -450,9 +450,9 @@ export const approveLoan = async (
           });
 
           await sendSMS(
-            loan.tenantId,
-            loan.user.phoneNumber,
-            `Dear ${loan.user.firstName}, your loan of KES ${loan.amount} at ${tenant?.name} could not be disbursed due to insufficient funds.`
+            loan?.tenantId,
+            loan?.user.phoneNumber,
+            `Dear ${loan?.user?.firstName}, your loan of KES ${loan?.amount} at ${tenant?.name} could not be disbursed due to insufficient funds.`
           ).catch((e: Error) => console.error(`SMS failed: ${e.message}`));
 
           res.status(400).json({
@@ -463,9 +463,9 @@ export const approveLoan = async (
           return;
         }
 
-        const phoneNumber = loan.user.phoneNumber.startsWith('+254')
-          ? loan.user.phoneNumber.replace('+', '')
-          : `254${loan.user.phoneNumber.replace(/^0/, '')}`;
+        const phoneNumber = loan?.user?.phoneNumber.startsWith('+254')
+          ? loan?.user?.phoneNumber.replace('+', '')
+          : `254${loan?.user?.phoneNumber.replace(/^0/, '')}`;
 
         try {
           disbursementResult = await disburseB2CPayment({
@@ -498,7 +498,7 @@ export const approveLoan = async (
             select: {
               id: true,
 
-              userId: true,
+             // userId: true,
   organizationId: true,
   tenantId: true,
   amount: true,
@@ -548,9 +548,9 @@ export const approveLoan = async (
           });
 
           await sendSMS(
-            loan.tenantId,
-            loan.user.phoneNumber,
-            `Dear ${loan.user.firstName}, your loan of KES ${loan.amount} at ${tenant?.name} could not be disbursed due to an error.`
+            loan?.tenantId,
+            loan?.user?.phoneNumber,
+            `Dear ${loan?.user?.firstName}, your loan of KES ${loan?.amount} at ${tenant?.name} could not be disbursed due to an error.`
           ).catch((e: Error) => console.error(`SMS failed: ${e.message}`));
 
           // res.status(400).json({
@@ -617,7 +617,7 @@ export const approveLoan = async (
             select: {
               id: true,
 
-              userId: true,
+             // userId: true,
   organizationId: true,
   tenantId: true,
   amount: true,
@@ -672,9 +672,9 @@ export const approveLoan = async (
             });
 
             await sendSMS(
-              loan.tenantId,
-              loan.user.phoneNumber,
-              `Dear ${loan.user.firstName}, your loan of KES ${loan.amount} at ${tenant?.name} could not be disbursed due to insufficient funds.`
+              loan?.tenantId,
+              loan?.user?.phoneNumber,
+              `Dear ${loan?.user?.firstName}, your loan of KES ${loan?.amount} at ${tenant?.name} could not be disbursed due to insufficient funds.`
             ).catch((e: Error) => console.error(`SMS failed: ${e.message}`));
 
             res.status(400).json({
@@ -766,9 +766,9 @@ export const approveLoan = async (
             });
 
             await sendSMS(
-              loan.tenantId,
-              loan.user.phoneNumber,
-              `Dear ${loan.user.firstName}, your loan of KES ${loan.amount} at ${tenant?.name} could not be disbursed due to an error.`
+              loan?.tenantId,
+              loan?.user.phoneNumber,
+              `Dear ${loan?.user?.firstName}, your loan of KES ${loan?.amount} at ${tenant?.name} could not be disbursed due to an error.`
             ).catch((e: Error) => console.error(`SMS failed: ${e.message}`));
 
             // res.status(400).json({
@@ -805,7 +805,7 @@ export const approveLoan = async (
         details: JSON.stringify({
           loanId: loan.id,
           approvalCount: updatedLoan!.approvalCount,
-          message: `Loan ${id} approved by ${firstName} ${lastName} (Approval ${updatedLoan!.approvalCount}/${loan.organization.approvalSteps})`,
+          message: `Loan ${id} approved)`,
         }),
       },
     });
@@ -1059,7 +1059,7 @@ export const getPendingLoanRequests = async (
             select: {
               id: true,
 
-              userId: true,
+              //userId: true,
   organizationId: true,
   tenantId: true,
   amount: true,
@@ -1159,7 +1159,7 @@ export const getLoansGroupedByStatus = async (
     );
 
     const groupedLoans: Record<LoanStatus, Loan[]> = statuses.reduce((acc, status, index) => {
-      acc[status] = loanResults[index];
+      //acc[status] = loanResults[index];
       return acc;
     }, {} as Record<LoanStatus, Loan[]>);
 
@@ -1264,7 +1264,7 @@ type LoanWithOrg = Loan & { organization: Organization };
     consolidatedRepayment: {
       select: {
         id: true,
-        userId: true,
+        //userId: true,
         organizationId: true,
         tenantId: true,
         amount: true,
