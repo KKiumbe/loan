@@ -1773,7 +1773,7 @@ export const getUserLoans = async (
       where: { userId },
       orderBy: { createdAt: 'desc' },
       include: {
-        organization: { select: { id: true, name: true, approvalSteps: true , loanLimitMultiplier: true, interestRate: true} },
+        organization: true,
         consolidatedRepayment: {
             select: {
               id: true,

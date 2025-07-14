@@ -146,7 +146,7 @@ export  interface UnpaidLoan {
 
   duration: number;
   user?: User;
-  organization: Organization;
+  organization: Partial<Organization>; 
  
 }
 
