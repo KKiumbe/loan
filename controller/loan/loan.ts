@@ -5,7 +5,7 @@ import { disburseB2CPayment } from '../mpesa/initiateB2CPayment';
 import { sendSMS } from '../sms/sms';
 import { fetchLatestBalance } from '../mpesa/mpesaConfig';
 import { AuthenticatedRequest } from '../../middleware/verifyToken';
-import { ApiResponse, AutoApprovalResponse, DisbursementResult, ErrorResponse, Loan, LoanbyId, LoanDetails, LoanPayout } from '../../types/loan';
+import { ApiResponse, AutoApprovalResponse, DisbursementResult, ErrorResponse, Loan, LoanbyId, LoanDetails, LoanPayout, UnpaidLoan } from '../../types/loan';
 import { Employee, LoanToDisburse, MpesaResponseDisburse } from '../../types/disburse';
 
 const prisma = new PrismaClient();
@@ -1501,7 +1501,7 @@ export const getLoansGroupedByStatus = async (
 
 export const getPendingLoans = async (
   req: AuthenticatedRequest,
-  res: Response<ApiResponse<Loan[]> | ErrorResponse>,
+  res: Response<ApiResponse<UnpaidLoan[]> | ErrorResponse>,
   next: NextFunction
 ): Promise<void> => {
   const { role, tenantId } = req.user!;
@@ -1543,21 +1543,8 @@ export const getPendingLoans = async (
             interestRate: true,
           },
         },
-        consolidatedRepayment: {
-          select: {
-            id: true,
-            amount: true,
-            userId: true,
-            organizationId: true,
-            tenantId: true,
-            totalAmount: true,
-            paidAt: true,
-            status: true,
-            createdAt: true,
-            updatedAt: true,
-          },
-        },
-        LoanPayout: true,
+       
+       
       },
       orderBy: { createdAt: 'desc' },
     });
@@ -1755,51 +1742,27 @@ export const getLoansForAll = async (
     }
 
     // Fetch all loans
-    const loans = await prisma.loan.findMany({
-      where: baseFilter,
-      include: {
-        user: {
-          select: {
-            id: true,
-            firstName: true,
-            lastName: true,
-            phoneNumber: true,
-          },
-        },
-        organization: {
-          select: {
-            id: true,
-            name: true,
-            approvalSteps: true,
-            loanLimitMultiplier: true,
-            interestRate: true,
-          },
-        },
-        consolidatedRepayment: {
-          select: {
-            id: true,
-            amount: true,
-            userId: true,
-            organizationId: true,
-            tenantId: true,
-            totalAmount: true,
-            paidAt: true,
-            status: true,
-            createdAt: true,
-            updatedAt: true,
-          },
-        },
-        LoanPayout: true,
-      },
-      orderBy: { createdAt: 'desc' },
-    });
+ 
+const loans = await prisma.loan.findMany({
+  where: baseFilter,
+  include: {
+    user: true,
+    organization: true,
+    consolidatedRepayment: true,
+    LoanPayout: true,
+  },
+  orderBy: { createdAt: 'desc' },
+});
+
 
     // Log for debugging
     console.log(`Fetched ${loans.length} loans for tenantId ${tenantId}${role.includes('ORG_ADMIN') ? `, organizationId ${organizationId}` : ''}`);
 
   res.status(200).json({
       message: 'All loans retrieved successfully',
-      data: loans,
+      data: loans || [],
+      success: true,
+      error: null
     });
   } catch (error: unknown) {
     console.error('Error fetching all loans:', error);

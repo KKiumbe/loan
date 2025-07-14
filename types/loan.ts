@@ -92,7 +92,7 @@ export  interface User {
   firstName: string;
   lastName: string;
   phoneNumber: string;
-  email?: string;
+  email?: string | null;
 }
 
 
@@ -122,6 +122,32 @@ export  interface Loan {
   organization: Organization;
   consolidatedRepayment: ConsolidatedRepayment | null;
   LoanPayout?: LoanPayout[];
+}
+
+
+export  interface UnpaidLoan {
+  id: number;
+  userId: number;
+  organizationId: number;
+  tenantId: number;
+  amount: number;
+  interestRate: number;
+  dueDate: Date;
+  totalRepayable: number;
+  status: LoanStatus;
+  approvalCount: number;
+  createdAt: Date;
+  updatedAt: Date;
+ 
+  firstApproverId: number | null;
+  secondApproverId: number | null;
+  thirdApproverId: number | null;
+  
+
+  duration: number;
+  user?: User;
+  organization: Organization;
+ 
 }
 
 export  interface Organization {
