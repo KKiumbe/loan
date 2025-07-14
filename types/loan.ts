@@ -1,14 +1,37 @@
 import { LoanStatus, PayoutStatus } from "@prisma/client";
 
-// src/types/loan.ts
-// export type Loan = {
-//   id: number;
-//   amount: number;
-//   interestRate: number;
-//   status: LoanStatus;
-//   createdAt: Date;
-//   dueDate: Date;
-// };
+
+
+
+
+
+export  interface Loan {
+  id: number;
+  userId: number;
+  organizationId: number;
+  tenantId: number;
+  amount: number;
+  interestRate: number;
+  dueDate: Date;
+  totalRepayable: number;
+  status: LoanStatus;
+  approvalCount: number;
+  createdAt: Date;
+  updatedAt: Date;
+  disbursedAt: Date | null;
+  firstApproverId: number | null;
+  secondApproverId: number | null;
+  thirdApproverId: number | null;
+  mpesaTransactionId: string | null;
+  mpesaStatus: string | null;
+  originatorConversationID: string | null;
+  duration: number;
+  user: User;
+  organization: Partial<Organization>;
+  consolidatedRepayment: Partial<ConsolidatedRepayment> | null;
+  LoanPayout?: Partial<LoanPayout>[];
+}
+
 
 
 
@@ -97,32 +120,19 @@ export  interface User {
 
 
 
-export  interface Loan {
-  id: number;
-  userId: number;
-  organizationId: number;
-  tenantId: number;
+export type MinimalLoanForDisbursement = {
+  id: Loan['id']; // just extract the type, no assignment
   amount: number;
-  interestRate: number;
-  dueDate: Date;
-  totalRepayable: number;
-  status: LoanStatus;
-  approvalCount: number;
-  createdAt: Date;
-  updatedAt: Date;
+  tenantId: number;
   disbursedAt: Date | null;
-  firstApproverId: number | null;
-  secondApproverId: number | null;
-  thirdApproverId: number | null;
-  mpesaTransactionId: string | null;
-  mpesaStatus: string | null;
-  originatorConversationID: string | null;
-  duration: number;
-  user: User;
+  user: {
+    id: number;
+    firstName: string;
+    phoneNumber: string;
+    lastName: string;
+  };
   organization: Partial<Organization>;
-  consolidatedRepayment: Partial<ConsolidatedRepayment> | null;
-  LoanPayout?: Partial<LoanPayout>[];
-}
+};
 
 
 export  interface GetLoans {
@@ -150,21 +160,6 @@ export  interface GetLoans {
  
 }
 
-export type MinimalLoanForDisbursement = {
-  id: number;
-  amount: number;
-  tenantId: number;
-  disbursedAt: Date | null;
-  user: {
-    id: number;
-    firstName: string;
-    phoneNumber: string;
-  };
-  organization: {
-    id: number;
-    name: string;
-  };
-};
 
 
 

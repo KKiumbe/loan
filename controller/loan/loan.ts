@@ -142,7 +142,7 @@ export const createLoan = async (
 
     // === Auto Approval & Disbursement ===
     if (org.approvalSteps === 0) {
-      const disbursableLoan = {
+      const disbursableLoan : MinimalLoanForDisbursement= {
         id: loan.id,
         amount: loan.amount,
         tenantId: loan.tenantId,
@@ -156,6 +156,11 @@ export const createLoan = async (
         organization: {
           id: loan.organization.id,
           name: loan.organization.name,
+          approvalSteps: loan.organization.approvalSteps,
+          loanLimitMultiplier: loan.organization.loanLimitMultiplier,
+          interestRate: loan.organization.interestRate
+
+          
         },
       };
 
@@ -166,7 +171,7 @@ export const createLoan = async (
           success: false,
           message: 'Loan auto-approved but disbursement failed',
           data: {
-            loan: updatedLoan || disbursableLoan,
+            loan,
             loanPayout,
             disbursement: null
           },
@@ -203,7 +208,7 @@ export const createLoan = async (
         message: 'Loan auto-approved and disbursement initiated',
         success: true,
         data: {
-          loan: updatedLoan || disbursableLoan,
+          loan,
           loanPayout,
           disbursement
         },
@@ -495,7 +500,7 @@ export const getLoans = async (
       },
     });
 
-   res.status(200).json({ message: 'Loans retrieved successfully', data: loans });
+   res.status(200).json({ message: 'Loans retrieved successfully' });
     return;
 
   } catch (error: unknown) {
