@@ -119,7 +119,7 @@ export  interface Loan {
   originatorConversationID: string | null;
   duration: number;
   user?: User;
-  organization: Organization;
+  organization: Partial<Organization>;
   consolidatedRepayment: ConsolidatedRepayment | null;
   LoanPayout?: LoanPayout[];
 }
