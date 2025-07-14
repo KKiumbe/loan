@@ -5,7 +5,7 @@ import { disburseB2CPayment } from '../mpesa/initiateB2CPayment';
 import { sendSMS } from '../sms/sms';
 import { fetchLatestBalance } from '../mpesa/mpesaConfig';
 import { AuthenticatedRequest } from '../../middleware/verifyToken';
-import { ApiResponse, AutoApprovalResponse, DisbursementResult, ErrorResponse, Loan, LoanbyId, LoanDetails, LoanPayout, MinimalLoanForDisbursement, Organization, UnpaidLoan, User } from '../../types/loan';
+import { ApiResponse, AutoApprovalResponse, DisbursementResult, ErrorResponse, GetLoans, Loan, LoanbyId, LoanDetails, LoanPayout, MinimalLoanForDisbursement, Organization, UnpaidLoan, User } from '../../types/loan';
 import { Employee, LoanToDisburse, MpesaResponseDisburse } from '../../types/disburse';
 
 const prisma = new PrismaClient();
@@ -397,7 +397,7 @@ const createPayoutAndDisburse = async (
 
 export const getLoans = async (
   req: AuthenticatedRequest,
-  res: Response<ApiResponse<Loan[]> | ErrorResponse>,
+  res: Response<ApiResponse<GetLoans[]> | ErrorResponse>,
 
 ): Promise<void> => {
   const { id: userId, tenantId, role, firstName, lastName } = req.user!;
@@ -411,22 +411,27 @@ export const getLoans = async (
     let loans: MinimalLoan[] = [];
 
     if (role.includes('EMPLOYEE')) {
+
       loans = await prisma.loan.findMany({
-        where: { userId, tenantId },
-        include: {
-          organization: {
-            select: {
-              id: true,
-              name: true,
-              approvalSteps: true,
-              loanLimitMultiplier: true,
-              interestRate: true,
-            },
-          },
-          consolidatedRepayment: true,
-          user: { select: { id: true, firstName: true, lastName: true, phoneNumber: true  } },
-        },
-      });
+  where: { userId, tenantId },
+  include: {
+    user: {
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+        phoneNumber: true,
+      },
+    },
+    organization: {
+      select: {
+        id: true,
+        name: true,
+      },
+    },
+  },
+});
+   
     } else if (role.includes('ORG_ADMIN')) {
       const employee = await prisma.employee.findFirst({
         where: { id: tenantId },
@@ -723,6 +728,7 @@ export const approveLoan = async (
               interestRate: true,
             },
           },
+          user: { select: { id: true, firstName: true, phoneNumber: true ,lastName: true} },
           consolidatedRepayment: {
             select: {
               id: true,
@@ -741,6 +747,7 @@ export const approveLoan = async (
           },
           LoanPayout: true,
         },
+        
       });
 
       if (!updatedLoan) {
@@ -833,7 +840,9 @@ export const approveLoan = async (
                   loanLimitMultiplier: true,
                   interestRate: true,
                 },
+                
               },
+              user: { select: { id: true, firstName: true, phoneNumber: true ,lastName: true} },
               consolidatedRepayment: {
             select: {
               id: true,
@@ -918,6 +927,7 @@ export const approveLoan = async (
                 interestRate: true,
               },
             },
+            user: { select: { id: true, firstName: true, phoneNumber: true ,lastName: true} },
             consolidatedRepayment: {
             select: {
               id: true,
@@ -951,6 +961,7 @@ export const approveLoan = async (
                 interestRate: true,
               },
             },
+            user: { select: { id: true, firstName: true, phoneNumber: true ,lastName: true} },
             consolidatedRepayment: {
             select: {
               id: true,
@@ -1048,6 +1059,7 @@ export const approveLoan = async (
                     interestRate: true,
                   },
                 },
+                user: { select: { id: true, firstName: true, phoneNumber: true ,lastName: true} },
                 consolidatedRepayment: {
             select: {
               id: true,
@@ -1285,6 +1297,7 @@ export const rejectLoan = async (
               
             },
           },
+          user: { select: { id: true, firstName: true, lastName: true, phoneNumber: true } }
         },
     });
 
@@ -1351,6 +1364,7 @@ export const rejectLoan = async (
       success: true,
       message: 'Loan rejected successfully',
       data: updatedLoan,
+      error: null,
     });
   } catch (error: unknown) {
     console.error('Error rejecting loan:', error);
@@ -1709,27 +1723,29 @@ export const getUserLoans = async (
   const { id: userId } = req.user!;
 type LoanWithOrg = Loan & { organization: Organization };
   try {
+    
     const loans = await prisma.loan.findMany({
-      where: { userId },
-      orderBy: { createdAt: 'desc' },
-      include: {
-        organization: true,
-        consolidatedRepayment: {
-          select: {
-            id: true,
-            userId: true,
-            organizationId: true,
-            tenantId: true,
-            amount: true,
-            totalAmount: true,
-            paidAt: true,
-            status: true,
-            createdAt: true,
-            updatedAt: true,
-          },
-        },
+  where: { userId },
+  orderBy: { createdAt: 'desc' },
+  include: {
+    user: true, // Add this line
+    organization: true,
+    consolidatedRepayment: {
+      select: {
+        id: true,
+        userId: true,
+        organizationId: true,
+        tenantId: true,
+        amount: true,
+        totalAmount: true,
+        paidAt: true,
+        status: true,
+        createdAt: true,
+        updatedAt: true,
       },
-    }) as LoanWithOrg[];
+    },
+  },
+}) as LoanWithOrg[];
 
     const grouped = {
       pending: loans.filter((loan) => loan.status === 'PENDING' || loan.status === 'APPROVED'),

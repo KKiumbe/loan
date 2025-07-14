@@ -125,6 +125,49 @@ export  interface Loan {
 }
 
 
+export  interface GetLoans {
+  id: number;
+  userId: number;
+  organizationId: number;
+  tenantId: number;
+  amount: number;
+  interestRate: number;
+  dueDate: Date;
+  totalRepayable: number;
+  status: LoanStatus;
+  approvalCount: number;
+  createdAt: Date;
+  updatedAt: Date;
+  disbursedAt: Date | null;
+  firstApproverId: number | null;
+  secondApproverId: number | null;
+  thirdApproverId: number | null;
+  mpesaTransactionId: string | null;
+  mpesaStatus: string | null;
+  originatorConversationID: string | null;
+  user : User;
+  organization: Partial<Organization>;
+ 
+}
+
+export type MinimalLoanForDisbursement = {
+  id: number;
+  amount: number;
+  tenantId: number;
+  disbursedAt: Date | null;
+  user: {
+    id: number;
+    firstName: string;
+    phoneNumber: string;
+  };
+  organization: {
+    id: number;
+    name: string;
+  };
+};
+
+
+
 export  interface UnpaidLoan {
   id: number;
   userId: number;
