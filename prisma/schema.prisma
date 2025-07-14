@@ -113,6 +113,8 @@ model User {
 
 
   LoanPayout LoanPayout[]
+
+  ConsolidatedRepayment ConsolidatedRepayment[]
 }
 enum UserStatus {
   ACTIVE
@@ -251,20 +253,25 @@ originatorConversationID String @unique
 }
 
 
-
 model ConsolidatedRepayment {
-  id              Int            @id @default(autoincrement())
-  tenantId        Int
-  tenant          Tenant         @relation(fields: [tenantId], references: [id])
-  organizationId  Int
-  organization    Organization   @relation(fields: [organizationId], references: [id])
-  totalAmount     Float
-  status          String
-  paidAt          DateTime?
-  loans           Loan[]
-  createdAt       DateTime       @default(now())
-  updatedAt       DateTime       @updatedAt
+  id             Int      @id @default(autoincrement())
+  userId         Int
+  organizationId Int
+  tenantId       Int
+  amount         Float
+  totalAmount    Float?   // Optional if not always present
+  paidAt         DateTime?
+  status         String?  // Optional if not always present
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  user           User     @relation(fields: [userId], references: [id])
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  tenant         Tenant   @relation(fields: [tenantId], references: [id])
+  loans          Loan[]   @relation
 }
+
+
+
 
 model MPESAConfig {
   tenantId           Int      @unique

@@ -1,0 +1,6 @@
+{
+  "watch": ["server.ts", "routes", "controller"],
+  "ext": "ts",
+  "ignore": ["dist"],
+  "exec": "ts-node server.ts"
+}
