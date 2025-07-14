@@ -444,7 +444,22 @@ export const getLoans = async (
               interestRate: true,
             },
           },
-          consolidatedRepayment: true,
+          consolidatedRepayment: {
+            select: {
+              id: true,
+
+              userId: true,
+  organizationId: true,
+  tenantId: true,
+  amount: true,
+  totalAmount: true,
+  paidAt: true,
+  status: true,
+  createdAt: true,
+  updatedAt: true
+              
+            },
+          },
         },
       });
     } else if (role.includes('ORG_ADMIN')) {
@@ -469,7 +484,23 @@ export const getLoans = async (
               interestRate: true,
             },
           },
-          consolidatedRepayment: true,
+          consolidatedRepayment: {
+            select: {
+              id: true,
+
+              userId: true,
+  organizationId: true,
+  tenantId: true,
+  amount: true,
+  totalAmount: true,
+  paidAt: true,
+  status: true,
+  createdAt: true,
+  updatedAt: true
+              
+            },
+          },
+          
         },
       });
     } else if (role.includes('ADMIN')) {
@@ -486,7 +517,22 @@ export const getLoans = async (
               interestRate: true,
             },
           },
-          consolidatedRepayment: true,
+          consolidatedRepayment: {
+            select: {
+              id: true,
+
+              userId: true,
+  organizationId: true,
+  tenantId: true,
+  amount: true,
+  totalAmount: true,
+  paidAt: true,
+  status: true,
+  createdAt: true,
+  updatedAt: true
+              
+            },
+          },
         },
       });
     } else {
@@ -544,7 +590,22 @@ export const getLoanById = async (
       include: {
         user: { select: { id: true, firstName: true, lastName: true, phoneNumber: true } },
         organization: { select: { id: true, name: true, approvalSteps: true } },
-        consolidatedRepayment: true,
+        consolidatedRepayment: {
+            select: {
+              id: true,
+
+              userId: true,
+  organizationId: true,
+  tenantId: true,
+  amount: true,
+  totalAmount: true,
+  paidAt: true,
+  status: true,
+  createdAt: true,
+  updatedAt: true
+              
+            },
+          },
       },
     });
 
@@ -638,7 +699,22 @@ export const approveLoan = async (
         organization: {
           select: { id: true, name: true, approvalSteps: true, loanLimitMultiplier: true, interestRate: true },
         },
-        consolidatedRepayment: true,
+        consolidatedRepayment: {
+            select: {
+              id: true,
+
+              userId: true,
+  organizationId: true,
+  tenantId: true,
+  amount: true,
+  totalAmount: true,
+  paidAt: true,
+  status: true,
+  createdAt: true,
+  updatedAt: true
+              
+            },
+          },
         LoanPayout: true,
       },
     });
@@ -710,7 +786,22 @@ export const approveLoan = async (
               interestRate: true,
             },
           },
-          consolidatedRepayment: true,
+          consolidatedRepayment: {
+            select: {
+              id: true,
+
+              userId: true,
+  organizationId: true,
+  tenantId: true,
+  amount: true,
+  totalAmount: true,
+  paidAt: true,
+  status: true,
+  createdAt: true,
+  updatedAt: true
+              
+            },
+          },
           LoanPayout: true,
         },
       });
@@ -806,7 +897,22 @@ export const approveLoan = async (
                   interestRate: true,
                 },
               },
-              consolidatedRepayment: true,
+              consolidatedRepayment: {
+            select: {
+              id: true,
+
+              userId: true,
+  organizationId: true,
+  tenantId: true,
+  amount: true,
+  totalAmount: true,
+  paidAt: true,
+  status: true,
+  createdAt: true,
+  updatedAt: true
+              
+            },
+          },
               LoanPayout: true,
             },
           });
@@ -875,7 +981,22 @@ export const approveLoan = async (
                 interestRate: true,
               },
             },
-            consolidatedRepayment: true,
+            consolidatedRepayment: {
+            select: {
+              id: true,
+
+              userId: true,
+  organizationId: true,
+  tenantId: true,
+  amount: true,
+  totalAmount: true,
+  paidAt: true,
+  status: true,
+  createdAt: true,
+  updatedAt: true
+              
+            },
+          },
             LoanPayout: true,
           },
         });
@@ -893,7 +1014,22 @@ export const approveLoan = async (
                 interestRate: true,
               },
             },
-            consolidatedRepayment: true,
+            consolidatedRepayment: {
+            select: {
+              id: true,
+
+              userId: true,
+  organizationId: true,
+  tenantId: true,
+  amount: true,
+  totalAmount: true,
+  paidAt: true,
+  status: true,
+  createdAt: true,
+  updatedAt: true
+              
+            },
+          },
             LoanPayout: true,
           },
         });
@@ -975,7 +1111,22 @@ export const approveLoan = async (
                     interestRate: true,
                   },
                 },
-                consolidatedRepayment: true,
+                consolidatedRepayment: {
+            select: {
+              id: true,
+
+              userId: true,
+  organizationId: true,
+  tenantId: true,
+  amount: true,
+  totalAmount: true,
+  paidAt: true,
+  status: true,
+  createdAt: true,
+  updatedAt: true
+              
+            },
+          },
                 LoanPayout: true,
               },
             });
@@ -1181,7 +1332,22 @@ export const rejectLoan = async (
       where: { id: parseInt(id) },
       data: { status: 'REJECTED' },
       include: { organization: { select: { id: true, name: true, approvalSteps: true, loanLimitMultiplier: true ,interestRate:true} }, 
-    consolidatedRepayment: true
+    consolidatedRepayment: {
+            select: {
+              id: true,
+
+              userId: true,
+  organizationId: true,
+  tenantId: true,
+  amount: true,
+  totalAmount: true,
+  paidAt: true,
+  status: true,
+  createdAt: true,
+  updatedAt: true
+              
+            },
+          },
         },
     });
 
@@ -1407,7 +1573,22 @@ export const getPendingLoanRequests = async (
       include: {
         user: { select: { id: true, firstName: true, lastName: true, phoneNumber: true,} },
         organization: { select: { id: true, name: true, approvalSteps: true, loanLimitMultiplier: true, interestRate: true } },
-        consolidatedRepayment: true,
+        consolidatedRepayment: {
+            select: {
+              id: true,
+
+              userId: true,
+  organizationId: true,
+  tenantId: true,
+  amount: true,
+  totalAmount: true,
+  paidAt: true,
+  status: true,
+  createdAt: true,
+  updatedAt: true
+              
+            },
+          },
         LoanPayout: true,
        
       },
@@ -1471,7 +1652,22 @@ export const getLoansGroupedByStatus = async (
                 interestRate: true,
               },
             },
-            consolidatedRepayment: true,
+            consolidatedRepayment: {
+            select: {
+              id: true,
+
+              userId: true,
+  organizationId: true,
+  tenantId: true,
+  amount: true,
+  totalAmount: true,
+  paidAt: true,
+  status: true,
+  createdAt: true,
+  updatedAt: true
+              
+            },
+          },
             LoanPayout: true,
           },
           
@@ -1578,7 +1774,22 @@ export const getUserLoans = async (
       orderBy: { createdAt: 'desc' },
       include: {
         organization: { select: { id: true, name: true, approvalSteps: true , loanLimitMultiplier: true, interestRate: true} },
-        consolidatedRepayment: true,
+        consolidatedRepayment: {
+            select: {
+              id: true,
+
+              userId: true,
+  organizationId: true,
+  tenantId: true,
+  amount: true,
+  totalAmount: true,
+  paidAt: true,
+  status: true,
+  createdAt: true,
+  updatedAt: true
+              
+            },
+          },
       },
     });
 
@@ -1748,7 +1959,22 @@ const loans = await prisma.loan.findMany({
   include: {
     user: true,
     organization: true,
-    consolidatedRepayment: true,
+    consolidatedRepayment: {
+            select: {
+              id: true,
+
+              userId: true,
+  organizationId: true,
+  tenantId: true,
+  amount: true,
+  totalAmount: true,
+  paidAt: true,
+  status: true,
+  createdAt: true,
+  updatedAt: true
+              
+            },
+          },
     LoanPayout: true,
   },
   orderBy: { createdAt: 'desc' },
