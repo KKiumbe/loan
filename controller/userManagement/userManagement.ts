@@ -404,7 +404,7 @@ const stripRoles = async (req: AuthenticatedRequest, res: Response<APIResponse<U
 };
 
 // Fetch User
-const fetchUser = async (req: AuthenticatedRequest & { params: { userId: string } }, res: Response<APIResponse<UserSummary & { organization: Organization | null; employee: Employee | null; loans: Loan[] }>>): Promise<void> => {
+const fetchUser = async (req: AuthenticatedRequest & { params: { userId: string } }, res: Response<APIResponse<UserSummary >>): Promise<void> => {
   const { userId } = req.params;
   const { tenantId, role } = req.user!;
 
@@ -430,49 +430,7 @@ const fetchUser = async (req: AuthenticatedRequest & { params: { userId: string 
     organization: true,
     employeeId: true,
     employee: true,
-    loans: {
-      select: {
-        id: true,
-        organization: true,
-        consolidatedRepayment: true,
-        LoanPayout: true,
-        amount: true,
-        interestRate: true,
-        status: true,
-        createdAt: true,
-        disbursedAt: true,
-        tenantId: true,
-        userId: true,
-        organizationId: true,
-        approvalCount: true,
-        totalRepayable: true,
-        firstApproverId: true,
-        secondApproverId: true,
-        thirdApproverId: true,
-        dueDate: true,
-        updatedAt: true,
-        mpesaStatus: true,
-        mpesaTransactionId: true,
-        originatorConversationID: true,
-        duration: true,
-        
-        
-        user: {
-          select: {
-            firstName: true,
-            lastName: true,
-           
-            phoneNumber: true,
-            role: true,
-            organization: true,
-            employee: true,
-            id: true,
-
-          },
-        },
-       
-      },
-    },
+    
     status: true,
     createdAt: true,
     updatedAt: true,

@@ -21,8 +21,10 @@ export  interface Tenant {
   name: string;
 }
 // types/loan.ts
+
+
 export class AutoApprovalResponse {
-  loan: Loan
+  loan: Loan = {} as Loan; // initialize with an empty object
   loanPayout: any
   disbursement: any
 }

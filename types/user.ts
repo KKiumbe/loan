@@ -46,5 +46,5 @@ export interface UserDetailsWithRelations {
   tenant: Tenant;
   organization: Organization | null;
   employee: EmployeeDetails | null;
-  loans: LoanWithOrg[];
+  //loans: LoanWithOrg[];
 }

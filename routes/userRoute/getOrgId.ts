@@ -1,11 +1,13 @@
 import { PrismaClient } from '@prisma/client';
+import { AuthenticatedRequest } from '../../middleware/verifyToken';
 const prisma = new PrismaClient();
 
 
 
 
-const getUserOrganizationIdById = async (userId: any) => {
+const getUserOrganizationIdById = async (req: AuthenticatedRequest, res: Response) => {
     try {
+      const { id:userId } = req.user!;
       // Validate input
       if (!userId || typeof userId !== 'number') {
         console.error(`Invalid userId: ${userId}`);
@@ -26,7 +28,7 @@ const getUserOrganizationIdById = async (userId: any) => {
   
       return user.organizationId || null;
     } catch (error) {
-      console.error(`Error retrieving organizationId for userId ${userId}:`, error.message);
+      console.error(`Error retrieving organizationId for userId` );
       throw error;
     }
   };
