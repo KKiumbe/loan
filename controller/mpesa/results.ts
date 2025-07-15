@@ -244,11 +244,19 @@ const handleB2CTimeout = async (
 
 
 
-const handleAccountBalanceResult = async (
+
+ const handleAccountBalanceResult = async (
   req: Request,
   res: Response
 ): Promise<void> => {
-  const result: MpesaResult = req.body.Result;
+  const result: MpesaResultWrapper['Result'] = req.body?.Result;
+
+  if (!result) {
+    console.error('Missing "Result" in request body:', req.body);
+    res.status(400).json({ message: 'Invalid payload: Missing Result object' });
+    return;
+  }
+
   console.log('M-Pesa Account Balance Result:', JSON.stringify(result, null, 2));
 
   try {
@@ -268,19 +276,6 @@ const handleAccountBalanceResult = async (
     const accountBalanceRaw = params.find((param) => param.Key === 'AccountBalance')?.Value;
     const accountBalanceStr = accountBalanceRaw ? String(accountBalanceRaw) : '';
 
-
-const existingBalance = await prisma.mPesaBalance.findFirst({
-  where: {
-    originatorConversationID: result.OriginatorConversationID
-  },
-  select: {
-    tenantId: true
-  }
-});
-const tenantId = existingBalance?.tenantId ?? 0;
-
-
-
     let workingAccountBalance: number | null = null;
     let utilityAccountBalance: number | null = null;
 
@@ -296,7 +291,17 @@ const tenantId = existingBalance?.tenantId ?? 0;
       }
     }
 
-  
+    // 🔍 Look up tenant from existing balance
+    const existingBalance = await prisma.mPesaBalance.findFirst({
+      where: {
+        originatorConversationID: result.OriginatorConversationID,
+      },
+      select: {
+        tenantId: true,
+      },
+    });
+
+    const tenantId = existingBalance?.tenantId ?? 0;
 
     // 💾 Save to DB
     await prisma.mPesaBalance.create({
@@ -309,7 +314,7 @@ const tenantId = existingBalance?.tenantId ?? 0;
         transactionID: result.TransactionID ?? '',
         workingAccountBalance,
         utilityAccountBalance,
-        tenantId: tenantId??0,
+        tenantId,
         createdAt: boCompletedTime,
         updatedAt: boCompletedTime,
       },
@@ -321,6 +326,7 @@ const tenantId = existingBalance?.tenantId ?? 0;
     res.status(500).json({ message: 'Error processing balance result' });
   }
 };
+
 
 
 
