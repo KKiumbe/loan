@@ -1,17 +1,20 @@
 // src/interfaces/mpesaInterfaces.ts
 
-export interface MpesaResult {
-  ResultType?: number;
-  ResultCode: number; // <-- Required
-  ResultDesc?: string;
-  ConversationID: string; // <-- Required
-  tenantId: number;
-  OriginatorConversationID: string; // <-- Required
-  TransactionID?: string;
-  ResultParameters: {
-    ResultParameter?: Array<{ Key: string; Value: string | number }>;
+export interface MpesaResultWrapper {
+  Result: {
+    ResultType?: number;
+    ResultCode: number;
+    ResultDesc?: string;
+    ConversationID: string;
+    tenantId?: number;
+    OriginatorConversationID: string;
+    TransactionID?: string;
+    ResultParameters: {
+      ResultParameter?: Array<{ Key: string; Value: string | number }>;
+    };
   };
 }
+
 
 
 export interface MpesaTimeout {

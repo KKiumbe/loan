@@ -16,7 +16,8 @@ import {
   Loan,
   
   ResponseMpesaBalance,
-  MpesaResult,
+  MpesaResultWrapper
+ 
 } from '../../types/mpesa';
 import { AuthenticatedRequest } from '../../middleware/verifyToken';
 
@@ -32,140 +33,140 @@ const prisma = new PrismaClient();
 
 
 
-const handleB2CResult = async (
-  req: Request<{}, {}, MpesaResult>,
-  res: Response
-): Promise<void> => {
-  if (!req.body) {
-    console.error('Request body is null or undefined');
-    res.status(400).json({ message: 'Invalid request body' });
+  const handleB2CResult = async (
+    req: Request<{}, {}, MpesaResultWrapper>,
+    res: Response
+  ): Promise<void> => {
+    if (!req.body) {
+      console.error('Request body is null or undefined');
+      res.status(400).json({ message: 'Invalid request body' });
+      return;
+    }
+
+  const {
+    ConversationID,
+    OriginatorConversationID,
+    ResultCode,
+    ResultDesc,
+    ResultType,
+    ResultParameters,
+    TransactionID = '', // fallback in case undefined
+} = req.body.Result || {};
+
+  if (!ConversationID || ResultCode === undefined) {
+    console.error('Invalid B2C result payload:', req.body);
+    res.status(400).json({ message: 'Invalid payload: Missing ConversationID or ResultCode' });
     return;
   }
 
-const {
-  ConversationID,
-  OriginatorConversationID,
-  ResultCode,
-  ResultDesc,
-  ResultType,
-  ResultParameters,
-  TransactionID = '', // fallback in case undefined
-} = req.body;
 
-if (!ConversationID || ResultCode === undefined) {
-  console.error('Invalid B2C result payload:', req.body);
-  res.status(400).json({ message: 'Invalid payload: Missing ConversationID or ResultCode' });
-  return;
-}
+    try {
+      const mpesaStatus: string = ResultCode === 0 ? 'SUCCESS' : 'FAILED';
+      const loanStatus: LoanStatus = ResultCode === 0 ? LoanStatus.DISBURSED : LoanStatus.APPROVED;
 
-
-  try {
-    const mpesaStatus: string = ResultCode === 0 ? 'SUCCESS' : 'FAILED';
-    const loanStatus: LoanStatus = ResultCode === 0 ? LoanStatus.DISBURSED : LoanStatus.APPROVED;
-
-    const loan: Loan | null = await prisma.loan.findFirst({
-      where: {
-        OR: [
-          { mpesaTransactionId: ConversationID },
-          { originatorConversationID: OriginatorConversationID },
-        ],
-      },
-      select: { id: true, tenantId: true, userId: true, status: true, mpesaStatus: true },
-    });
-
-    if (!loan) {
-      res.status(404).json({ message: 'Loan not found for transaction' });
-      return;
-    }
-
-    if (loan.mpesaStatus === 'SUCCESS' || loan.mpesaStatus === 'FAILED') {
-      res.status(200).json({ message: 'Result already processed' });
-      return;
-    }
-
-    // ✅ Safely extract ResultParameter fields
-    const resultParamArray = ResultParameters?.ResultParameter || [];
-
-    const transactionAmount = resultParamArray.find(p => p.Key === 'TransactionAmount')?.Value ?? null;
-    const transactionReceipt = resultParamArray.find(p => p.Key === 'TransactionReceipt')?.Value ?? null;
-    const receiverParty = resultParamArray.find(p => p.Key === 'ReceiverPartyPublicName')?.Value ?? null;
-    const transactionDateTime = resultParamArray.find(p => p.Key === 'TransactionCompletedDateTime')?.Value ?? null;
-    const utilityBalance = resultParamArray.find(p => p.Key === 'B2CUtilityAccountAvailableFunds')?.Value ?? null;
-    const workingBalance = resultParamArray.find(p => p.Key === 'B2CWorkingAccountAvailableFunds')?.Value ?? null;
-
-    // 💾 Save to DB
-    await prisma.$transaction(async (tx) => {
-      await tx.loan.update({
-        where: { id: loan.id },
-        data: {
-          mpesaStatus,
-          status: loanStatus,
-          mpesaTransactionId: TransactionID || ConversationID,
-          originatorConversationID: OriginatorConversationID,
-          disbursedAt: ResultCode === 0 ? new Date() : loan.disbursedAt,
+      const loan: Loan | null = await prisma.loan.findFirst({
+        where: {
+          OR: [
+            { mpesaTransactionId: ConversationID },
+            { originatorConversationID: OriginatorConversationID },
+          ],
         },
+        select: { id: true, tenantId: true, userId: true, status: true, mpesaStatus: true },
       });
 
-      await tx.mPesaBalance.upsert({
-        where: { originatorConversationID: OriginatorConversationID },
-        update: {
-          resultType: ResultType ?? 0,
-          resultCode: ResultCode,
-          resultDesc: ResultDesc ?? 'No description',
-          transactionID: TransactionID,
-          conversationID: ConversationID,
-          utilityAccountBalance: utilityBalance !== null ? parseFloat(String(utilityBalance)) : null,
-          workingAccountBalance: workingBalance !== null ? parseFloat(String(workingBalance)) : null,
-          updatedAt: new Date(),
-        },
-        create: {
-          resultType: ResultType ?? 0,
-          resultCode: ResultCode,
-          resultDesc: ResultDesc ?? 'No description',
-          originatorConversationID: OriginatorConversationID,
-          conversationID: ConversationID,
-          transactionID: TransactionID,
-          utilityAccountBalance: utilityBalance !== null ? parseFloat(String(utilityBalance)) : null,
-          workingAccountBalance: workingBalance !== null ? parseFloat(String(workingBalance)) : null,
-          tenantId: loan.tenantId,
-        },
-      });
+      if (!loan) {
+        res.status(404).json({ message: 'Loan not found for transaction' });
+        return;
+      }
 
-      await tx.auditLog.create({
-        data: {
-          tenantId: loan.tenantId,
-          userId: loan.userId,
-          action: `MPESA_B2C_RESULT_${mpesaStatus}`,
-          resource: 'LOAN',
-          details: {
-            loanId: loan.id,
-            conversationId: ConversationID,
-            originatorConversationId: OriginatorConversationID,
-            transactionId: TransactionID,
-            transactionAmount,
-            transactionReceipt,
-            receiverParty,
-            transactionDateTime,
-            resultCode: ResultCode,
-            resultDesc: ResultDesc ?? null,
-            message: `B2C transaction ${ConversationID} ${mpesaStatus}`,
+      if (loan.mpesaStatus === 'SUCCESS' || loan.mpesaStatus === 'FAILED') {
+        res.status(200).json({ message: 'Result already processed' });
+        return;
+      }
+
+      // ✅ Safely extract ResultParameter fields
+      const resultParamArray = ResultParameters?.ResultParameter || [];
+
+      const transactionAmount = resultParamArray.find(p => p.Key === 'TransactionAmount')?.Value ?? null;
+      const transactionReceipt = resultParamArray.find(p => p.Key === 'TransactionReceipt')?.Value ?? null;
+      const receiverParty = resultParamArray.find(p => p.Key === 'ReceiverPartyPublicName')?.Value ?? null;
+      const transactionDateTime = resultParamArray.find(p => p.Key === 'TransactionCompletedDateTime')?.Value ?? null;
+      const utilityBalance = resultParamArray.find(p => p.Key === 'B2CUtilityAccountAvailableFunds')?.Value ?? null;
+      const workingBalance = resultParamArray.find(p => p.Key === 'B2CWorkingAccountAvailableFunds')?.Value ?? null;
+
+      // 💾 Save to DB
+      await prisma.$transaction(async (tx) => {
+        await tx.loan.update({
+          where: { id: loan.id },
+          data: {
+            mpesaStatus,
+            status: loanStatus,
+            mpesaTransactionId: TransactionID || ConversationID,
+            originatorConversationID: OriginatorConversationID,
+            disbursedAt: ResultCode === 0 ? new Date() : loan.disbursedAt,
           },
-        },
+        });
+
+        await tx.mPesaBalance.upsert({
+          where: { originatorConversationID: OriginatorConversationID },
+          update: {
+            resultType: ResultType ?? 0,
+            resultCode: ResultCode,
+            resultDesc: ResultDesc ?? 'No description',
+            transactionID: TransactionID,
+            conversationID: ConversationID,
+            utilityAccountBalance: utilityBalance !== null ? parseFloat(String(utilityBalance)) : null,
+            workingAccountBalance: workingBalance !== null ? parseFloat(String(workingBalance)) : null,
+            updatedAt: new Date(),
+          },
+          create: {
+            resultType: ResultType ?? 0,
+            resultCode: ResultCode,
+            resultDesc: ResultDesc ?? 'No description',
+            originatorConversationID: OriginatorConversationID,
+            conversationID: ConversationID,
+            transactionID: TransactionID,
+            utilityAccountBalance: utilityBalance !== null ? parseFloat(String(utilityBalance)) : null,
+            workingAccountBalance: workingBalance !== null ? parseFloat(String(workingBalance)) : null,
+            tenantId: loan.tenantId,
+          },
+        });
+
+        await tx.auditLog.create({
+          data: {
+            tenantId: loan.tenantId,
+            userId: loan.userId,
+            action: `MPESA_B2C_RESULT_${mpesaStatus}`,
+            resource: 'LOAN',
+            details: {
+              loanId: loan.id,
+              conversationId: ConversationID,
+              originatorConversationId: OriginatorConversationID,
+              transactionId: TransactionID,
+              transactionAmount,
+              transactionReceipt,
+              receiverParty,
+              transactionDateTime,
+              resultCode: ResultCode,
+              resultDesc: ResultDesc ?? null,
+              message: `B2C transaction ${ConversationID} ${mpesaStatus}`,
+            },
+          },
+        });
       });
-    });
 
-    // Trigger account balance check
-    //setTimeout(() => invokeBalanceCheck(loan.tenantId), 1000);
+      // Trigger account balance check
+      //setTimeout(() => invokeBalanceCheck(loan.tenantId), 1000);
 
-    res.status(200).json({ message: 'Result processed successfully' });
+      res.status(200).json({ message: 'Result processed successfully' });
 
-  } catch (error: any) {
-    console.error('Error processing B2C result:', error);
-    if (!res.headersSent) {
-      res.status(200).json({ message: 'Result received but processing failed', error: error.message });
+    } catch (error: any) {
+      console.error('Error processing B2C result:', error);
+      if (!res.headersSent) {
+        res.status(200).json({ message: 'Result received but processing failed', error: error.message });
+      }
     }
-  }
-};
+  };
 
 
 
