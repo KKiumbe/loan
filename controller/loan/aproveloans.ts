@@ -48,15 +48,15 @@ async function performDisbursement(loan: Loan, userId: number): Promise<{ payout
     },
   });
 
-  const balanceRecord = await fetchLatestBalance(loan.tenantId);
-  const availableBalance = balanceRecord?.utilityAccountBalance ?? 0;
+ // const balanceRecord = await fetchLatestBalance(loan.tenantId);
+  //const availableBalance = balanceRecord?.utilityAccountBalance ?? 0;
 
-  if (availableBalance < loan.amount) {
-    await prisma.loanPayout.update({ where: { id: payout.id }, data: { status: PayoutStatus.FAILED } });
-    await sendDisbursementFailureAudit(loan, userId, 'Insufficient balance');
-    await notifyUserDisbursementFailure(loan, 'due to insufficient funds');
-    return { payout };
-  }
+  // if (availableBalance < loan.amount) {
+  //   await prisma.loanPayout.update({ where: { id: payout.id }, data: { status: PayoutStatus.FAILED } });
+  //   await sendDisbursementFailureAudit(loan, userId, 'Insufficient balance');
+  //   await notifyUserDisbursementFailure(loan, 'due to insufficient funds');
+  //   return { payout };
+  // }
 
   const phoneNumber = loan.user.phoneNumber.startsWith('+254')
     ? loan.user.phoneNumber.replace('+', '')
