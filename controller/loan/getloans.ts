@@ -1027,7 +1027,7 @@ export const getLoanById = async (
 export const getPendingLoanRequests = async (
   req: AuthenticatedRequest,
   res: Response<ApiResponse<Loan[]> | ErrorResponse>,
-  next: NextFunction
+
 ): Promise<void> => {
   const { tenantId } = req.user!;
 
@@ -1037,32 +1037,14 @@ export const getPendingLoanRequests = async (
       return;
     }
 
-    const loans = await prisma.loan.findMany({
-      where: { tenantId, status: 'PENDING' },
-      include: {
-        user: { select: { id: true, firstName: true, lastName: true, phoneNumber: true,} },
-        organization: { select: { id: true, name: true, approvalSteps: true, loanLimitMultiplier: true, interestRate: true } },
-        consolidatedRepayment: {
-            select: {
-              id: true,
-
-              //userId: true,
-  organizationId: true,
-  tenantId: true,
-  amount: true,
-  totalAmount: true,
-  paidAt: true,
-  status: true,
-  createdAt: true,
-  updatedAt: true
-              
-            },
-          },
-        LoanPayout: true,
-       
-      },
-      orderBy: { createdAt: 'desc' },
-    });
+  const loans = await prisma.loan.findMany({
+  where: { tenantId, status: 'PENDING' },
+  include: {
+    user: true,
+    organization: true,
+    consolidatedRepayment: true,
+  },
+});
 
      res.status(200).json({
       success: true,
@@ -1242,24 +1224,18 @@ export const getUserLoans = async (
 type LoanWithOrg = Loan & { organization: Organization };
   try {
     
-    const loans = await prisma.loan.findMany({
+const loans = await prisma.loan.findMany({
   where: { userId },
-  orderBy: { createdAt: 'desc' },
   include: {
-    user: true, // Add this line
+    user: true,
     organization: true,
     consolidatedRepayment: {
       select: {
         id: true,
-        //userId: true,
         organizationId: true,
         tenantId: true,
-        amount: true,
-        totalAmount: true,
-        paidAt: true,
-        status: true,
-        createdAt: true,
-        updatedAt: true,
+
+       
       },
     },
   },
@@ -1403,26 +1379,24 @@ const loans = await prisma.loan.findMany({
     user: true,
     organization: true,
     consolidatedRepayment: {
-            select: {
-              id: true,
-
-              userId: true,
-  organizationId: true,
-  tenantId: true,
-  amount: true,
-  totalAmount: true,
-  paidAt: true,
-  status: true,
-  createdAt: true,
-  updatedAt: true
-              
-            },
-          },
-    LoanPayout: true,
+      select: {
+        id: true,
+        userId: true,
+        organizationId: true,
+        tenantId: true,
+        amount: true,
+        totalAmount: true,
+        paidAt: true,
+        status: true,
+        createdAt: true,
+        updatedAt: true,
+        user: true,
+        organization: true,
+      },
+    },
   },
   orderBy: { createdAt: 'desc' },
 });
-
 
     // Log for debugging
     console.log(`Fetched ${loans.length} loans for tenantId ${tenantId}${role.includes('ORG_ADMIN') ? `, organizationId ${organizationId}` : ''}`);

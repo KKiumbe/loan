@@ -229,8 +229,8 @@ export interface ConsolidatedRepayment {
   status?: string | null;
   createdAt: Date;
   updatedAt: Date;
-  user: User;
-  organization:Organization;
-  tenant: Partial<Tenant>;
-  loans: Partial<Loan>[];
+  user?: User;
+  organization?:Organization;
+  tenant?: Partial<Tenant>;
+  loans?: Partial<Loan>[];
 }

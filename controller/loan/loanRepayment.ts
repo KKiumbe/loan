@@ -145,29 +145,18 @@ if (!userExists) {
   throw new Error(`User with ID ${id} does not exist`);
 }
 
+
 const newRepayment: ConsolidatedRepayment = await prisma.consolidatedRepayment.create({
   data: {
-    user: { connect: { id } },
-    organization: { connect: { id: userOrganizationId! } },
-    tenant: { connect: { id: tenantId } },
-    amount,
-    totalAmount: totalRepayable ?? null,
+    userId: id,
+    organizationId: organizationId,
+    tenantId: tenantId,
+    amount: amount,
+    totalAmount: totalRepayable,
     paidAt: new Date(),
     status: 'REPAID',
   },
-  include: {
-    user: true,
-    organization: true,
-    tenant: true,
-    loans: {
-      include: {
-        user: true,
-        organization: true,
-      },
-    },
-  },
 });
-
       
 
 
