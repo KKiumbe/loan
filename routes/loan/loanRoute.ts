@@ -3,7 +3,7 @@
 import express from 'express';
 import verifyToken from '../../middleware/verifyToken';
 import checkAccess from '../../middleware/roleVerify';
-import {  getCurrentMonthLoanStats, getLoansForAll, getLoansGroupedByStatus, getPendingLoanRequests, getPendingLoans, getUserLoans, } from '../../controller/loan/getloans';
+import {  getCurrentMonthLoanStats, getLoansForAll, getPendingLoanRequests, getPendingLoans, getUserLoans, } from '../../controller/loan/getloans';
 import { createLoan } from '../../controller/loan/createloan';
 import { approveLoan } from '../../controller/loan/aproveloans';
 import { rejectLoan } from '../../controller/loan/rejectloans';
@@ -26,7 +26,7 @@ router.get('/loans/pending', verifyToken, checkAccess('loan', 'read'), getPendin
 router.get('/loans/stats/current-month', verifyToken,checkAccess('loan', 'read'), getCurrentMonthLoanStats);
 
 
-router.get('/loans', verifyToken, getLoansGroupedByStatus);
+//router.get('/loans', verifyToken, getLoansGroupedByStatus);
 router.get('/get-all-loans', verifyToken, checkAccess('loan', 'read'), getLoansForAll);
 
 //router.get('/get-loan:id', verifyToken, checkAccess('loan', 'read'), getLoanById);

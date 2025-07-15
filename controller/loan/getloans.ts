@@ -1064,86 +1064,76 @@ export const getPendingLoanRequests = async (
 
 
 
+// export const getLoansGroupedByStatus = async (
+//   req: AuthenticatedRequest,
+//   res: Response<ApiResponse<LoanStatus, Loan[]> | ErrorResponse>,
+//   next: NextFunction
+// ): Promise<void> => {
+//   const { tenantId } = req.user!;
 
-export const getLoansGroupedByStatus = async (
-  req: AuthenticatedRequest,
-  res: Response<ApiResponse<Record<LoanStatus, Loan[]>> | ErrorResponse>,
-  next: NextFunction
-): Promise<void> => {
-  const { tenantId } = req.user!;
+//   if (!tenantId) {
+//     res.status(400).json({ message: 'Tenant ID is required' });
+//     return;
+//   }
 
-  if (!tenantId) {
-    res.status(400).json({ message: 'Tenant ID is required' });
-    return;
-  }
+//   try {
+//     const statuses: LoanStatus[] = ['PENDING', 'APPROVED', 'DISBURSED', 'REJECTED'];
 
-  try {
-    const statuses: LoanStatus[] = ['PENDING', 'APPROVED', 'DISBURSED', 'REJECTED'];
+//     const loanResults = await Promise.all(
+//       statuses.map((status) =>
+//         prisma.loan.findMany({
+//           where: { tenantId, status },
+//           select: {
+//             user: true,
+//             organization: true,
+//             consolidatedRepayment: true,
+//             LoanPayout: true,
+//           },
+//           orderBy: { createdAt: 'desc' },
+//         })
+//       )
+//     );
 
-    const loanResults = await Promise.all(
-      statuses.map((status) =>
-        prisma.loan.findMany({
-          where: { tenantId, status },
-          include: {
-            user: {
-              select: {
-                id: true,
-                firstName: true,
-                lastName: true,
-                phoneNumber: true,
-                
-              },
-            },
-            organization: {
-              select: {
-                id: true,
-                name: true,
-                approvalSteps: true,
-                loanLimitMultiplier: true,
-                interestRate: true,
-              },
-            },
-            consolidatedRepayment: {
-            select: {
-              id: true,
+//     if (loanResults.length > 0) {
 
-              userId: true,
-  organizationId: true,
-  tenantId: true,
-  amount: true,
-  totalAmount: true,
-  paidAt: true,
-  status: true,
-  createdAt: true,
-  updatedAt: true
-              
-            },
-          },
-            LoanPayout: true,
-          },
-          
-          orderBy: { createdAt: 'desc' },
-        })
-      )
-    );
 
-    const groupedLoans: Record<LoanStatus, Loan[]> = statuses.reduce((acc, status, index) => {
-      //acc[status] = loanResults[index];
-      return acc;
-    }, {} as Record<LoanStatus, Loan[]>);
 
-    res.status(200).json({
-      message: 'Loans grouped by status retrieved successfully',
-      data: groupedLoans,
-    });
-  } catch (error: unknown) {
-    console.error('Error fetching grouped loans:', error);
-    res.status(500).json({
-      message: 'Failed to fetch loans grouped by status',
-      error: (error as Error).message,
-    });
-  }
-};
+//   const loanStatuses = await prisma.loan.findMany({
+//   select: {
+//     status: true,
+//   },
+//   distinct: ['status'],
+// });
+
+
+
+// const groupedLoans: Record<string, Loan[]> = Object.fromEntries(
+//   loanStatuses.map((status) => [status.status, []])
+// );
+
+
+ 
+
+//       res.status(200).json({
+//         message: 'Loans grouped by status retrieved successfully',
+//         data: groupedLoans,
+//       });
+//     } else {
+//       res.status(200).json({
+//         message: 'No loans found',
+//         data: groupedLoans,
+
+        
+//       });
+//     }
+//   } catch (error: unknown) {
+//     console.error('Error fetching grouped loans:', error);
+//     res.status(500).json({
+//       message: 'Failed to fetch loans grouped by status',
+//       error: (error as Error).message,
+//     });
+//   }
+// };
 
 
 export const getPendingLoans = async (
