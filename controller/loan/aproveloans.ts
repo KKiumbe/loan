@@ -3,7 +3,7 @@ import { PrismaClient, LoanStatus, PayoutStatus, TenantStatus } from '@prisma/cl
 
 import { AuthenticatedRequest } from "../../middleware/verifyToken";
 
-import { Loan, LoanPayout,DisbursementResult } from "../../types/loans/loan";
+import { Loan, LoanPayout,DisbursementResult, MpesaResponse } from "../../types/loans/loan";
 import { disburseB2CPayment } from "../mpesa/initiateB2CPayment";
 import { fetchLatestBalance } from "../mpesa/mpesaConfig";
 import { sendSMS } from "../sms/sms";
@@ -36,7 +36,7 @@ async function checkUserAuthorization(req: AuthenticatedRequest, loan: Loan) {
 }
 }
 
-async function performDisbursement(loan: Loan, userId: number): Promise<{ payout: LoanPayout; result?: DisbursementResult }> {
+async function performDisbursement(loan: Loan, userId: number): Promise<{ payout: LoanPayout; result?: MpesaResponse }> {
   const payout = await prisma.loanPayout.create({
     data: {
       loanId: loan.id,
@@ -154,7 +154,7 @@ export const approveLoan = async (req: AuthenticatedRequest, res: Response): Pro
     const updatedLoan = await approveStep(loan, userId);
 
     let payout: LoanPayout | undefined;
-    let result: DisbursementResult | undefined;
+    let result: MpesaResponse | undefined;
 
     if (updatedLoan.status === 'APPROVED') {
       ({ payout, result } = await performDisbursement(updatedLoan, userId));
