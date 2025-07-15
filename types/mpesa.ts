@@ -2,16 +2,17 @@
 
 export interface MpesaResult {
   ResultType?: number;
-  ResultCode: number;
+  ResultCode: number; // <-- Required
   ResultDesc?: string;
-  ConversationID: string;
+  ConversationID: string; // <-- Required
   tenantId: number;
-  OriginatorConversationID: string;
+  OriginatorConversationID: string; // <-- Required
   TransactionID?: string;
   ResultParameters: {
     ResultParameter?: Array<{ Key: string; Value: string | number }>;
   };
 }
+
 
 export interface MpesaTimeout {
   ConversationID?: string;
