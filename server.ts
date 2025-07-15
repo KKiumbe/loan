@@ -50,9 +50,17 @@ app.use(express.json());
 const allowedOrigins = ['http://localhost:5173', 'https://localhost', 'https://lumela.co.ke',];
 
 
+
+
+
 app.use(cors({
   origin: (origin, callback) => {
-    if (!origin || allowedOrigins.includes(origin)) {
+    console.log('Request Origin:', origin); // Log for debugging
+    if (
+      !origin || // Allow non-CORS requests (e.g., same-origin or non-browser clients)
+      allowedOrigins.includes(origin) || // Allow dev origins
+      origin.endsWith('.lumela.co.ke') // Allow lumela.co.ke and its subdomains
+    ) {
       callback(null, origin || true);
     } else {
       callback(new Error('Not allowed by CORS'));
@@ -62,7 +70,6 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization'],
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
 }));
-
 
 // Static file serving
 app.use('/uploads', express.static(path.join(__dirname, 'Uploads')));
