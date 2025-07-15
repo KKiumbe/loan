@@ -2,7 +2,7 @@ import { PrismaClient, User, Organization, Employee ,UserStatus} from '@prisma/c
 import { Request, Response } from 'express';
 import bcrypt from 'bcrypt';
 import { AuthenticatedRequest } from '../../middleware/verifyToken';
-import { Loan } from '../../types/loan';
+import { Loan } from '../../types/loans/loan';
 import ROLE_PERMISSIONS from '../../DatabaseConfig/role';
 
 // Define type for ROLE_PERMISSIONS (replace with actual import path)

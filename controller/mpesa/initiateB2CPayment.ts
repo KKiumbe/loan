@@ -5,7 +5,7 @@ import { getMpesaAccessToken } from './token';
 import { getTenantSettings ,isMPESASettingsSuccess,TenantMPESASettings} from './mpesaConfig';
 import { v4 as uuidv4 } from 'uuid';
 import dotenv from 'dotenv';
-import { B2CPaymentPayload, DisbursePayload } from '../../types/disburse';
+import { B2CPaymentPayload, DisbursePayload } from '../../types/loans/disburse';
 dotenv.config();
 
 const prisma = new PrismaClient();

@@ -1,7 +1,7 @@
 import { Tenant, UserStatus } from "@prisma/client";
 import { Organization } from "./organization";
 
-import { Loan } from "./loan";
+import { Loan } from "./loans/loan";
 
 
 

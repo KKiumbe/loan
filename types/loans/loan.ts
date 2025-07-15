@@ -27,7 +27,7 @@ export  interface Loan {
   originatorConversationID: string | null;
   duration: number;
   user: User;
-  organization: Partial<Organization>;
+  organization: Organization;
   consolidatedRepayment: Partial<ConsolidatedRepayment> | null;
   LoanPayout?: Partial<LoanPayout>[];
 }
@@ -135,7 +135,7 @@ export  interface GetLoans {
   mpesaTransactionId: string | null;
   mpesaStatus: string | null;
   originatorConversationID: string | null;
-  user : User;
+  user : Partial<User>;
   organization: Partial<Organization>;
  
 }

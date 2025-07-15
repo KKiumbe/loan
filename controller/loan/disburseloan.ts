@@ -1,7 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { PrismaClient, LoanStatus, PayoutStatus, TenantStatus } from '@prisma/client';
 import { AuthenticatedRequest } from '../../middleware/verifyToken';
-import { Employee, LoanToDisburse, MpesaResponseDisburse } from '../../types/disburse';
+import { Employee, LoanToDisburse, MpesaResponseDisburse } from '../../types/loans/disburse';
 import { disburseB2CPayment } from '../mpesa/initiateB2CPayment';
 
 

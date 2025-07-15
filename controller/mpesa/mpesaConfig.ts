@@ -4,7 +4,7 @@ import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
 import { Request, Response } from 'express';
-import { MPesaBalance } from '../../types/disburse';
+import { MPesaBalance } from '../../types/loans/disburse';
 import { ResponseMpesaBalance } from '../../types/mpesa';
 
 const prisma = new PrismaClient();

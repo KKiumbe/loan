@@ -1,8 +1,8 @@
-import { Request, Response, NextFunction } from 'express';
-import { PrismaClient, LoanStatus, PayoutStatus, TenantStatus } from '@prisma/client';
+import { Request, Response } from 'express';
+import { PrismaClient, LoanStatus, PayoutStatus} from '@prisma/client';
 import { AuthenticatedRequest } from '../../middleware/verifyToken';
-import { AutoApprovalResponse, ErrorResponse,ApiResponse, MinimalLoanForDisbursement, LoanPayout, DisbursementResult } from '../../types/loan';
-import { calculateLoanDetails } from './loan';
+import { AutoApprovalResponse, ErrorResponse,ApiResponse, MinimalLoanForDisbursement, LoanPayout, DisbursementResult } from '../../types/loans/loan';
+import { calculateLoanDetails } from './getloans';
 import { sendSMS } from '../sms/sms';
 import { fetchLatestBalance } from '../mpesa/mpesaConfig';
 import { disburseB2CPayment } from '../mpesa/initiateB2CPayment';

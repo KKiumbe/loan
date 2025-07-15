@@ -1,6 +1,6 @@
 // src/interfaces/mpesaInterfaces.ts
 
-import { Organization, Tenant, User } from "./loan";
+import { Organization, Tenant, User } from "./loans/loan";
 
 export interface MpesaResult {
   ResultType?: number;
@@ -230,7 +230,7 @@ export interface ConsolidatedRepayment {
   createdAt: Date;
   updatedAt: Date;
   user: User;
-  organization: Partial<Organization>;
+  organization:Organization;
   tenant: Partial<Tenant>;
   loans: Partial<Loan>[];
 }

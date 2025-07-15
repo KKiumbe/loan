@@ -1,9 +1,10 @@
 import { Request, Response } from 'express';
 import {  PrismaClient } from '@prisma/client';
-import { APIResponse } from '../../types/sms';
+
 import { AuthenticatedRequest } from '../../middleware/verifyToken';
-import users from '../users/users';
-import { ConsolidatedRepayment } from '../../types/loansPayments';
+import { ConsolidatedRepayment } from '../../types/loans/loansPayments';
+
+
 
 
 // Initialize Prisma client

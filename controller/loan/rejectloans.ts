@@ -1,0 +1,180 @@
+import { Request, Response, NextFunction } from 'express';
+import { PrismaClient, LoanStatus, PayoutStatus, TenantStatus } from '@prisma/client';
+
+import { AuthenticatedRequest } from "../../middleware/verifyToken";
+import { ErrorResponse, Loan ,ApiResponse} from '../../types/loans/loan';
+import { sendSMS } from '../sms/sms';
+const prisma = new PrismaClient();
+
+export const rejectLoan = async (
+  req: AuthenticatedRequest,
+  res: Response<ApiResponse<Loan> | ErrorResponse>,
+  next: NextFunction
+): Promise<void> => {
+  const { id } = req.params;
+  const { id: userId, tenantId, role, firstName, lastName } = req.user!;
+
+  try {
+    if (!id) {
+      res.status(400).json({
+        success: false,
+        message: 'Loan ID is required',
+        error: 'Loan ID is required',
+      });
+      return;
+    }
+
+    if (!role.includes('ORG_ADMIN') && !role.includes('ADMIN')) {
+      res.status(403).json({
+        success: false,
+        message: 'Only ORG_ADMIN or ADMIN can reject loans',
+        error: 'Forbidden',
+      });
+      return;
+    }
+
+    const loan = await prisma.loan.findUnique({
+      where: { id: parseInt(id) },
+      include: { organization: { select: { id: true, approvalSteps: true, name: true, loanLimitMultiplier: true } } },
+    });
+
+    if (!loan) {
+      res.status(404).json({
+        success: false,
+        message: 'Loan not found',
+        error: 'Loan not found',
+      });
+      return;
+    }
+
+    if (loan.status !== 'PENDING') {
+      res.status(400).json({
+        success: false,
+        message: `Loan is not in PENDING status, current status: ${loan.status}`,
+        error: 'Invalid loan status',
+      });
+      return;
+    }
+
+    if (role.includes('ORG_ADMIN')) {
+      const employee = await prisma.employee.findFirst({
+        where: { id: userId }, // Fixed: Removed tenantId condition
+        select: { organizationId: true },
+      });
+      if (!employee || loan.organizationId !== employee.organizationId) {
+        res.status(403).json({
+          success: false,
+          message: 'Unauthorized to reject this loan',
+          error: 'Forbidden',
+        });
+        return;
+      }
+    } else if (role.includes('ADMIN') && loan.tenantId !== tenantId) {
+      res.status(403).json({
+        success: false,
+        message: 'Unauthorized to reject this loan',
+        error: 'Forbidden',
+      });
+      return;
+    }
+
+    const updatedLoan = await prisma.loan.update({
+      where: { id: parseInt(id) },
+      data: { status: 'REJECTED' },
+      include: { organization: { select: { id: true, name: true, approvalSteps: true, loanLimitMultiplier: true ,interestRate:true} }, 
+    consolidatedRepayment: {
+            select: {
+              id: true,
+
+              userId: true,
+  organizationId: true,
+  tenantId: true,
+  amount: true,
+  totalAmount: true,
+  paidAt: true,
+  status: true,
+  createdAt: true,
+  updatedAt: true
+              
+            },
+          },
+          user: { select: { id: true, firstName: true, lastName: true, phoneNumber: true } }
+        },
+    });
+
+    if (!updatedLoan) {
+      res.status(500).json({
+        success: false,
+        message: 'Failed to update loan',
+        error: 'Loan not found after update',
+      });
+      return;
+    }
+
+    // Verify loan limit reversal (recompute takenSoFar to confirm)
+    const now = new Date();
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+
+    const { _sum } = await prisma.loan.aggregate({
+      _sum: { amount: true },
+      where: {
+        userId: loan.userId,
+        tenantId,
+        status: { in: ['PENDING', 'APPROVED'] },
+        createdAt: { gte: monthStart, lt: monthEnd },
+      },
+    });
+
+    const takenSoFar = _sum.amount ?? 0;
+
+    // Log audit for rejection
+    await prisma.auditLog.create({
+      data: {
+        tenant: { connect: { id: loan.tenantId } },
+        user: { connect: { id: userId } },
+        action: 'REJECT',
+        resource: 'LOAN',
+        details: JSON.stringify({
+          loanId: id,
+          message: `Loan ${id} rejected by ${firstName} ${lastName}`,
+          takenSoFarAfterRejection: takenSoFar,
+        }),
+      },
+    });
+
+    // Send SMS notification to user
+    const user = await prisma.user.findUnique({
+      where: { id: loan.userId },
+      select: { firstName: true, phoneNumber: true },
+    });
+    const tenant = await prisma.tenant.findUnique({
+      where: { id: loan.tenantId },
+      select: { name: true },
+    });
+
+    if (user) {
+      await sendSMS(
+        loan.tenantId,
+        user.phoneNumber,
+        `Dear ${user.firstName}, your loan of KES ${loan.amount} at ${tenant?.name} has been rejected. Contact support for details.`
+      ).catch((e: Error) => console.error(`SMS failed: ${e.message}`));
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'Loan rejected successfully',
+      data: updatedLoan,
+      error: null,
+    });
+  } catch (error: unknown) {
+    console.error('Error rejecting loan:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error',
+      error: (error as Error).message,
+    });
+  } finally {
+    await prisma.$disconnect();
+  }
+};

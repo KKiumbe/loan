@@ -3,8 +3,11 @@
 import express from 'express';
 import verifyToken from '../../middleware/verifyToken';
 import checkAccess from '../../middleware/roleVerify';
-import { approveLoan, getCurrentMonthLoanStats, getLoansForAll, getLoansGroupedByStatus, getPendingLoanRequests, getPendingLoans, getUserLoans, rejectLoan } from '../../controller/loan/loan';
+import {  getCurrentMonthLoanStats, getLoansForAll, getLoansGroupedByStatus, getPendingLoanRequests, getPendingLoans, getUserLoans, } from '../../controller/loan/getloans';
 import { createLoan } from '../../controller/loan/createloan';
+import { approveLoan } from '../../controller/loan/aproveloans';
+import { rejectLoan } from '../../controller/loan/rejectloans';
+
 
 
 const router = express.Router();
