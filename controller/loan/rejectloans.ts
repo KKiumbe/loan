@@ -35,7 +35,12 @@ export const rejectLoan = async (
 
     const loan = await prisma.loan.findUnique({
       where: { id: parseInt(id) },
-      include: { organization: { select: { id: true, approvalSteps: true, name: true, loanLimitMultiplier: true } } },
+      include: { organization: { select: { id: true, approvalSteps: true, name: true, loanLimitMultiplier: true } } ,
+    
+    consolidatedRepayment:true,
+  
+  user:true},
+
     });
 
     if (!loan) {
@@ -78,26 +83,15 @@ export const rejectLoan = async (
       return;
     }
 
- const updatedLoan = await prisma.loan.findUnique({
-  where: { id: parseInt(id) },
-  include: {
-    user: { select: { id: true, firstName: true, phoneNumber: true, lastName: true } },
-    organization: { select: { id: true, name: true, approvalSteps: true, loanLimitMultiplier: true, interestRate: true } },
-    consolidatedRepayment: {
-      select: {
-        id: true,
-        organizationId: true,
-        tenantId: true,
-        amount: true,
-        totalAmount: true,
-        paidAt: true,
-        status: true,
-        createdAt: true,
-        updatedAt: true,
-      },
-    },
-  },
-});
+
+const updatedLoan = {
+  ...loan,
+  status: LoanStatus.REJECTED,
+  user: loan.user, // add the user field
+  organization: loan.organization, // add the organization field
+  consolidatedRepayment: loan.consolidatedRepayment, // add the consolidatedRepayment field
+};
+
     if (!updatedLoan) {
       res.status(500).json({
         success: false,
