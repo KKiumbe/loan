@@ -145,10 +145,18 @@ const createEmployee = async (req: AuthenticatedRequest, res: Response<APIRespon
 
     console.log(`Employee created: employeeId ${employee.id}`);
     res.status(201).json({ message: 'Employee created successfully', employee });
-  } catch (error: any) {
-    console.error('Failed to create employee:', error.message);
+  } 
+  catch (error: any) {
+  console.error('Failed to create employee:', error);
+
+  if (error.code === 'P2002') {
+    const fields = error.meta?.target?.join(', ') || 'a unique field';
+    res.status(400).json({ error: `An employee with the same ${fields} already exists.` });
+  } else {
     res.status(500).json({ error: 'Failed to create employee' });
   }
+}
+
 };
 
 
