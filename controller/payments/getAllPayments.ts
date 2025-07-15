@@ -2,7 +2,7 @@
 import { PrismaClient, LoanStatus 
 } from '@prisma/client';
 import { Request, Response } from 'express';
-import { LoanPayout, Payment, PaymentBatch, PaymentConfirmation, PaymentConfirmationCreateNestedManyWithoutPaymentBatchInput } from '../../types/loansPayments';
+import { LoanPayout, Payment, PaymentBatch, PaymentConfirmation, PaymentConfirmationCreateNestedManyWithoutPaymentBatchInput } from '../../types/loans/loansPayments';
 import { AuthenticatedRequest } from '../../middleware/verifyToken';
 
 

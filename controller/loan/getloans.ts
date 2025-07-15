@@ -1363,15 +1363,15 @@ export const getLoansForAll = async (
 
     // Fetch all loans
  
-const loans = await prisma.loan.findMany({
-  where: baseFilter,
+
+
+    const loans = await prisma.loan.findMany({
   include: {
-    user: true,
-    organization: true,
+    user: { select: { id: true, firstName: true, phoneNumber: true, lastName: true } },
+    organization: { select: { id: true, name: true, approvalSteps: true, loanLimitMultiplier: true, interestRate: true } },
     consolidatedRepayment: {
       select: {
         id: true,
-        userId: true,
         organizationId: true,
         tenantId: true,
         amount: true,
@@ -1380,12 +1380,9 @@ const loans = await prisma.loan.findMany({
         status: true,
         createdAt: true,
         updatedAt: true,
-        user: true,
-        organization: true,
       },
     },
   },
-  orderBy: { createdAt: 'desc' },
 });
 
     // Log for debugging

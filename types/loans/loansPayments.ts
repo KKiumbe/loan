@@ -1,6 +1,8 @@
 // src/interfaces/mpesaInterfaces.ts
 
-import { Organization, Tenant, User } from "./loans/loan";
+import { Organization, Tenant, User } from "./loan";
+
+
 
 export interface MpesaResult {
   ResultType?: number;
