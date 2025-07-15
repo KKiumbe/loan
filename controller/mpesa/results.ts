@@ -42,21 +42,22 @@ const handleB2CResult = async (
     return;
   }
 
-  const {
-    ConversationID,
-    OriginatorConversationID,
-    ResultCode,
-    ResultDesc,
-    ResultType,
-    ResultParameters,
-    TransactionID = '', // fallback in case undefined
-  } = req.body;
+const {
+  ConversationID,
+  OriginatorConversationID,
+  ResultCode,
+  ResultDesc,
+  ResultType,
+  ResultParameters,
+  TransactionID = '', // fallback in case undefined
+} = req.body;
 
-  if (!ConversationID || ResultCode === undefined) {
-    console.error('Invalid B2C result payload:', req.body);
-    res.status(400).json({ message: 'Invalid payload: Missing ConversationID or ResultCode' });
-    return;
-  }
+if (!ConversationID || ResultCode === undefined) {
+  console.error('Invalid B2C result payload:', req.body);
+  res.status(400).json({ message: 'Invalid payload: Missing ConversationID or ResultCode' });
+  return;
+}
+
 
   try {
     const mpesaStatus: string = ResultCode === 0 ? 'SUCCESS' : 'FAILED';
