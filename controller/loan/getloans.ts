@@ -1387,7 +1387,7 @@ const loans = await prisma.loan.findMany({
     consolidatedRepayment: {
       select: {
         id: true,
-        amount: true,
+       
 
       },
     },
