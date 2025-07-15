@@ -222,7 +222,7 @@ export type PaymentConfirmationCreateNestedManyWithoutPaymentBatchInput = {
 
 export interface ConsolidatedRepayment {
   id: number;
-  userId: number;
+  userId?: number | null;
   organizationId: number;
   tenantId: number;
   amount: number;

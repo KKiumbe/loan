@@ -2,7 +2,7 @@ import express from 'express';
 import verifyToken from '../../middleware/verifyToken';
 import checkAccess from '../../middleware/roleVerify';
 import { getAllLoanPayouts, getPaymentBatches, getPaymentConfirmations } from '../../controller/payments/getAllPayments';
-import createRepayment from '../../controller/loan/loanRepayment';
+//import createRepayment from '../../controller/loan/loanRepayment';
 
 
 const router = express.Router();
@@ -11,7 +11,7 @@ const router = express.Router();
 router.get('/loan-payouts', verifyToken, getAllLoanPayouts);
 
 //create organization payment 
-router.post('/create-payment', verifyToken, checkAccess('payment', 'create'), createRepayment);
+//router.post('/create-payment', verifyToken, checkAccess('payment', 'create'), createRepayment);
 
 router.get('/payment-confirmations', verifyToken, checkAccess('payment', 'read'), getPaymentConfirmations );
 

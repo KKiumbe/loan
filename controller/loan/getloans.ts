@@ -1364,11 +1364,25 @@ export const getLoansForAll = async (
     // Fetch all loans
  
 
-
-    const loans = await prisma.loan.findMany({
+const loans = await prisma.loan.findMany({
   include: {
-    user: { select: { id: true, firstName: true, phoneNumber: true, lastName: true } },
-    organization: { select: { id: true, name: true, approvalSteps: true, loanLimitMultiplier: true, interestRate: true } },
+    user: {
+      select: {
+        id: true,
+        firstName: true,
+        phoneNumber: true,
+        lastName: true,
+      },
+    },
+    organization: {
+      select: {
+        id: true,
+        name: true,
+        approvalSteps: true,
+        loanLimitMultiplier: true,
+        interestRate: true,
+      },
+    },
     consolidatedRepayment: {
       select: {
         id: true,
@@ -1384,7 +1398,6 @@ export const getLoansForAll = async (
     },
   },
 });
-
     // Log for debugging
     console.log(`Fetched ${loans.length} loans for tenantId ${tenantId}${role.includes('ORG_ADMIN') ? `, organizationId ${organizationId}` : ''}`);
 
