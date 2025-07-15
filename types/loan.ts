@@ -85,29 +85,9 @@ export interface LoanbyId {
   mpesaStatus: string | null;
   originatorConversationID: string | null;
   duration: number;
-  user: {
-    id: number;
-    firstName: string;
-    lastName: string;
-    phoneNumber: string;
-  };
-  organization: {
-    id: number;
-    name: string;
-    approvalSteps: number;
-  };
-  consolidatedRepayment: {
-    id: number;
-    userId: number;
-    organizationId: number;
-    tenantId: number;
-    amount: number;
-    totalAmount: number | null;
-    paidAt: Date | null;
-    status: string | null;
-    createdAt: Date;
-    updatedAt: Date;
-  } | null;
+  user: Partial<User>;
+  organization: Partial<Organization>;
+  consolidatedRepayment: Partial<ConsolidatedRepayment> | null;
 }
 
 export  interface User {

@@ -181,25 +181,12 @@ export const getLoanById = async (
     const loan = await prisma.loan.findUnique({
       where: { id: parseInt(id) },
       include: {
-        user: { select: { id: true, firstName: true, lastName: true, phoneNumber: true } },
-        organization: { select: { id: true, name: true, approvalSteps: true ,loanLimitMultiplier: true, interestRate: true} },
-        consolidatedRepayment: {
-            select: {
-              id: true,
-
-             // userId: true,
-  organizationId: true,
-  tenantId: true,
-  amount: true,
-  totalAmount: true,
-  paidAt: true,
-  status: true,
-  createdAt: true,
-  updatedAt: true
-              
-            },
+        user:true,
+        organization:true,
+        consolidatedRepayment:true
+      
           },
-      },
+      
     });
 
     if (!loan) {
@@ -227,7 +214,7 @@ export const getLoanById = async (
     await prisma.auditLog.create({
       data: {
         tenant: { connect: { id: tenantId } },
-        user: { connect: { id: userId } },
+        user: { connect: { id:  userId} },
         action: 'READ',
         resource: 'LOAN',
         details: JSON.stringify({ loanId: loan.id }),
