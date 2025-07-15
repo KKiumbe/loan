@@ -41,13 +41,15 @@ export const createBorrowerOrganization = async (
     // Process interest rate (divide by 100, default to 0.1 if undefined)
     const processedInterestRate: number = interestRate !== undefined ? interestRate / 100 : 0.1;
 
+    const processLoanMultiplier: number = loanLimitMultiplier !== undefined ? loanLimitMultiplier/100 : 1.0;
+
     // Create organization
     const organization = await prisma.organization.create({
       data: {
         name,
         tenantId,
         approvalSteps: approvalSteps ?? 1,
-        loanLimitMultiplier: loanLimitMultiplier ?? 1.0,
+        loanLimitMultiplier: processLoanMultiplier,
         interestRate: processedInterestRate,
       },
     });
@@ -236,14 +238,20 @@ export const updateBorrowerOrganization = async (
       return;
     }
 
+
+     const processedInterestRate: number = interestRate !== undefined ? interestRate / 100 : 0.1;
+
+    const processLoanMultiplier: number = loanLimitMultiplier !== undefined ? loanLimitMultiplier/100 : 1.0;
+    
+
     // Update organization
     const updatedOrganization: Organization = await prisma.organization.update({
       where: { id: parseInt(organizationId) },
       data: {
         name: name ?? organization.name,
         approvalSteps: approvalSteps ?? organization.approvalSteps,
-        loanLimitMultiplier: loanLimitMultiplier ?? organization.loanLimitMultiplier,
-        interestRate: interestRate ?? organization.interestRate,
+        loanLimitMultiplier: processLoanMultiplier,
+        interestRate: processedInterestRate,
       },
     });
 
