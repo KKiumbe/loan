@@ -47,7 +47,7 @@ app.use(express.json());
 
 
 
-const allowedOrigins = ['http://localhost:5173', 'https://localhost'];
+const allowedOrigins = ['http://localhost:5173', 'https://localhost', 'https://lumela.co.ke',];
 
 
 app.use(cors({
