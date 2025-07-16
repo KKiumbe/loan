@@ -1,6 +1,6 @@
 import express from 'express';
 
-import { createEmployee, deleteEmployee, getEmployeeUsers, searchEmployeeByName, searchEmployeeByPhone, getUserDetailsById, updateEmployee, getEmployeesWithoutUserProfiles } from '../../controller/employee/employee';
+import { createEmployee, deleteEmployee, getEmployeeUsers, searchEmployeeByName, searchEmployeeByPhone, updateEmployee, getEmployeesWithoutUserProfiles, getEmployeeDetails } from '../../controller/employee/employee';
 import checkAccess from '../../middleware/roleVerify';
 
 import upload from '../../middleware/uploadCustomers/upload';
@@ -19,7 +19,7 @@ router.post(
 );
 
 //employee details page using id params , route customer-details
-router.get('/employee-details/:userId',verifyToken,  checkAccess('employee', 'read'), getUserDetailsById);
+router.get('/employee-details/:userId',verifyToken,  checkAccess('employee', 'read'), getEmployeeDetails);
 router.put('/update-employee/:userId', verifyToken,checkAccess('employee', 'read'), updateEmployee);
 // Get Employee by ID (ADMIN, ORG_ADMIN, EMPLOYEE)
 router.get('/customers/employee-users',verifyToken, checkAccess('employee', 'read'), getEmployeeUsers);
@@ -33,7 +33,7 @@ router.get('/customers/employee',verifyToken, checkAccess('employee', 'read'), g
 //router.put('/:employeeId', verifyToken, checkAccess('employee', 'update'), updateEmployee);
 
 // Delete Employee (ADMIN, ORG_ADMIN)
-router.delete('/:employeeId', verifyToken,checkAccess('employee', 'delete'), deleteEmployee);
+router.delete('/employee/:id', verifyToken,checkAccess('employee', 'delete'), deleteEmployee);
 
 
 

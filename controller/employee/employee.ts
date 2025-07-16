@@ -497,120 +497,125 @@ const updateEmployee = async (
 
 
 
-// Delete Employee
-const deleteEmployee = async (req: AuthenticatedRequest & { params: { employeeId: string } }, res: Response<APIResponse>): Promise<void> => {
-  const { employeeId } = req.params;
-  const { tenantId, id: userId, role ,organizationId} = req.user!;
+const deleteEmployee = async (
+  req: AuthenticatedRequest,
+  res: Response
+): Promise<void> => {
+  const { tenantId, role } = req.user!;
+  const employeeId = parseInt(req.params.id);
+
   try {
-    const employee = await prisma.employee.findUnique({
-      where: { id: parseInt(employeeId) },
+    // 🔐 Role-based access check
+    if (!role.includes('ADMIN') && !role.includes('ORG_ADMIN')) {
+     res.status(403).json({ error: 'Access denied. Only ADMIN or ORG_ADMIN can delete employees.' });
+      return;
+    }
+
+    // 🔍 Find employee
+    const employee = await prisma.employee.findFirst({
+      where: { id: employeeId, tenantId },
       include: { user: true },
     });
+
     if (!employee) {
-      console.error(`Employee not found: employeeId ${employeeId}`);
-      res.status(404).json({ error: 'Employee not found' });
+     res.status(404).json({ error: 'Employee not found or does not belong to this tenant.' });
       return;
     }
 
-    if (employee.tenantId !== tenantId) {
-      console.error(`Access denied: User tenantId ${tenantId} does not match employee tenantId ${employee.tenantId}`);
-      res.status(403).json({ error: 'You can only delete employees in your tenant' });
-      return;
-    }
-
-    if (role.includes('ORG_ADMIN') && employee.organizationId !== organizationId) {
-      console.error(`Access denied: User organizationId ${organizationId} does not match employee organizationId ${employee.organizationId}`);
-      res.status(403).json({ error: 'You can only delete employees in your borrower organization' });
-      return;
-    }
-
+    // 🧹 Delete associated user if exists
     if (employee.user) {
-      await prisma.$transaction([
-        prisma.user.delete({ where: { id: employee.user.id } }),
-        prisma.employee.delete({ where: { id: parseInt(employeeId) } }),
-      ]);
-    } else {
-      await prisma.employee.delete({ where: { id: parseInt(employeeId) } });
+      await prisma.user.delete({
+        where: { id: employee.user.id },
+      });
     }
 
-    await prisma.auditLog.create({
-      data: {
-        tenantId: employee.tenantId,
-        userId: userId,
-        action: 'DELETE_EMPLOYEE',
-        resource: 'Employee',
-        details: JSON.stringify({ employeeId, userId: employee.user?.id }),
-      },
+    // 🗑️ Delete the employee
+    await prisma.employee.delete({
+      where: { id: employeeId },
     });
 
-    console.log(`Employee deleted: employeeId ${employeeId}`);
-    res.status(200).json({ message: 'Employee deleted successfully' });
+    res.status(200).json({ message: 'Employee and associated user deleted successfully' });
   } catch (error: any) {
-    console.error('Failed to delete employee:', error.message);
+    console.error('Error deleting employee:', error.message);
     res.status(500).json({ error: 'Failed to delete employee' });
   }
 };
+;
 
 // Get User Details by ID
 
-const getUserDetailsById = async (
-  req: AuthenticatedRequest & { params: { userId: string } },
-  res: Response<APIResponseGetUser<UserDetailsWithRelations>> // Note the single object type
-): Promise<void> => {
-  try {
-    const { userId: userID } = req.params;
-    const { tenantId, id } = req.user!;
 
+
+
+
+const getEmployeeDetails = async (req: Request, res: Response): Promise<void> => {
+  const { userId } = req.params;
+
+  try {
     const user = await prisma.user.findUnique({
-      where: { id: parseInt(userID) },
+      where: { id: Number(userId) },
       include: {
-        employee: true,
-        organization: true,
-        tenant: true,
-        loans: {
-          select: {
-            id: true,
-            amount: true,
-            interestRate: true,
-            status: true,
-            createdAt: true,
-            dueDate: true,
-            organization: {
-              select: {
-                id: true,
-                name: true,
-              },
-            },
-          },
+        employee: {
+          include: {
+            tenant: true,
+            organization: true
+          }
         },
-      },
+        loans: {
+          include: { organization: true },
+          orderBy: { createdAt: 'desc' }
+        }
+      }
     });
 
-    if (!user || user.tenantId !== tenantId) {
-      res.status(404).json({
-        success: false,
-        message: 'User not found or does not belong to this tenant',
-        data: null,
-        error : 'User not found or does not belong to this tenant' });
+    if (!user || !user.employee) {
+      res.status(404).json({ message: 'User or associated employee not found.' });
       return;
     }
 
-    const { password, ...userWithoutPassword } = user;
+    const loans = user.loans;
+
+    const oneYearAgo = new Date();
+    oneYearAgo.setMonth(oneYearAgo.getMonth() - 12);
+    const recentLoans = loans.filter(loan => loan.createdAt >= oneYearAgo);
+
+    const totalAmount = loans.reduce((sum, loan) => sum + loan.amount, 0);
+    const averageLoanAmount = loans.length > 0 ? totalAmount / loans.length : 0;
+
     res.json({
-      success: true,
-      message: 'User fetched',
-      data: userWithoutPassword, // Return the single object
+      employee: {
+        id: user.employee.id,
+        firstName: user.employee.firstName,
+        lastName: user.employee.lastName,
+        phoneNumber: user.employee.phoneNumber,
+        idNumber: user.employee.idNumber,
+        grossSalary: user.employee.grossSalary,
+        organization: user.employee.organization.name,
+        tenant: user.employee.tenant.name,
+      },
+      loanStats: {
+        totalLoansTaken: loans.length,
+        loansInLast12Months: recentLoans.length,
+        averageLoanAmount: Number(averageLoanAmount.toFixed(2)),
+      },
+      allLoans: loans.map(loan => ({
+        id: loan.id,
+        amount: loan.amount,
+        interestRate: loan.interestRate,
+        duration: loan.duration,
+        status: loan.status,
+        createdAt: loan.createdAt,
+        organization: loan.organization.name,
+      }))
     });
-  } catch (error: any) {
-    console.error('Error fetching user by ID:', error);
-    res.status(500).json({ 
-      success: false,
-      message: 'Internal server error',
-      data: null,
-      error: error.message || 'Internal server error'
-      });
+
+  } catch (error) {
+    console.error('Error fetching employee details:', error);
+    res.status(500).json({ message: 'Internal server error.' });
   }
 };
+
+
 
 export {
   createEmployee,
@@ -619,6 +624,6 @@ export {
   deleteEmployee,
   searchEmployeeByName,
   searchEmployeeByPhone,
-  getUserDetailsById,
+getEmployeeDetails,
   getEmployeesWithoutUserProfiles
 };
