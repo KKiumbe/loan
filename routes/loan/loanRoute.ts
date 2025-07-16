@@ -14,11 +14,11 @@ const router = express.Router();
 
 
 // Create organization admin (Admin only)
-router.post('/create-loan', verifyToken, checkAccess('loan', 'create'), createLoan);
+router.post('/create-loan', verifyToken,  createLoan);
 
 router.get('/user-loans', verifyToken, getUserLoans);
 //get pending loan requests
-router.get('/pending-loans', verifyToken, checkAccess('loan', 'read'), getPendingLoanRequests);
+router.get('/pending-loans', verifyToken,  getPendingLoanRequests);
 
 //route for admins to fetch pending loand for aproval for mobile
 router.get('/loans/pending', verifyToken,  getPendingLoans);

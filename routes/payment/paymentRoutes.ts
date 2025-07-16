@@ -13,12 +13,12 @@ router.get('/loan-payouts', verifyToken, getAllLoanPayouts);
 //create organization payment 
 //router.post('/create-payment', verifyToken, checkAccess('payment', 'create'), createRepayment);
 
-router.get('/payment-confirmations', verifyToken, checkAccess('payment', 'read'), getPaymentConfirmations );
+router.get('/payment-confirmations', verifyToken,  getPaymentConfirmations );
 
 router.get(
   '/payment-batches',
   verifyToken,
-  checkAccess('payment', 'read'),
+ 
   getPaymentBatches
 );
 

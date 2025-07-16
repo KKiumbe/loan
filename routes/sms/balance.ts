@@ -8,7 +8,7 @@ const router = express.Router();
 
 
 // Endpoint to fetch SMS balance
-router.get('/get-sms-balance',verifyToken, checkAccess('employee', 'read'), getLatestBalance 
+router.get('/get-sms-balance',verifyToken, getLatestBalance 
 );
 //done testing mult sms
 export default router;
