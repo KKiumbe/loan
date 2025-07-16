@@ -19,28 +19,28 @@ router.post(
 );
 
 //employee details page using id params , route customer-details
-router.get('/employee-details/:userId',verifyToken,  checkAccess('employee', 'read'), getEmployeeDetails);
-router.put('/update-employee/:userId', verifyToken,checkAccess('employee', 'read'), updateEmployee);
+router.get('/employee-details/:userId',verifyToken,   getEmployeeDetails);
+router.put('/update-employee/:userId', verifyToken, updateEmployee);
 // Get Employee by ID (ADMIN, ORG_ADMIN, EMPLOYEE)
-router.get('/customers/employee-users',verifyToken, checkAccess('employee', 'read'), getEmployeeUsers);
+router.get('/customers/employee-users',verifyToken,  getEmployeeUsers);
 
 
 //getEmployeesWithoutUserProfiles
 
-router.get('/customers/employee',verifyToken, checkAccess('employee', 'read'), getEmployeesWithoutUserProfiles);
+router.get('/customers/employee',verifyToken,  getEmployeesWithoutUserProfiles);
 
 // Update Employee (ADMIN, ORG_ADMIN, EMPLOYEE)
 //router.put('/:employeeId', verifyToken, checkAccess('employee', 'update'), updateEmployee);
 
 // Delete Employee (ADMIN, ORG_ADMIN)
-router.delete('/employee/:id', verifyToken,checkAccess('employee', 'delete'), deleteEmployee);
+router.delete('/employee/:id', verifyToken, deleteEmployee);
 
 
 
 router.get(
   '/employees/search-by-name',verifyToken,
   
-  checkAccess('employee', 'read'),
+ 
   searchEmployeeByName
 );
 
@@ -48,7 +48,7 @@ router.get(
 router.get(
   '/employees/search-by-phone',verifyToken,
  
-  checkAccess('employee', 'read'),
+  
   searchEmployeeByPhone
 );
 export default router;
