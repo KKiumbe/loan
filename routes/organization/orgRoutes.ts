@@ -36,6 +36,6 @@ router.put(
 );
 
 // Search organizations (Authenticated users with read permission)
-router.get('/organizations-search',verifyToken, checkAccess('organization', 'read'), searchOrganizations);
+router.get('/organizations-search',verifyToken, searchOrganizations);
 
 export default router;
