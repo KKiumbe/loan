@@ -618,7 +618,7 @@ export const getLoansByOrganization = async (
   res: Response
 ): Promise<void> => {
   const { tenantId } = req.user!;
-  const { organizationId } = req.query;
+  const { orgId:organizationId } = req.query;
 
   if (!organizationId) {
     res.status(400).json({ error: 'Missing organizationId' });
