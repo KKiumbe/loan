@@ -36,7 +36,7 @@ router.patch('/approve-loan/:id', verifyToken, checkAccess('loan', 'approve'), a
 router.put('/reject-loan/:id', verifyToken, checkAccess('loan', 'reject'), rejectLoan);
 
 
-router.get('/loans/organization/:organizationId', verifyToken, getLoansByOrganization);
+router.get('/loans/organization/:orgId', verifyToken, getLoansByOrganization);
 
 
 
