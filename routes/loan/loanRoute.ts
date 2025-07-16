@@ -21,13 +21,13 @@ router.get('/user-loans', verifyToken, getUserLoans);
 router.get('/pending-loans', verifyToken, checkAccess('loan', 'read'), getPendingLoanRequests);
 
 //route for admins to fetch pending loand for aproval for mobile
-router.get('/loans/pending', verifyToken, checkAccess('loan', 'read'), getPendingLoans);
+router.get('/loans/pending', verifyToken,  getPendingLoans);
 
-router.get('/loans/stats/current-month', verifyToken,checkAccess('loan', 'read'), getCurrentMonthLoanStats);
+router.get('/loans/stats/current-month', verifyToken, getCurrentMonthLoanStats);
 
 
 //router.get('/loans', verifyToken, getLoansGroupedByStatus);
-router.get('/get-all-loans', verifyToken, checkAccess('loan', 'read'), getAllLoansWithDetails);
+router.get('/get-all-loans', verifyToken,  getAllLoansWithDetails);
 
 //router.get('/get-loan:id', verifyToken, checkAccess('loan', 'read'), getLoanById);
 
@@ -41,7 +41,7 @@ router.get('/loans/organization/:organizationId', verifyToken, getLoansByOrganiz
 
 
 
-router.get('/loans-by-status', verifyToken, checkAccess('loan', 'read'), getLoansByStatus);
+router.get('/loans-by-status', verifyToken,  getLoansByStatus);
 
 export default router;
 
