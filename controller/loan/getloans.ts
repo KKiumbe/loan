@@ -578,7 +578,7 @@ export const getAllLoansWithDetails = async (
         consolidatedRepayment: {
           select: {
             id: true,
-            amount: true,
+           
             paidAt: true,
             status: true,
           },
