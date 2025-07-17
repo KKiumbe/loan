@@ -6,6 +6,7 @@ import { getTenantSettings ,isMPESASettingsSuccess,TenantMPESASettings} from './
 import { v4 as uuidv4 } from 'uuid';
 import dotenv from 'dotenv';
 import { B2CPaymentPayload, DisbursePayload } from '../../types/loans/disburse';
+import { getTransactionFee } from '../loan/getTrasactionFees';
 dotenv.config();
 
 const prisma = new PrismaClient();
@@ -135,6 +136,9 @@ const { mpesaConfig } = settings;
     result.mpesaResponse = mpesaResponse;
     console.log(`M-Pesa B2C Response: ${JSON.stringify(mpesaResponse, null, 2)}`);
 
+
+    const transactionFee = await getTransactionFee(amount,tenantId);
+
     const transactionId = mpesaResponse.TransactionID || mpesaResponse.ConversationID || '';
     const isSuccess = mpesaResponse.ResponseCode === '0';
 
@@ -151,6 +155,8 @@ const { mpesaConfig } = settings;
           mpesaStatus: isSuccess ? 'Pending' : 'Failed',
           status: isSuccess ? 'DISBURSED' : 'APPROVED',
           originatorConversationID,
+          transactionFee:transactionFee
+          
         },
       });
 

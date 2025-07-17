@@ -3,6 +3,7 @@ import { PrismaClient, LoanStatus, PayoutStatus, TenantStatus } from '@prisma/cl
 import { AuthenticatedRequest } from '../../middleware/verifyToken';
 import { Employee, LoanToDisburse, MpesaResponseDisburse } from '../../types/loans/disburse';
 import { disburseB2CPayment } from '../mpesa/initiateB2CPayment';
+import { getTransactionFee } from './getTrasactionFees';
 
 
 const prisma = new PrismaClient();
@@ -75,6 +76,9 @@ export const disburseLoan = async (req: AuthenticatedRequest, res: Response): Pr
       return res.status(403).json({ message: 'Unauthorized to disburse this loan' });
     }
 
+
+      //const transactionFee = await getTransactionFee(loan.amount, loan.tenantId);
+
     // Normalize phone number for M-Pesa
     const phoneNumber: string = loan.user.phoneNumber.startsWith('+254')
       ? loan.user.phoneNumber.replace('+', '')
@@ -92,6 +96,7 @@ export const disburseLoan = async (req: AuthenticatedRequest, res: Response): Pr
       where: { id: parseInt(id) },
       data: {
         disbursedAt: new Date(),
+       // transactionFee:transactionFee,
         mpesaTransactionId: mpesaResponse.ConversationID || mpesaResponse.OriginatorConversationID,
         mpesaStatus: mpesaResponse.ResponseCode === '0' ? 'PENDING' : 'FAILED',
       },

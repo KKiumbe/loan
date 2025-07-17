@@ -46,6 +46,8 @@ model Tenant {
   LoanPayout LoanPayout[]
 
   MPesaBalance MPesaBalance[]
+
+  TransactionCostBand TransactionCostBand[]
 }
 
 enum TenantStatus {
@@ -150,7 +152,9 @@ model Loan {
   organizationId           Int
   organization             Organization   @relation(fields: [organizationId], references: [id])
   amount                   Float
-  interestRate             Float          // Monthly interest rate (e.g., 0.1 for 10%)
+  transactionFee           Float @default(0)
+  interestRate                 Float  
+  interest                  Float @default(0)
   duration                 Int            @default(30) // 30 days
   status                   LoanStatus     @default(PENDING)
   createdAt                DateTime       @default(now())
@@ -197,23 +201,23 @@ model PaymentBatch {
   confirmations  PaymentConfirmation[]
 }
 
-model LoanPayout {
-  id             Int                @id @default(autoincrement())
-  loanId         Int
-  loan           Loan               @relation(fields: [loanId], references: [id])
-  amount         Float
-  method         String?            // MPESA, BANK_TRANSFER, CASH, etc.
-  transactionId  String?            // M-PESA code or Bank reference
-  status         PayoutStatus       @default(PENDING) // Tracks disbursement state
-  approvedById   Int?               // Who approved the payout (User)
-  approvedBy     User?              @relation(fields: [approvedById], references: [id])
-  tenantId       Int
-  tenant         Tenant             @relation(fields: [tenantId], references: [id])
-  createdAt      DateTime           @default(now())
-  updatedAt      DateTime           @updatedAt
+  model LoanPayout {
+    id             Int                @id @default(autoincrement())
+    loanId         Int
+    loan           Loan               @relation(fields: [loanId], references: [id])
+    amount         Float
+    method         String?            // MPESA, BANK_TRANSFER, CASH, etc.
+    transactionId  String?            // M-PESA code or Bank reference
+    status         PayoutStatus       @default(PENDING) // Tracks disbursement state
+    approvedById   Int?               // Who approved the payout (User)
+    approvedBy     User?              @relation(fields: [approvedById], references: [id])
+    tenantId       Int
+    tenant         Tenant             @relation(fields: [tenantId], references: [id])
+    createdAt      DateTime           @default(now())
+    updatedAt      DateTime           @updatedAt
 
-  confirmation   PaymentConfirmation?
-}
+    confirmation   PaymentConfirmation?
+  }
 
 enum PayoutStatus {
   PENDING
@@ -251,6 +255,22 @@ originatorConversationID String @unique
   createdAt             DateTime  @default(now())
   updatedAt             DateTime  @updatedAt
 }
+
+
+
+model TransactionCostBand {
+  id          Int     @id @default(autoincrement())
+  tenantId    Int
+  minAmount   Float   // inclusive
+  maxAmount   Float   // inclusive
+  cost        Float
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@index([tenantId])
+  @@unique([tenantId, minAmount, maxAmount])
+}
+
 
 
 model ConsolidatedRepayment {

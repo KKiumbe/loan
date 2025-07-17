@@ -7,6 +7,7 @@ import { Loan, LoanPayout,DisbursementResult, MpesaResponse } from "../../types/
 import { disburseB2CPayment } from "../mpesa/initiateB2CPayment";
 import { fetchLatestBalance } from "../mpesa/mpesaConfig";
 import { sendSMS } from "../sms/sms";
+import { getTransactionFee } from './getTrasactionFees';
 
 const prisma = new PrismaClient();
 
@@ -62,6 +63,8 @@ async function performDisbursement(loan: Loan, userId: number): Promise<{ payout
     ? loan.user.phoneNumber.replace('+', '')
     : `254${loan.user.phoneNumber.replace(/^0/, '')}`;
 
+
+
   const result = await disburseB2CPayment({
     phoneNumber,
     amount: loan.amount,
@@ -74,6 +77,7 @@ async function performDisbursement(loan: Loan, userId: number): Promise<{ payout
     throw new Error('Disbursement failed: No MPESA response received');
   }
 
+
   await prisma.loanPayout.update({
     where: { id: payout.id },
     data: {
@@ -84,6 +88,9 @@ async function performDisbursement(loan: Loan, userId: number): Promise<{ payout
 
   return { payout, result };
 }
+
+
+
 
 async function sendDisbursementFailureAudit(loan: Loan, userId: number, reason: string) {
   await prisma.auditLog.create({

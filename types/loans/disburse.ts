@@ -76,3 +76,4 @@ export interface DisburseB2CPaymentParams {
   phoneNumber: string;
   amount: number;
 }
+

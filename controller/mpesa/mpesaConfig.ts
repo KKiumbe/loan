@@ -4,8 +4,8 @@ import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
 import { Request, Response } from 'express';
-import { MPesaBalance } from '../../types/loans/disburse';
 import { ResponseMpesaBalance } from '../../types/mpesa';
+import { AuthenticatedRequest } from '../../middleware/verifyToken';
 
 const prisma = new PrismaClient();
 
@@ -35,7 +35,11 @@ export type TenantMPESASettings =
 
 
 
-
+export interface CreateTransactionChargeRequest {
+  minAmount: number;
+  maxAmount: number;
+  cost: number;
+}
 
  
 
@@ -164,3 +168,108 @@ export const fetchLatestBalance = async (tenantId: number): Promise<ResponseMpes
     throw error; // Re-throw to let caller handle
   } 
 };
+
+
+
+export const createTransactionCharge = async (
+  req: AuthenticatedRequest & { body: CreateTransactionChargeRequest },
+  res: Response
+): Promise<void> => {
+  const { minAmount, maxAmount, cost } = req.body;
+  const tenantId = req.user?.tenantId;
+
+  if (!tenantId || minAmount == null || maxAmount == null || cost == null) {
+    res.status(400).json({ message: 'Missing required fields.' });
+    return;
+  }
+
+  if (minAmount >= maxAmount) {
+    res.status(400).json({ message: 'minAmount must be less than maxAmount.' });
+    return;
+  }
+
+  try {
+    // Prevent overlap with existing bands
+    const existingOverlap = await prisma.transactionCostBand.findFirst({
+      where: {
+        tenantId,
+        OR: [
+          {
+            minAmount: { lte: maxAmount },
+            maxAmount: { gte: minAmount },
+          },
+        ],
+      },
+    });
+
+    if (existingOverlap) {
+      res.status(400).json({ message: 'Overlapping amount band exists.' });
+      return;
+    }
+
+    const newBand = await prisma.transactionCostBand.create({
+      data: {
+        tenantId,
+        minAmount,
+        maxAmount,
+        cost,
+      },
+    });
+
+    res.status(201).json(newBand);
+  } catch (error) {
+    console.error('Failed to create charge:', error);
+    res.status(500).json({ message: 'Internal server error.' });
+  }
+};
+
+
+export const createDefaultTransactionBands = async (
+  req: AuthenticatedRequest,
+  res: Response
+): Promise<void> => {
+  const tenantId = req.user?.tenantId;
+
+  if (!tenantId) {
+    res.status(400).json({ message: 'Missing tenant ID.' });
+
+    return;
+  }
+
+  const defaultCostBands = [
+    { minAmount: 1, maxAmount: 49, cost: 0 },
+    { minAmount: 50, maxAmount: 100, cost: 0 },
+    { minAmount: 101, maxAmount: 500, cost: 7 },
+    { minAmount: 501, maxAmount: 1000, cost: 13 },
+    { minAmount: 1001, maxAmount: 1500, cost: 23 },
+    { minAmount: 1501, maxAmount: 2500, cost: 33 },
+    { minAmount: 2501, maxAmount: 3500, cost: 53 },
+    { minAmount: 3501, maxAmount: 5000, cost: 57 },
+    { minAmount: 5001, maxAmount: 7500, cost: 78 },
+    { minAmount: 7501, maxAmount: 10000, cost: 90 },
+    { minAmount: 10001, maxAmount: 15000, cost: 100 },
+    { minAmount: 15001, maxAmount: 20000, cost: 105 },
+    { minAmount: 20001, maxAmount: 35000, cost: 108 },
+    { minAmount: 35001, maxAmount: 50000, cost: 108 },
+    { minAmount: 50001, maxAmount: 250000, cost: 108 },
+  ];
+
+  try {
+    await prisma.transactionCostBand.createMany({
+      data: defaultCostBands.map((band) => ({
+        ...band,
+        tenantId,
+      })),
+      skipDuplicates: true,
+    });
+
+    res.status(201).json({ message: 'Transaction cost bands created successfully.' });
+  } catch (error) {
+    console.error('Error creating bands:', error);
+    res.status(500).json({ message: 'Internal server error.' });
+  }
+};
+
+
+
+
