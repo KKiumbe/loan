@@ -7,6 +7,7 @@ import { v4 as uuidv4 } from 'uuid';
 import dotenv from 'dotenv';
 import { B2CPaymentPayload, DisbursePayload } from '../../types/loans/disburse';
 import { getTransactionFee } from '../loan/getTrasactionFees';
+import { calculateLoanInterestByLoanId } from '../loan/getInterest';
 dotenv.config();
 
 const prisma = new PrismaClient();
@@ -139,6 +140,8 @@ const { mpesaConfig } = settings;
 
     const transactionFee = await getTransactionFee(amount,tenantId);
 
+    const interestAmount =  await calculateLoanInterestByLoanId(loanId);
+
     const transactionId = mpesaResponse.TransactionID || mpesaResponse.ConversationID || '';
     const isSuccess = mpesaResponse.ResponseCode === '0';
 
@@ -155,7 +158,9 @@ const { mpesaConfig } = settings;
           mpesaStatus: isSuccess ? 'Pending' : 'Failed',
           status: isSuccess ? 'DISBURSED' : 'APPROVED',
           originatorConversationID,
-          transactionFee:transactionFee
+          transactionFee:transactionFee,
+          interest:interestAmount
+          
           
         },
       });
