@@ -83,7 +83,6 @@ export const rejectLoan = async (
       return;
     }
 
-
 const updatedLoan = await prisma.loan.update({
   where: { id: loan.id },
   data: { status: LoanStatus.REJECTED },
@@ -93,7 +92,6 @@ const updatedLoan = await prisma.loan.update({
     consolidatedRepayment: true,
   },
 });
-
 
     if (!updatedLoan) {
       res.status(500).json({
