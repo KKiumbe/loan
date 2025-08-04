@@ -30,6 +30,8 @@ export const calculateLoanDetails = (
   const dueDate = new Date();
   dueDate.setDate(dueDate.getDate() + loanDurationDays);
 
+  //console.log(object.keys({ dueDate, totalRepayable: amount * (1 + interestRate), appliedInterestRate: interestRate, loanDurationDays }));
+ console.log(`dueDate: ${dueDate}, totalRepayable: ${amount * (1 + interestRate)}, appliedInterestRate: ${interestRate}, loanDurationDays: ${loanDurationDays}`);
   let totalRepayable: number;
   let appliedInterestRate: number;
 

@@ -495,10 +495,6 @@ const updateEmployee = async (
 
 
 
-
-
-
-
 const deleteEmployee = async (
   req: AuthenticatedRequest,
   res: Response
@@ -508,64 +504,77 @@ const deleteEmployee = async (
 
   try {
     if (!role.includes('ADMIN') && !role.includes('ORG_ADMIN')) {
-     res.status(403).json({ error: 'Access denied.' });
-     return;
-    }
-
-    // 🔍 Find employee and linked user
-    const employee = await prisma.employee.findFirst({
-      where: { id: employeeId, tenantId },
-      include: { user: true },
-    });
-
-   
-
-    if (!employee) {
-       res.status(404).json({ error: 'Employee not found or unauthorized.' });
-       return;
-    }
-
-    // 👤 If user exists, remove foreign key dependencies before deleting user
-    if (employee.user) {
-     
-        const userId = employee.user.id;
-  // Nullify foreign keys
-  await prisma.loan.updateMany({
-    where: { userId },
-    data: { userId: { set: undefined } },
-  });
-
-      await prisma.loanPayout.updateMany({
-        where: { approvedById: userId },
-        data: { approvedById: { set: null } },
-      });
-
-      await prisma.consolidatedRepayment.updateMany({
-        where: { userId },
-        data: { userId: { set: undefined } },
-      });
-
-      // 🗑️ Delete the employee
-      await prisma.employee.delete({
-        where: { id: employeeId },
-      });
-
-      res.status(200).json({ message: 'Employee deleted successfully' });
-    } else {
-      res.status(404).json({ error: 'User not found or unauthorized.' });
+      res.status(403).json({ error: 'Access denied.' });
       return;
     }
+
+    // Find employee and linked user
+    const employee = await prisma.employee.findFirst({
+      where: { id: employeeId, tenantId },
+      include: { user: {
+        include: {
+         loans: true,
+            LoanPayout: true,
+            ConsolidatedRepayment: true,
+            auditLogs: true
+
+        },
+      }
+
+
+       },
+    });
+
+    if (!employee) {
+      res.status(404).json({ error: 'Employee not found or unauthorized.' });
+      return;
+    }
+
+   if (employee.user) {
+  const userId = employee.user.id;
+
+  // Then update other relations
+  if (userId !== null && userId !== undefined) {
+    await prisma.$transaction([
+      prisma.loanPayout.updateMany({
+        where: { approvedById: userId },
+        data: { approvedById: null },
+      }),
+      prisma.consolidatedRepayment.updateMany({
+        where: { userId },
+        data: { userId: undefined },
+      }),
+      prisma.auditLog.updateMany({
+        where: { userId },
+        data: { userId: undefined },
+      }),
+    ]);
+
+    // Finally delete the user
+    await prisma.user.delete({ where: { id: userId } });
+  } else {
+    console.error('User ID is null or undefined');
+    // Handle this case accordingly
+  }
+}
+    // Delete employee
+    await prisma.employee.delete({
+      where: { id: employeeId },
+          
+
+
+      
+
+
+    });
+
+    res.status(200).json({ message: 'Employee and associated user deleted successfully' });
+
   } catch (error: any) {
     console.error('Failed to delete employee:', error.message);
-    res.status(500).json({ error: 'Failed to delete employee' });
+    res.status(500).json({ success: false, message: 'Internal server error', data: null });
   }
 };
-// Get User Details by ID
-
-
-
-
-
 const getEmployeeDetails = async (req: Request, res: Response): Promise<void> => {
   const { userId } = req.params;
 
