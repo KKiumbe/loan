@@ -1,7 +1,8 @@
 const { PrismaClient } = require('@prisma/client');
 const PDFDocument = require('pdfkit');
-const { generatePDFHeader } = require('../header.js');
-const { fetchTenant } = require('../../tenants/tenantupdate.js');
+const fetchTenant = require('../fetchteant');
+const { generatePDFHeader } = require('../header');
+
 
 const prisma = new PrismaClient();
 

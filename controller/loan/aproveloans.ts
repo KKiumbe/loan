@@ -148,7 +148,8 @@ export const approveLoan = async (req: AuthenticatedRequest, res: Response): Pro
       where: { id: parseInt(id) },
       include: {
         user: { select: { id: true, firstName: true, phoneNumber: true, lastName: true } },
-        organization: { select: { id: true, name: true, approvalSteps: true, loanLimitMultiplier: true, interestRate: true } },
+        tenant: { select: { id: true, name: true } },
+        organization: { select: { id: true, name: true, approvalSteps: true, loanLimitMultiplier: true, interestRate: true , interestRateType: true,dailyInterestRate: true,} },
         consolidatedRepayment: true,
         LoanPayout: true,
       },
@@ -165,10 +166,27 @@ export const approveLoan = async (req: AuthenticatedRequest, res: Response): Pro
 
     if (updatedLoan.status === 'APPROVED') {
       ({ payout, result } = await performDisbursement(updatedLoan, userId));
+
+
+
+
+  const interestDescription =
+    loan.organization?.interestRateType === 'DAILY'
+      ? `at a daily interest of ${(loan.organization.dailyInterestRate * 100).toFixed(2)}% for ${loan.duration} days`
+      : `at a monthly interest of ${(loan.organization.interestRate * 100).toFixed(2)}%`;
+
+  const dueDateFormatted = loan.dueDate.toLocaleDateString('en-KE', {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+  });
+
+  const message = `Dear ${loan.user.firstName}, your loan of KES ${loan.amount.toLocaleString()} at ${loan.tenant.name} has been approved and disbursement initiated ${interestDescription}. Transaction charge is KES ${loan.transactionCharge.toLocaleString()}. Due date: ${dueDateFormatted}.`;
+
       await sendSMS(
         loan.tenantId,
         loan.user.phoneNumber,
-        `Dear ${loan.user.firstName}, your loan of KES ${loan.amount} at ${loan.organization.name} has been approved. Disbursement initiated.`
+        message
       );
     }
 

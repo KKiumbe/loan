@@ -4,6 +4,10 @@ export interface CreateOrganizationRequest {
   approvalSteps: number;
   loanLimitMultiplier: number;
   interestRate: number;
+
+  interestRateType: 'DAILY' | 'MONTHLY';
+  dailyInterestRate?: number;   // e.g. 1.5 for 1.5%
+  baseInterestRate?: number;
 }
 
 

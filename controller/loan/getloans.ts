@@ -14,24 +14,54 @@ const prisma = new PrismaClient();
 
 
 // Helper Functions
-export const calculateLoanDetails = (amount: number, interestRate: number): LoanDetails => {
-  if (!interestRate || isNaN(interestRate) || interestRate < 0) {
-    throw new Error('Invalid interest rate');
-  }
+
+export const calculateLoanDetails = (
+  amount: number,
+  interestRate: number,
+  interestRateType: 'DAILY' | 'MONTHLY' = 'MONTHLY',
+  loanDurationDays = 30,
+  baseInterestRate?: number,
+  dailyInterestRate?: number
+): LoanDetails & { appliedInterestRate: number; loanDurationDays: number } => {
   if (!amount || isNaN(amount) || amount <= 0) {
     throw new Error('Invalid loan amount');
   }
 
   const dueDate = new Date();
-  dueDate.setDate(dueDate.getDate() + 30);
-  const totalRepayable = amount * (1 + interestRate);
+  dueDate.setDate(dueDate.getDate() + loanDurationDays);
+
+  let totalRepayable: number;
+  let appliedInterestRate: number;
+
+  if (interestRateType === 'DAILY') {
+    if (!dailyInterestRate || isNaN(dailyInterestRate) || dailyInterestRate <= 0) {
+      throw new Error('Invalid daily interest rate');
+    }
+
+    const calculatedInterest = dailyInterestRate * loanDurationDays;
+    appliedInterestRate =
+      baseInterestRate && calculatedInterest < baseInterestRate
+        ? baseInterestRate
+        : calculatedInterest;
+
+    totalRepayable = amount * (1 + appliedInterestRate);
+  } else {
+    appliedInterestRate = interestRate;
+    totalRepayable = amount * (1 + appliedInterestRate);
+  }
 
   if (isNaN(totalRepayable)) {
     throw new Error('Failed to calculate total repayable');
   }
 
-  return { dueDate, totalRepayable };
+  return { dueDate, totalRepayable, appliedInterestRate, loanDurationDays };
 };
+
+
+;
+
+
+
 
 type MinimalLoan = {
   id: number;

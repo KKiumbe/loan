@@ -70,10 +70,24 @@ model Organization {
   createdAt         DateTime       @default(now())
   updatedAt         DateTime       @updatedAt
   interestRate        Float                  @default(0.1) // 10% monthly interest rate
+  dailyInterestRate  Float    @default(0.01)  // e.g. 1% per day
+  baseInterestRate   Float    @default(0.10)  // e.g. minimum 10%
+  interestRateType   InterestRateType @default(MONTHLY)
+  status             OrganizationStus @default(ACTIVE)
 
   Employee Employee[]
 
   PaymentBatch PaymentBatch[]
+}
+
+ enum OrganizationStus {
+ACTIVE
+SUSPEPENDED
+PENDING
+ }
+enum InterestRateType {
+  MONTHLY
+  DAILY
 }
 
 model User {
@@ -152,11 +166,12 @@ model Loan {
   organizationId           Int
   organization             Organization   @relation(fields: [organizationId], references: [id])
   amount                   Float
-  transactionFee           Float @default(0)
+  //transactionFee           Float @default(0)
   interestRate                 Float  
   interest                  Float @default(0)
   duration                 Int            @default(30) // 30 days
   status                   LoanStatus     @default(PENDING)
+  loanType                 LoanType       @default(MONTHLY)
   createdAt                DateTime       @default(now())
   updatedAt                DateTime       @updatedAt
   disbursedAt              DateTime?
@@ -173,6 +188,7 @@ model Loan {
   originatorConversationID String?        // New: OriginatorConversationID for B2C payment
   dueDate                  DateTime       // Calculated as createdAt + 30 days
   totalRepayable           Float          // amount + (amount * interestRate)
+  transactionCharge Float    @default(0)
   LoanPayout               LoanPayout[]
 }
 
@@ -182,6 +198,11 @@ enum LoanStatus {
   REJECTED
   REPAID
   DISBURSED
+}
+
+enum LoanType {
+  DAILY
+  MONTHLY
 }
 
 model PaymentBatch {

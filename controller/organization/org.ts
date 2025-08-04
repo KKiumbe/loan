@@ -23,38 +23,45 @@ export const OrganizationBodySchema = z.object({
 export const createBorrowerOrganization = async (
   req: AuthenticatedRequest & { body: CreateOrganizationRequest },
   res: Response
-
 ): Promise<void> => {
-  const { name, approvalSteps, loanLimitMultiplier, interestRate } = req.body;
-  const { tenantId, id: userId } = req.user!; // Non-null assertion since verifyToken ensures req.user exists
+  const {
+    name,
+    approvalSteps,
+    loanLimitMultiplier,
+    interestRate,
+    interestRateType,
+    dailyInterestRate,
+    baseInterestRate
+  } = req.body;
+
+  const { tenantId, id: userId } = req.user!;
+
   try {
-    // Verify tenant exists
-    const tenant = await prisma.tenant.findUnique({
-      where: { id: tenantId },
-    });
+    const tenant = await prisma.tenant.findUnique({ where: { id: tenantId } });
     if (!tenant) {
-      console.error(`Tenant not found: tenantId ${tenantId}`);
       res.status(404).json({ error: 'Tenant (Lender Organization) not found' });
       return;
     }
 
-    // Process interest rate (divide by 100, default to 0.1 if undefined)
-    const processedInterestRate: number = interestRate !== undefined ? interestRate / 100 : 0.1;
+    const loanMultiplier = loanLimitMultiplier !== undefined ? loanLimitMultiplier / 100 : 1.0;
 
-    const processLoanMultiplier: number = loanLimitMultiplier !== undefined ? loanLimitMultiplier/100 : 1.0;
+    let processedInterestRate = interestRate !== undefined ? interestRate / 100 : 0.1;
+    let processedDailyRate = dailyInterestRate !== undefined ? dailyInterestRate / 100 : 0.01;
+    let processedBaseRate = baseInterestRate !== undefined ? baseInterestRate / 100 : 0.1;
 
-    // Create organization
     const organization = await prisma.organization.create({
       data: {
         name,
         tenantId,
         approvalSteps: approvalSteps ?? 1,
-        loanLimitMultiplier: processLoanMultiplier,
-        interestRate: processedInterestRate,
+        loanLimitMultiplier: loanMultiplier,
+        interestRateType,
+        interestRate: interestRateType === 'MONTHLY' ? processedInterestRate : 0.1,
+        dailyInterestRate: interestRateType === 'DAILY' ? processedDailyRate : 0.01,
+        baseInterestRate: interestRateType === 'DAILY' ? processedBaseRate : 0.1,
       },
     });
 
-    // Log the action
     await prisma.auditLog.create({
       data: {
         tenant: { connect: { id: tenantId } },
@@ -65,20 +72,20 @@ export const createBorrowerOrganization = async (
           organizationId: organization.id,
           name,
           approvalSteps: approvalSteps ?? 1,
-          loanLimitMultiplier: loanLimitMultiplier ?? 1.0,
-          interestRate: processedInterestRate,
+          loanLimitMultiplier: loanLimitMultiplier ?? 100,
+          interestRateType,
+          interestRate: interestRate ?? 10,
+          dailyInterestRate: dailyInterestRate ?? 1,
+          baseInterestRate: baseInterestRate ?? 10,
         },
       },
     });
 
-    console.log(`Borrower Organization created: organizationId ${organization.id}`);
- 
- res.status(200).json({ message: 'Success' });   
+    res.status(200).json({ message: 'Organization created successfully' });
+
   } catch (error) {
     console.error('Failed to create Borrower Organization:', error);
-
-
-  
+    res.status(500).json({ error: 'Internal server error' });
   }
 };
 
@@ -468,6 +475,8 @@ export const getOrganizationById = async (
 };
 
 // Update an organization
+
+
 export const updateOrganization = async (
   req: AuthenticatedRequest & { params: OrganizationParams; body: Partial<CreateOrganizationRequest> },
   res: Response,
@@ -481,10 +490,17 @@ export const updateOrganization = async (
     }
 
     const { tenantId } = req.user!;
-    const { name, approvalSteps, loanLimitMultiplier, interestRate } = req.body;
+    const {
+      name,
+      approvalSteps,
+      loanLimitMultiplier,
+      interestRate,
+      interestRateType,
+      dailyInterestRate,
+      baseInterestRate
+    } = req.body;
 
-    // Check organization exists and belongs to tenant
-    const existingOrg: Organization | null = await prisma.organization.findFirst({
+    const existingOrg = await prisma.organization.findFirst({
       where: { id: orgId, tenantId },
     });
 
@@ -493,37 +509,65 @@ export const updateOrganization = async (
       return;
     }
 
-    // Build update data object with validation
-    const updateData: Partial<CreateOrganizationRequest> = {};
+    const updateData: any = {};
 
     if (name) updateData.name = name.trim();
+
     if (approvalSteps !== undefined) {
-      const steps: number = Number(approvalSteps);
+      const steps = Number(approvalSteps);
       if (!Number.isInteger(steps) || steps < 0) {
         res.status(400).json({ error: 'Approval steps must be a non-negative integer' });
         return;
       }
       updateData.approvalSteps = steps;
     }
+
     if (loanLimitMultiplier !== undefined) {
-      const multiplier: number = Number(loanLimitMultiplier);
+      const multiplier = Number(loanLimitMultiplier);
       if (isNaN(multiplier) || multiplier <= 0) {
         res.status(400).json({ error: 'Loan limit multiplier must be a positive number' });
         return;
       }
-      updateData.loanLimitMultiplier = multiplier;
+      updateData.loanLimitMultiplier = multiplier / 100;
     }
+
     if (interestRate !== undefined) {
-      const rate: number = Number(interestRate);
+      const rate = Number(interestRate);
       if (isNaN(rate) || rate < 0) {
         res.status(400).json({ error: 'Interest rate must be a non-negative number' });
         return;
       }
-      updateData.interestRate = rate;
+      updateData.interestRate = rate / 100;
     }
 
-    // Update the organization
-    const updatedOrg: Organization = await prisma.organization.update({
+    if (interestRateType) {
+      if (!['DAILY', 'MONTHLY'].includes(interestRateType)) {
+        res.status(400).json({ error: 'Invalid interestRateType. Use DAILY or MONTHLY.' });
+        return;
+      }
+
+      updateData.interestRateType = interestRateType;
+
+      if (interestRateType === 'DAILY') {
+        const daily = dailyInterestRate !== undefined ? Number(dailyInterestRate) / 100 : null;
+        const base = baseInterestRate !== undefined ? Number(baseInterestRate) / 100 : null;
+
+        if (daily === null || isNaN(daily) || daily <= 0) {
+          res.status(400).json({ error: 'dailyInterestRate is required and must be positive when interestRateType is DAILY' });
+          return;
+        }
+
+        if (base === null || isNaN(base) || base <= 0) {
+          res.status(400).json({ error: 'baseInterestRate is required and must be positive when interestRateType is DAILY' });
+          return;
+        }
+
+        updateData.dailyInterestRate = daily;
+        updateData.baseInterestRate = base;
+      }
+    }
+
+    const updatedOrg = await prisma.organization.update({
       where: { id: orgId },
       data: updateData,
     });
@@ -534,6 +578,7 @@ export const updateOrganization = async (
     next(error);
   }
 };
+
 
 // Get organization admins
 export const getOrganizationAdmins = async (

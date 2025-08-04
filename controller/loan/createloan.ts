@@ -43,14 +43,35 @@ export const createLoan = async (
         lastName: true,
         grossSalary: true,
         phoneNumber: true,
-        organization: true,
-      },
+       
+        organization: {
+            select: {
+              id: true,
+              name: true,
+              status: true,
+              loanLimitMultiplier: true,
+              interestRate: true,
+              interestRateType: true,
+              dailyInterestRate: true,
+              baseInterestRate: true,
+              approvalSteps: true
+            }
+          }
+        }
+      ,
     });
+if (!employee || !employee?.organization) {
+  res.status(400).json({ message: 'Employee or organization not found' });
+  return;
+}
 
-    if (!employee || !employee.organization) {
-      res.status(400).json({ message: 'Employee or organization not found' });
-      return;
-    }
+if (employee.organization?.status !== 'ACTIVE') {
+  res.status(403).json({ message: 'Loan requests are disabled. Your organization is not active.' });
+
+
+  return;
+}
+
 
     const org = employee.organization;
     const monthlyCap = employee.grossSalary * org.loanLimitMultiplier;
@@ -76,7 +97,29 @@ export const createLoan = async (
       return;
     }
 
-    const { dueDate, totalRepayable } = calculateLoanDetails(amount, org.interestRate);
+const {   dueDate,
+  totalRepayable,
+  appliedInterestRate,
+  loanDurationDays } = calculateLoanDetails(
+  amount,
+  org.interestRateType === 'DAILY' ? org.dailyInterestRate : org.interestRate,
+  org.interestRateType,
+
+  org.baseInterestRate
+);
+
+const transactionBand = await prisma.transactionCostBand.findFirst({
+  where: {
+    tenantId,
+    minAmount: { lte: amount },
+    maxAmount: { gte: amount },
+  },
+});
+
+const transactionCharge = transactionBand?.cost ?? 0;
+
+
+
 
     const loan = await prisma.loan.create({
       data: {
@@ -87,11 +130,12 @@ export const createLoan = async (
         interestRate: org.interestRate,
         dueDate,
         totalRepayable,
+        transactionCharge,
         status: org.approvalSteps === 0 ? 'APPROVED' : 'PENDING',
         approvalCount: 0,
       },
       include: {
-        organization: { select: { id: true, name: true, approvalSteps: true, loanLimitMultiplier: true, interestRate: true } },
+        organization: { select: { id: true, name: true, approvalSteps: true, loanLimitMultiplier: true, interestRate: true , interestRateType: true, baseInterestRate: true, dailyInterestRate: true} },
         user: { select: { id: true, firstName: true, phoneNumber: true, lastName: true } },
         consolidatedRepayment: true,
         LoanPayout: true,
@@ -166,11 +210,27 @@ export const createLoan = async (
         select: { name: true },
       });
 
-      await sendSMS(
-        tenantId,
-        phoneNumber,
-        `Dear ${firstName}, your loan of KES ${amount} at ${tenant?.name ?? 'the organization'} has been auto-approved. Disbursement initiated.`
-      ).catch(err => console.error('SMS error:', err));
+    let interestDescription = '';
+          if (org.interestRateType === 'DAILY') {
+             interestDescription = `At a daily rate Interest of: ${(appliedInterestRate * 100).toFixed(2)}% for ${loanDurationDays} days`;
+               } else {
+  interestDescription = `Interest: ${(appliedInterestRate * 100).toFixed(2)}% monthly`;
+          }
+
+               const dueDateFormatted = dueDate.toLocaleDateString('en-KE', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric'
+      });
+
+      const message = `Dear ${firstName}, your loan of KES ${amount.toLocaleString()} at ${tenant?.name ??''} has been auto-approved. ${interestDescription}.SMS and Transaction charges is ${loan.transactionCharge.toLocaleString()} Due date: ${dueDateFormatted}.`;
+
+        await sendSMS(tenantId, phoneNumber, message).catch(err =>
+  console.error('SMS error:', err)
+        );
+
+
+    
 
       res.status(201).json({
         message: 'Loan auto-approved and disbursement initiated',
@@ -187,17 +247,46 @@ export const createLoan = async (
 
     // === Manual Approval Notifications ===
     const applicantName = `${firstName} ${lastName}`;
-    const orgAdmins = await prisma.user.findMany({
-      where: { tenantId, organizationId: org.id, role: { has: 'ORG_ADMIN' }, status: 'ACTIVE' },
-      select: { id: true, firstName: true, lastName: true, phoneNumber: true },
-    });
+    // const orgAdmins = await prisma.user.findMany({
+    //   where: { tenantId, organizationId: org.id, role: { has: 'ORG_ADMIN' }, status: 'ACTIVE' },
+    //   select: { id: true, firstName: true, lastName: true, phoneNumber: true },
+    // });
+const [orgAdmins, platformAdmins] = await Promise.all([
+  prisma.user.findMany({
+    where: {
+      tenantId,
+      organizationId: org.id,
+      role: { has: 'ORG_ADMIN' },
+      status: 'ACTIVE',
+    },
+    select: {
+      id: true,
+      firstName: true,
+      lastName: true,
+      phoneNumber: true,
+    },
+  }),
+  prisma.user.findMany({
+    where: {
+      tenantId,
+      role: { has: 'ADMIN' },
+      status: 'ACTIVE',
+    },
+    select: {
+      id: true,
+      firstName: true,
+      lastName: true,
+      phoneNumber: true,
+    },
+  }),
+]);
 
-    const notifyUsers = orgAdmins.length > 0
-      ? orgAdmins
-      : await prisma.user.findMany({
-          where: { tenantId, role: { has: 'ADMIN' }, status: 'ACTIVE' },
-          select: { id: true, firstName: true, lastName: true, phoneNumber: true },
-        });
+// Merge and deduplicate by user ID
+const notifyUsers = [...orgAdmins, ...platformAdmins].filter(
+  (user, index, self) =>
+    index === self.findIndex((u) => u.id === user.id)
+);
+
 
     await Promise.all(
       notifyUsers.map((admin) =>
