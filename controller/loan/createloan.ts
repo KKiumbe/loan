@@ -97,16 +97,26 @@ if (employee.organization?.status !== 'ACTIVE') {
       return;
     }
 
-const {   dueDate,
+    const today = new Date();
+const endOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0); // last day of this month
+const loanDurationDays = Math.ceil(
+  (endOfMonth.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)
+);
+
+
+  const {
+  dueDate,
   totalRepayable,
-  appliedInterestRate,
-  loanDurationDays } = calculateLoanDetails(
+  appliedInterestRate
+} = calculateLoanDetails(
   amount,
   org.interestRateType === 'DAILY' ? org.dailyInterestRate : org.interestRate,
   org.interestRateType,
-
-  org.baseInterestRate
+  loanDurationDays,
+  org.baseInterestRate,
+  org.dailyInterestRate
 );
+
 
 const transactionBand = await prisma.transactionCostBand.findFirst({
   where: {
