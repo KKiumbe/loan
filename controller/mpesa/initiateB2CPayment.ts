@@ -158,7 +158,7 @@ const { mpesaConfig } = settings;
           mpesaStatus: isSuccess ? 'Pending' : 'Failed',
           status: isSuccess ? 'DISBURSED' : 'APPROVED',
           originatorConversationID,
-          transactionFee:transactionFee,
+          transactionCharge:transactionFee,
           interest:interestAmount
           
           
