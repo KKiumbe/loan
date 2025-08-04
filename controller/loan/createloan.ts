@@ -222,7 +222,7 @@ const transactionCharge = transactionBand?.cost ?? 0;
 
     let interestDescription = '';
           if (org.interestRateType === 'DAILY') {
-             interestDescription = `At a daily rate Interest of: ${(appliedInterestRate * 100).toFixed(2)}% for ${loanDurationDays} days`;
+             interestDescription = `At a daily rate Interest of: ${(appliedInterestRate * 100).toFixed(2)}% per day`;
                } else {
   interestDescription = `Interest: ${(appliedInterestRate * 100).toFixed(2)}% monthly`;
           }
