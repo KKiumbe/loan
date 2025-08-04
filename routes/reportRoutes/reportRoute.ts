@@ -1,9 +1,10 @@
 import express from 'express';
-const router = express.Router();
+
 
 import verifyToken from '../../middleware/verifyToken';
-const { generateDisbursedLoansPerOrganization } = require('../../controller/reports/loans/loanperorganization.js');
+import { generateDisbursedLoansPerOrganization } from '../../controller/reports/loans/loanperorganization';
 
+const router = express.Router();
 router.get('/loans-per-org', verifyToken, generateDisbursedLoansPerOrganization) ;
 
 export default router;
