@@ -205,7 +205,7 @@ export const updateBorrowerOrganization = async (
   res: Response
 ): Promise<void> => {
   const { organizationId } = req.params;
-  const { name, approvalSteps, loanLimitMultiplier, interestRate } = req.body;
+  const { name, approvalSteps, loanLimitMultiplier, interestRate , interestRateType, dailyInterestRate, baseInterestRate} = req.body;
    const { tenantId, id: userId } = req.user!; // Non-null assertion since verifyToken ensures req.user exists
 
 
@@ -224,6 +224,14 @@ export const updateBorrowerOrganization = async (
   }
   if (interestRate && (isNaN(interestRate) || interestRate < 0)) {
     res.status(400).json({ error: 'Interest rate must be a non-negative number' });
+    return;
+  }
+   if (dailyInterestRate && (isNaN(dailyInterestRate) || dailyInterestRate < 0)) {
+    res.status(400).json({ error: 'Daily interest rate must be a non-negative number' });
+    return;
+  }
+   if (baseInterestRate && (isNaN(baseInterestRate) || baseInterestRate < 0)) {
+    res.status(400).json({ error: 'Base interest rate must be a non-negative number' });
     return;
   }
 
@@ -249,6 +257,8 @@ export const updateBorrowerOrganization = async (
      const processedInterestRate: number = interestRate !== undefined ? interestRate / 100 : 0.1;
 
     const processLoanMultiplier: number = loanLimitMultiplier !== undefined ? loanLimitMultiplier/100 : 1.0;
+    const processedDailyInterestRate: number = dailyInterestRate !== undefined ? dailyInterestRate / 100 : 0.1;
+    const processedBaseInterestRate: number = baseInterestRate !== undefined ? baseInterestRate / 100 : 0.1;
     
 
     // Update organization
@@ -259,6 +269,9 @@ export const updateBorrowerOrganization = async (
         approvalSteps: approvalSteps ?? organization.approvalSteps,
         loanLimitMultiplier: processLoanMultiplier,
         interestRate: processedInterestRate,
+        interestRateType: interestRateType ?? organization.interestRateType,
+        dailyInterestRate: processedDailyInterestRate,
+        baseInterestRate: processedBaseInterestRate
       },
     });
 

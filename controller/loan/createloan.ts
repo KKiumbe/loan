@@ -1,5 +1,5 @@
 import { Request, Response } from 'express';
-import { PrismaClient, LoanStatus, PayoutStatus} from '@prisma/client';
+import { PrismaClient, LoanStatus, PayoutStatus,InterestRateType, LoanType} from '@prisma/client';
 import { AuthenticatedRequest } from '../../middleware/verifyToken';
 import { AutoApprovalResponse, ErrorResponse,ApiResponse, MinimalLoanForDisbursement, LoanPayout, DisbursementResult } from '../../types/loans/loan';
 import { calculateLoanDetails } from './getloans';
@@ -54,7 +54,8 @@ export const createLoan = async (
               interestRateType: true,
               dailyInterestRate: true,
               baseInterestRate: true,
-              approvalSteps: true
+              approvalSteps: true,
+              
             }
           }
         }
@@ -78,6 +79,12 @@ if (employee.organization?.status !== 'ACTIVE') {
     const now = new Date();
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
     const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+
+// Determine loan type and applicable interest rate based on org config
+const theloanType: LoanType = org.interestRateType === 'DAILY' ? 'DAILY' : 'MONTHLY';
+const interestRateToApply =
+  theloanType === 'DAILY' ? org.dailyInterestRate : org.interestRate;
+
 
     const { _sum } = await prisma.loan.aggregate({
       _sum: { amount: true },
@@ -109,12 +116,15 @@ const loanDurationDays = Math.ceil(
   totalRepayable,
   appliedInterestRate
 } = calculateLoanDetails(
-  amount,
-  org.interestRateType === 'DAILY' ? org.dailyInterestRate : org.interestRate,
-  org.interestRateType,
+   amount,
+  interestRateToApply,
+  theloanType,
+  
   loanDurationDays,
   org.baseInterestRate,
   org.dailyInterestRate
+
+  
 );
 
 
@@ -137,12 +147,13 @@ const transactionCharge = transactionBand?.cost ?? 0;
         organization: { connect: { id: org.id } },
         tenant: { connect: { id: tenantId } },
         amount,
-        interestRate: org.interestRate,
+        interestRate: appliedInterestRate,
         dueDate,
         totalRepayable,
         transactionCharge,
         status: org.approvalSteps === 0 ? 'APPROVED' : 'PENDING',
         approvalCount: 0,
+        loanType:theloanType
       },
       include: {
         organization: { select: { id: true, name: true, approvalSteps: true, loanLimitMultiplier: true, interestRate: true , interestRateType: true, baseInterestRate: true, dailyInterestRate: true} },
@@ -151,6 +162,8 @@ const transactionCharge = transactionBand?.cost ?? 0;
         LoanPayout: true,
       },
     });
+
+    console.log(`this is the loan ${JSON.stringify(loan)}`);
 
     await prisma.auditLog.create({
       data: {

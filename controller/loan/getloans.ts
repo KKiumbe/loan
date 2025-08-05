@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
-import { PrismaClient, LoanStatus, PayoutStatus, TenantStatus } from '@prisma/client';
+import { PrismaClient, LoanStatus, PayoutStatus, TenantStatus, InterestRateType } from '@prisma/client';
 import ROLE_PERMISSIONS from '../../DatabaseConfig/role';
 import { disburseB2CPayment } from '../mpesa/initiateB2CPayment';
 import { sendSMS } from '../sms/sms';
@@ -30,12 +30,11 @@ export const calculateLoanDetails = (
   const dueDate = new Date();
   dueDate.setDate(dueDate.getDate() + loanDurationDays);
 
-  //console.log(object.keys({ dueDate, totalRepayable: amount * (1 + interestRate), appliedInterestRate: interestRate, loanDurationDays }));
  console.log(`dueDate: ${dueDate}, totalRepayable: ${amount * (1 + interestRate)}, appliedInterestRate: ${interestRate}, loanDurationDays: ${loanDurationDays}`);
   let totalRepayable: number;
   let appliedInterestRate: number;
 
-  if (interestRateType === 'DAILY') {
+  if (interestRateType === InterestRateType.DAILY) {
     if (!dailyInterestRate || isNaN(dailyInterestRate) || dailyInterestRate <= 0) {
       throw new Error('Invalid daily interest rate');
     }

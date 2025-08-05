@@ -46,7 +46,6 @@ app.use(express.json());
 
 
 
-
 const allowedOrigins = [
   'http://localhost:5173',
   'https://localhost',
@@ -54,22 +53,16 @@ const allowedOrigins = [
 ];
 
 app.use(cors({
-  origin: (origin, callback) => {
-    console.log('Request Origin:', origin);
-
-    if (
-      !origin || // allow same-origin or tools like Postman
-      allowedOrigins.includes(origin) ||
-      origin.endsWith('.lumela.co.ke')
-    ) {
-      callback(null, origin); // ✅ Return the actual origin
+  origin: function (origin, callback) {
+    if (!origin || allowedOrigins.includes(origin) || origin.endsWith('.lumela.co.ke')) {
+      callback(null, origin);
     } else {
       callback(new Error('Not allowed by CORS'));
     }
   },
   credentials: true,
   allowedHeaders: ['Content-Type', 'Authorization'],
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS','PATCH'],
 }));
 
 
