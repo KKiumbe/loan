@@ -434,6 +434,8 @@ export const getOrganizations = async (
 };
 
 // Get organization by ID
+
+
 export const getOrganizationById = async (
   req: AuthenticatedRequest & { params: OrganizationParams },
   res: Response,
@@ -451,7 +453,8 @@ export const getOrganizationById = async (
       res.status(400).json({ error: 'Tenant ID is required' });
       return;
     }
-    const organization: Organization | null = await prisma.organization.findFirst({
+
+    const organization = await prisma.organization.findFirst({
       where: { id: orgId, tenantId },
       include: {
         tenant: true,
@@ -468,7 +471,16 @@ export const getOrganizationById = async (
       return;
     }
 
-    res.json(organization);
+    // Convert the relevant fields from decimals to percentages
+    const responseData = {
+      ...organization,
+      interestRate: organization.interestRate * 100,
+      dailyInterestRate: organization.dailyInterestRate * 100,
+      baseInterestRate: organization.baseInterestRate * 100,
+      loanLimitMultiplier: organization.loanLimitMultiplier * 100,
+    };
+
+    res.json(responseData);
   } catch (error: any) {
     next(error);
   }

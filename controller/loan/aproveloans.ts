@@ -172,7 +172,7 @@ export const approveLoan = async (req: AuthenticatedRequest, res: Response): Pro
 
   const interestDescription =
     loan.organization?.interestRateType === 'DAILY'
-      ? `at a daily interest of ${(loan.organization.dailyInterestRate * 100).toFixed(2)}% for ${loan.duration} days`
+      ? `at a daily interest of ${(loan.organization.dailyInterestRate * 100).toFixed(2)}% per day`
       : `at a monthly interest of ${(loan.organization.interestRate * 100).toFixed(2)}%`;
 
   const dueDateFormatted = loan.dueDate.toLocaleDateString('en-KE', {
