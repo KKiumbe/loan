@@ -12,9 +12,11 @@ const prisma = new PrismaClient();
 
 
 
+
+
 export const generateEmployeesPerOrganization = async (req: AuthenticatedRequest, res: Response) => {
   const startTime = Date.now();
-  res.setTimeout(2 * 60 * 1000); // Extend response timeout to 2 minutes
+  res.setTimeout(2 * 60 * 1000); // 2-minute timeout
 
   try {
     const { tenantId } = req.user!;
@@ -23,6 +25,10 @@ export const generateEmployeesPerOrganization = async (req: AuthenticatedRequest
     console.time("⏳ Fetch Tenant");
     const tenant = await fetchTenant(tenantId);
     console.timeEnd("⏳ Fetch Tenant");
+    if (!tenant || !tenant.name) {
+      console.error(`Invalid tenant data for tenantId: ${tenantId}`);
+      return res.status(404).json({ message: "Tenant not found or invalid." });
+    }
 
     console.time("⏳ Fetch Employees");
     const employees = await prisma.employee.findMany({
@@ -30,24 +36,37 @@ export const generateEmployeesPerOrganization = async (req: AuthenticatedRequest
       include: { organization: true },
       orderBy: { organizationId: 'asc' },
     });
+
+    console.log(`list of employees ${JSON.stringify(employees)}`);
     console.timeEnd("⏳ Fetch Employees");
 
-    if (employees.length === 0) {
-      return res.status(404).json({ message: "No employees found." });
+    if (!employees || employees.length === 0) {
+      console.error(`No employees found for tenantId: ${tenantId}`);
+      return res.status(404).json({ message: "No employees found for the given tenant." });
     }
 
-    const grouped = employees.reduce((acc, emp) => {
-      const orgName = emp.organization?.name || 'Unknown Org';
-      if (!acc[orgName]) acc[orgName] = [];
-      acc[orgName].push(emp);
-      return acc;
-    }, {} as Record<string, typeof employees>);
+    console.log(`Fetched ${employees.length} employees`);
+
+    const grouped: Record<string, typeof employees> = {};
+
+for (const emp of employees) {
+  const orgName = emp.organization?.name?.trim() || `Org-${emp.organizationId}`; // fallback
+  if (!grouped[orgName]) grouped[orgName] = [];
+  grouped[orgName].push(emp);
+}
+
 
     const pdfDoc = await PDFDocument.create();
     let page = pdfDoc.addPage([612, 792]);
 
-    const boldFont = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
-    const regularFont = await pdfDoc.embedFont(StandardFonts.Helvetica);
+    let boldFont, regularFont;
+    try {
+      boldFont = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+      regularFont = await pdfDoc.embedFont(StandardFonts.Helvetica);
+    } catch (fontError) {
+      console.error('❌ Font embedding error:', fontError);
+      throw new Error('Failed to embed fonts');
+    }
 
     await generatePDFHeader(pdfDoc, page, tenant, boldFont, regularFont);
 
@@ -58,7 +77,7 @@ export const generateEmployeesPerOrganization = async (req: AuthenticatedRequest
       font: boldFont,
     });
 
-    const columnWidths = [40, 120, 120, 100, 100];
+    const columnWidths = [40, 100, 100, 100, 100, 80]; // Adjusted for 6 columns
     let startX = 50;
     let currentY = page.getHeight() - 180;
 
@@ -94,15 +113,21 @@ export const generateEmployeesPerOrganization = async (req: AuthenticatedRequest
       });
 
       currentY -= 25;
-      drawTableRow(currentY, ['ID', 'First Name', 'Last Name', 'Phone', 'Gross Salary'], true);
+      drawTableRow(currentY, ['ID', 'First Name', 'Last Name', 'Phone', 'ID Number', 'Gross Salary'], true);
       currentY -= 25;
 
       for (const emp of orgEmployees) {
-        if (currentY < 50) {
-          page = pdfDoc.addPage([612, 792]); // Start new page
+        if (currentY < 100) {
+          page = pdfDoc.addPage([612, 792]);
           currentY = page.getHeight() - 50;
-          drawTableRow(currentY, ['ID', 'First Name', 'Last Name', 'Phone', 'Gross Salary'], true);
+          //await generatePDFHeader(pdfDoc, page, tenant, boldFont, regularFont);
+          drawTableRow(currentY, ['ID', 'First Name', 'Last Name', 'Phone', 'ID Number', 'Gross Salary'], true);
           currentY -= 25;
+        }
+
+        if (!emp.firstName || !emp.lastName || !emp.phoneNumber || !emp.idNumber || emp.grossSalary == null) {
+          console.error(`Skipping invalid employee data: ${JSON.stringify(emp)}`);
+          continue;
         }
 
         drawTableRow(currentY, [
@@ -110,6 +135,7 @@ export const generateEmployeesPerOrganization = async (req: AuthenticatedRequest
           emp.firstName,
           emp.lastName,
           emp.phoneNumber,
+          emp.idNumber,
           emp.grossSalary.toFixed(2),
         ]);
 
@@ -120,16 +146,19 @@ export const generateEmployeesPerOrganization = async (req: AuthenticatedRequest
     }
 
     const pdfBytes = await pdfDoc.save();
+    console.log('Sending PDF response...');
+ res.setHeader('Content-Type', 'application/pdf');
+res.setHeader('Content-Disposition', 'inline; filename="employees-per-org.pdf"');
+res.end(pdfBytes);
 
-    res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', `attachment; filename=employees-per-org.pdf`);
-    res.send(pdfBytes);
 
     console.log("✅ Employee report generated in", `${Date.now() - startTime}ms`);
   } catch (error) {
     console.error('❌ Failed to generate employee report:', error);
     if (!res.headersSent) {
-      res.status(500).json({ message: 'Failed to generate report' });
+      res.status(500).json({ message: 'Failed to generate report'});
     }
+  } finally {
+    await prisma.$disconnect();
   }
 };

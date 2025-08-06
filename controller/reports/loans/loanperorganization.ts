@@ -24,25 +24,28 @@ interface Organization {
 }
 
 
+
+
+
 export const generateDisbursedLoansPerOrganization = async (req: AuthenticatedRequest, res: Response) => {
   const startTime = Date.now();
+
   try {
-    const { id: userId, tenantId, role } = req.user!;
+    const { tenantId } = req.user!;
     if (!tenantId) throw new Error("Tenant ID is required");
 
     const tenant = await fetchTenant(tenantId);
     if (!tenant) return res.status(404).json({ message: "Tenant not found" });
 
-    const { month, year } = req.query as { month: string; year?: string };
-    const monthInt = parseInt(month, 10);
-    const selectedYear = year ? parseInt(year, 10) : new Date().getFullYear();
+    const { month } = req.body; // Expecting format: "2025-08"
 
-    if (!month || isNaN(monthInt) || monthInt < 1 || monthInt > 12) {
-      throw new Error("Month must be an integer between 1 and 12");
+    if (!month || !/^\d{4}-\d{2}$/.test(month)) {
+      return res.status(400).json({ message: "Month must be in YYYY-MM format" });
     }
 
-    const start = new Date(selectedYear, monthInt - 1, 1);
-    const end = new Date(selectedYear, monthInt, 0);
+    const [year, monthIndex] = month.split('-').map(Number);
+    const start = new Date(year, monthIndex - 1, 1);
+    const end = new Date(year, monthIndex, 0, 23, 59, 59);
 
     const loans = await prisma.loan.findMany({
       where: {
@@ -56,52 +59,47 @@ export const generateDisbursedLoansPerOrganization = async (req: AuthenticatedRe
       include: {
         user: true,
         organization: true,
-        consolidatedRepayment:true,
+        consolidatedRepayment: true,
       },
       orderBy: {
         organizationId: "asc",
       },
-    }) as Loan[];
+    });
 
-    if (!loans || loans.length === 0) {
+    if (!loans.length) {
       return res.status(404).json({ message: "No disbursed loans found for this period." });
     }
 
-    // Group loans by organization
-    const grouped: Record<string, Loan[]> = {};
+    // Group by organization
+    const grouped: Record<string, typeof loans> = {};
     for (const loan of loans) {
       const orgName = loan.organization?.name || "Unknown Org";
       if (!grouped[orgName]) grouped[orgName] = [];
       grouped[orgName].push(loan);
     }
 
-    // Create PDF document
+    // Create PDF
     const pdfDoc = await PDFDocument.create();
-    const page = pdfDoc.addPage([612, 792]); // Letter size (8.5x11 in points)
+    let page = pdfDoc.addPage([612, 792]);
 
-    // Load fonts
     const boldFont = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
     const regularFont = await pdfDoc.embedFont(StandardFonts.Helvetica);
 
-    // Generate header
     await generatePDFHeader(pdfDoc, page, tenant, boldFont, regularFont);
 
     const monthName = start.toLocaleString("en-US", { month: "long" });
-    const titleText = `Disbursed Loan Report Per Organization - ${monthName} ${selectedYear}`;
-    
-    page.drawText(titleText, {
+    page.drawText(`Disbursed Loan Report Per Organization - ${monthName} ${year}`, {
       x: 50,
       y: page.getHeight() - 150,
       size: 12,
       font: boldFont,
-      color: rgb(0, 0, 0),
     });
 
-    const columnWidths = [50, 100, 70, 60, 60, 80, 80];
+    const columnWidths = [40, 100, 60, 50, 40, 60, 60, 60, 60];
     const startX = 50;
     let currentY = page.getHeight() - 180;
 
-    function drawTableRow(y: number, data: string[], isHeader = false) {
+    const drawTableRow = (y: number, data: string[], isHeader = false) => {
       let x = startX;
       data.forEach((text, i) => {
         page.drawText(text, {
@@ -120,22 +118,27 @@ export const generateDisbursedLoansPerOrganization = async (req: AuthenticatedRe
         });
         x += columnWidths[i];
       });
-    }
+    };
 
-    if (Object.keys(grouped).length === 0) {
-      page.drawText("⚠️ No disbursed loan records found.", {
-        x: 50,
-        y: currentY,
-        size: 12,
-        font: regularFont,
-      });
-    }
+    drawTableRow(currentY, ["ID", "Customer", "Type", "Amount", "Rate", "Charge", "Disbursed", "Duration", "Margin"], true);
+    currentY -= 25;
 
     for (const orgName in grouped) {
       const orgLoans = grouped[orgName];
-      const total = orgLoans.reduce((sum, l) => sum + l.totalRepayable, 0);
 
-      // Org Title
+      const totalLoanAmount = orgLoans.reduce((sum, l) => sum + l.amount, 0);
+      const totalTransactionCharge = orgLoans.reduce((sum, l) => sum + l.transactionCharge, 0);
+      const totalMargin = orgLoans.reduce((sum, l) => sum + (l.totalRepayable - l.amount), 0);
+
+      if (currentY < 100) {
+        page = pdfDoc.addPage([612, 792]);
+        currentY = page.getHeight() - 50;
+        drawTableRow(currentY, ["ID", "Customer", "Type", "Amount", "Rate", "Charge", "Disbursed", "Duration", "Margin"], true);
+        currentY -= 25;
+      }
+
+      currentY -= 10;
+
       page.drawText(`Organization: ${orgName}`, {
         x: startX,
         y: currentY,
@@ -143,45 +146,59 @@ export const generateDisbursedLoansPerOrganization = async (req: AuthenticatedRe
         font: boldFont,
       });
 
-      page.drawText(`Total Payable: Ksh ${total.toFixed(2)}`, {
-        x: startX,
-        y: currentY - 15,
-        size: 8,
-        font: regularFont,
-      });
-
-      currentY -= 40;
-      drawTableRow(currentY, ["ID", "Customer", "Amount", "Interest", "Duration", "Disbursed", "Payable"], true);
-      currentY -= 25;
+      currentY -= 20;
 
       for (const loan of orgLoans) {
         if (currentY < 50) {
-          const newPage = pdfDoc.addPage([612, 792]);
+          page = pdfDoc.addPage([612, 792]);
           currentY = page.getHeight() - 50;
-          drawTableRow(currentY, ["ID", "Customer", "Amount", "Interest", "Duration", "Disbursed", "Payable"], true);
+          drawTableRow(currentY, ["ID", "Customer", "Type", "Amount", "Rate", "Charge", "Disbursed", "Duration", "Margin"], true);
           currentY -= 25;
         }
 
-       drawTableRow(currentY, [
-  loan.id.toString(),
-  `${loan.user?.firstName || ''} ${loan.user?.lastName || ''}`,
-  loan.amount.toFixed(2),
-  `${(loan?.organization?.interestRate || 0 * 100).toFixed(1)}%`,
-  loan.disbursedAt?.toISOString().split("T")[0] ?? "N/A",
-  `${loan.duration}d`,
-  loan.totalRepayable.toFixed(2),
-]);
+        drawTableRow(currentY, [
+          loan.id.toString(),
+          `${loan.user?.firstName || ''} ${loan.user?.lastName || ''}`,
+          loan.loanType,
+          loan.amount.toFixed(2),
+          `${(loan.interestRate * 100).toFixed(1)}%`,
+          loan.transactionCharge.toFixed(2),
+          loan.disbursedAt?.toISOString().split("T")[0] ?? "N/A",
+          `${loan.duration}d`,
+          (loan.totalRepayable - loan.amount).toFixed(2),
+        ]);
 
         currentY -= 25;
       }
 
-      currentY -= 20;
+      currentY -= 10;
+
+      page.drawText(`Total Amount: Ksh ${totalLoanAmount.toFixed(2)}`, {
+        x: startX,
+        y: currentY,
+        size: 9,
+        font: boldFont,
+      });
+      page.drawText(`Total Charges: Ksh ${totalTransactionCharge.toFixed(2)}`, {
+        x: startX + 200,
+        y: currentY,
+        size: 9,
+        font: boldFont,
+      });
+      page.drawText(`Total Margin: Ksh ${totalMargin.toFixed(2)}`, {
+        x: startX + 400,
+        y: currentY,
+        size: 9,
+        font: boldFont,
+      });
+
+      currentY -= 30;
     }
 
     const pdfBytes = await pdfDoc.save();
-    res.setHeader("Content-Type", "application/pdf");
-    res.setHeader("Content-Disposition", `attachment; filename=disbursed-loans-org-${month}-${selectedYear}.pdf`);
-    res.send(pdfBytes);
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', 'inline; filename="loans-per-organization.pdf"');
+    res.end(pdfBytes);
 
     console.log("✅ Loan report generated in", `${Date.now() - startTime}ms`);
   } catch (err) {
@@ -189,6 +206,8 @@ export const generateDisbursedLoansPerOrganization = async (req: AuthenticatedRe
     if (!res.headersSent) {
       res.status(500).json({ message: err instanceof Error ? err.message : "Failed to generate report." });
     }
+  } finally {
+    await prisma.$disconnect();
   }
 };
 
