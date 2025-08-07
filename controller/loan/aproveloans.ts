@@ -137,6 +137,7 @@ async function approveStep(loan: Loan, userId: number): Promise<Loan> {
   });
 }
 
+
 export const approveLoan = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   const { id: userId, tenantId } = req.user!;
   const { id } = req.params;
@@ -147,7 +148,7 @@ export const approveLoan = async (req: AuthenticatedRequest, res: Response): Pro
     const loan = await prisma.loan.findUnique({
       where: { id: parseInt(id) },
       include: {
-        user: { select: { id: true, firstName: true, phoneNumber: true, lastName: true } },
+        user: { select: { id: true, firstName: true, phoneNumber: true, lastName: true ,} },
         tenant: { select: { id: true, name: true } },
         organization: { select: { id: true, name: true, approvalSteps: true, loanLimitMultiplier: true, interestRate: true , interestRateType: true,dailyInterestRate: true,} },
         consolidatedRepayment: true,
@@ -181,7 +182,9 @@ export const approveLoan = async (req: AuthenticatedRequest, res: Response): Pro
     day: 'numeric',
   });
 
-  const message = `Dear ${loan.user.firstName}, your loan of KES ${loan.amount.toLocaleString()} at ${loan.tenant.name} has been approved and disbursement initiated ${interestDescription}. Transaction charge is KES ${loan.transactionCharge.toLocaleString()}. Due date: ${dueDateFormatted}.`;
+
+
+  const message = `Dear ${loan.user.firstName}, your loan of KES ${loan.amount.toLocaleString()} at ${loan.tenant.name} has been approved and disbursement initiated ${interestDescription}. Transaction charge is KES ${loan.transactionCharge.toLocaleString()}. Due date: ${dueDateFormatted}. Total payable ${loan.totalRepayable.toLocaleString()} `;
 
       await sendSMS(
         loan.tenantId,

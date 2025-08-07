@@ -246,7 +246,9 @@ const transactionCharge = transactionBand?.cost ?? 0;
         day: 'numeric'
       });
 
-      const message = `Dear ${firstName}, your loan of KES ${amount.toLocaleString()} at ${tenant?.name ??''} has been auto-approved. ${interestDescription}.SMS and Transaction charges is ${loan.transactionCharge.toLocaleString()} Due date: ${dueDateFormatted}.`;
+      //const totalRepayable = amount * (1 + appliedInterestRate) + transactionCharge; 
+
+      const message = `Dear ${firstName}, your loan of KES ${amount.toLocaleString()} at ${tenant?.name ??''} has been auto-approved. ${interestDescription}.SMS and Transaction charges is ${loan.transactionCharge.toLocaleString()} Due date: ${dueDateFormatted}. Total Repayable: ${loan.totalRepayable.toLocaleString()}.`;
 
         await sendSMS(tenantId, phoneNumber, message).catch(err =>
   console.error('SMS error:', err)
