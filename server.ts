@@ -25,6 +25,8 @@ import employeeRoute from './routes/employee/employeeRoute';
 import loanRoutes from './routes/loan/loanRoute';
 import sentSMSRoute from './routes/sms/sentRoute';
 import organizationRoute from './routes/organization/orgRoutes';
+
+import loanRepayment from './routes/loanRepayment/repaymentRoute';
 import verifyToken from './middleware/verifyToken';
 
 dotenv.config();
@@ -99,6 +101,7 @@ app.use('/api', organizationRoute);
 
 app.use('/api', employeeRoute);
 app.use('/api', loanRoutes);
+app.use('/api', loanRepayment);
 app.use('/api', mpesaRoute);
 app.use('/api', SMSRoute);
 app.use('/api', receiptRoute);
