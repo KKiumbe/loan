@@ -34,6 +34,33 @@ export  interface Loan {
 
 
 
+export interface LoanRepayment {
+  id: number;
+  userId: number;
+  organizationId: number;
+  tenantId: number;
+  amount: number;
+  totalRepayable: number;
+  status: string;
+  createdAt: Date;
+  updatedAt: Date;
+  user: {
+    id: number;
+    firstName: string;
+    lastName: string;
+    phoneNumber: string;
+  };
+  organization: {
+    id: number;
+    name: string;
+    approvalSteps: number;
+    loanLimitMultiplier: number;
+    interestRate: number;
+  };
+}
+
+
+
 
 export  interface LoanDetails {
   dueDate: Date;

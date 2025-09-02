@@ -91,7 +91,7 @@ const interestRateToApply =
       where: {
         userId,
         tenantId,
-        status: { in: ['PENDING', 'APPROVED'] },
+        status: { in: ['DISBURSED'] },
         createdAt: { gte: monthStart, lt: monthEnd },
       },
     });

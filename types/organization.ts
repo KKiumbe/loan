@@ -8,6 +8,7 @@ export interface CreateOrganizationRequest {
   interestRateType: 'DAILY' | 'MONTHLY';
   dailyInterestRate?: number;   // e.g. 1.5 for 1.5%
   baseInterestRate?: number;
+  
 }
 
 
@@ -17,6 +18,8 @@ export interface Organization {
   interestRate: number;
   approvalSteps: number;
   loanLimitMultiplier: number;
+  
+
   // Add more if needed
 }
 

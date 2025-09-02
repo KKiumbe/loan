@@ -37,6 +37,7 @@ export const calculateBorrowCapacity = async (userId: number): Promise<LoanCapac
   const { _sum } = await prisma.loan.aggregate({
     where: {
       userId,
+      status: 'DISBURSED',
       createdAt: { gte: monthStart, lte: monthEnd },
     },
     _sum: { amount: true },
