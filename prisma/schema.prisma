@@ -245,6 +245,7 @@ enum PayoutStatus {
   PENDING
   DISBURSED
   FAILED
+  REPAID
 }
 
 

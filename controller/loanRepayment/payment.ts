@@ -238,6 +238,11 @@ const createRepayment = async (
             where: { id: payout.loanId },
             data: { status: 'REPAID' }, // Update Loan status to REPAID
           });
+
+          await tx.loanPayout.update({
+            where: { id: payout.id },
+            data: { status: 'REPAID' }, // Update LoanPayout status to REPAID
+          });
         }
 
         remainingAmount -= payAmount;
