@@ -83,7 +83,7 @@ model Organization {
 
  enum OrganizationStus {
 ACTIVE
-SUSPEPENDED
+SUSPENDED
 PENDING
  }
 enum InterestRateType {
@@ -241,7 +241,7 @@ model PaymentBatch {
     confirmation   PaymentConfirmation?
   }
 
-enum PayoutStatus {
+enum PayoutStatus { 
   PENDING
   DISBURSED
   FAILED

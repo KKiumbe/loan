@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
-import { PrismaClient, Organization, Tenant, User, Loan } from '@prisma/client';
+import { PrismaClient, Organization, Tenant, User, Loan ,OrganizationStus} from '@prisma/client';
 
 import { z } from 'zod';
 import { CreateOrganizationRequest, GetBorrowerOrganizationsQuery, OrganizationParams, OrganizationriolizedAdminsResponse, OrganizationSearchResponse, OrganizationStatsResponse, SearchQueryParams } from '../../types/organization';
@@ -502,6 +502,8 @@ export const getOrganizationById = async (
 // Update an organization
 
 
+
+
 export const updateOrganization = async (
   req: AuthenticatedRequest & { params: OrganizationParams; body: Partial<CreateOrganizationRequest> },
   res: Response,
@@ -522,8 +524,12 @@ export const updateOrganization = async (
       interestRate,
       interestRateType,
       dailyInterestRate,
-      baseInterestRate
+      baseInterestRate,
+      status, // Add status to the request body
     } = req.body;
+
+
+    console.log(`req.body: ${JSON.stringify(req.body)}`);
 
     const existingOrg = await prisma.organization.findFirst({
       where: { id: orgId, tenantId },
@@ -592,6 +598,15 @@ export const updateOrganization = async (
       }
     }
 
+    // Validate and add status to updateData
+   if (status) {
+  if (!(status in OrganizationStus)) {
+    res.status(400).json({ error: 'Invalid status. Use ACTIVE, SUSPENDED, or PENDING.' });
+    return;
+  }
+  updateData.status = status;
+}
+
     const updatedOrg = await prisma.organization.update({
       where: { id: orgId },
       data: updateData,
@@ -603,7 +618,6 @@ export const updateOrganization = async (
     next(error);
   }
 };
-
 
 // Get organization admins
 export const getOrganizationAdmins = async (

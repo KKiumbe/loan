@@ -1,10 +1,10 @@
-const bcrypt = require('bcrypt');
-const jwt = require('jsonwebtoken');
-const dotenv = require('dotenv');
-const { PrismaClient } = require('@prisma/client');
-const ROLE_PERMISSIONS = require('../../DatabaseConfig/role');
-const { configureTenantSettings } = require('../smsConfig/config');
-const { connect } = require('../../routes/userRoute/userRoute');
+import bcrypt from 'bcrypt';
+import jwt from 'jsonwebtoken';
+import dotenv from 'dotenv';
+import { PrismaClient } from '@prisma/client';
+import ROLE_PERMISSIONS from '../../DatabaseConfig/role';
+import  configureTenantSettings  from '../smsConfig/config';
+import connect  from '../../routes/userRoute/userRoute';
 const prisma = new PrismaClient();
 dotenv.config();
 import { Request, Response } from 'express';
@@ -120,7 +120,7 @@ export const register = async (req: Request, res: Response) => {
 
     // Configure tenant settings
     try {
-      await configureTenantSettings(tenant.id);
+      await configureTenantSettings(Number(tenant.id));
     } catch (configError) {
       console.warn(`Failed to configure tenant settings for tenant ${tenant.id}:`, configError);
     }
@@ -219,7 +219,11 @@ export const signin = async (req: { body: SignInRequestBody }, res: any) => {
       },
     });
 
-    // Generate JWT
+ if (!process.env.JWT_SECRET) {
+  throw new Error('JWT_SECRET is not set');
+}
+
+
     const token = jwt.sign(
       {
         id:             user.id,
