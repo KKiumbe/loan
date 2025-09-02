@@ -45,7 +45,6 @@ interface RepaymentRequestBody {
 
 
 
-
 const createRepayment = async (
   req: AuthenticatedRequest,
   res: Response<ApiResponse<loanPayment[] | ErrorResponse>>
@@ -121,48 +120,55 @@ const createRepayment = async (
       return;
     }
 
-    // Fetch all non-repaid loans for employees in the organization
-    console.time('loansQuery');
-    const loans: LoanRepayment[] = await prisma.loan.findMany({
+    // Fetch all non-repaid loan payouts for the organization
+    console.time('loanPayoutsQuery');
+    const loanPayouts = await prisma.loanPayout.findMany({
       where: {
-        organizationId,
         tenantId: tenantId,
-        status: 'DISBURSED',
+        status: 'DISBURSED', // Assumes PayoutStatus includes DISBURSED
+        loan: {
+          organizationId: organizationId, // Join with Loan to filter by organizationId
+        },
       },
       select: {
         id: true,
-        userId: true,
-        organizationId: true,
-        tenantId: true,
+        loanId: true,
         amount: true,
-        totalRepayable: true,
         status: true,
         createdAt: true,
         updatedAt: true,
-        user: {
+        loan: {
           select: {
             id: true,
-            firstName: true,
-            lastName: true,
-            phoneNumber: true,
-          },
-        },
-        organization: {
-          select: {
-            id: true,
-            approvalSteps: true,
-            name: true,
-            loanLimitMultiplier: true,
-            interestRate: true,
+            organizationId: true,
+            totalRepayable: true, // Include totalRepayable for repayment calculations
+            status: true,
+            user: {
+              select: {
+                id: true,
+                firstName: true,
+                lastName: true,
+                phoneNumber: true,
+              },
+            },
+            organization: {
+              select: {
+                id: true,
+                approvalSteps: true,
+                name: true,
+                loanLimitMultiplier: true,
+                interestRate: true,
+              },
+            },
           },
         },
       },
     });
-    console.timeEnd('loansQuery');
+    console.timeEnd('loanPayoutsQuery');
 
-    if (loans.length === 0) {
+    if (loanPayouts.length === 0) {
       res.status(400).json({
-        message: 'No outstanding loans found for this organization',
+        message: 'No outstanding loan payouts found for this organization',
         success: false,
         data: null,
       });
@@ -170,122 +176,134 @@ const createRepayment = async (
     }
 
     // Calculate total repayable amount
-    const totalRepayable: number = loans.reduce((sum, loan) => sum + loan.totalRepayable, 0);
+    const totalRepayable: number = loanPayouts.reduce((sum, payout) => sum + payout.loan.totalRepayable, 0);
     if (totalAmount < totalRepayable) {
       res.status(400).json({
-        message: `Repayment amount (${totalAmount}) is less than total repayable (${totalRepayable}) for ${loans.length} loans`,
+        message: `Repayment amount (${totalAmount}) is less than total repayable (${totalRepayable}) for ${loanPayouts.length} loan payouts`,
         success: false,
         data: null,
       });
       return;
     }
 
-    // Create PaymentBatch
-    const paymentBatch = await prisma.paymentBatch.create({
-      data: {
-        tenantId,
-        organizationId,
-        totalAmount,
-        paymentMethod: method,
-        reference: reference || `BATCH-${Date.now()}`,
-        remarks: remarks || undefined, // Store remarks if provided
-      },
-    });
-
-    let remainingAmount = totalAmount;
-    const repayments: loanPayment[] = [];
-
-    for (const loan of loans) {
-      if (remainingAmount <= 0) break;
-
-      const outstanding = loan.totalRepayable;
-      const payAmount = Math.min(outstanding, remainingAmount);
-
-      // Create repayment record (PaymentConfirmation ties Batch -> Loan)
-      const repayment: any = await prisma.paymentConfirmation.create({
-        select: {
-          id: true,
-          amountSettled: true,
-          settledAt: true,
-          paymentBatchId: true,
-          loanPayoutId: true,
-        },
+    // Use a transaction to ensure atomicity
+    const repayments: loanPayment[] = await prisma.$transaction(async (tx) => {
+      // Create PaymentBatch
+      const paymentBatch = await tx.paymentBatch.create({
         data: {
-          paymentBatchId: paymentBatch.id,
-          loanPayoutId: loan.id,
-          amountSettled: payAmount,
+          tenantId,
+          organizationId,
+          totalAmount,
+          paymentMethod: method,
+          reference: reference || `BATCH-${Date.now()}`,
+          remarks: remarks || undefined,
         },
       });
 
-      repayments.push(repayment);
+      let remainingAmount = totalAmount;
+      const repayments: loanPayment[] = [];
 
-      // Update loan if fully settled
-      if (payAmount >= outstanding) {
-        await prisma.loan.update({
-          where: { id: loan.id },
-          data: { status: LoanStatus.REPAID },
+      for (const payout of loanPayouts) {
+        if (remainingAmount <= 0) break;
+
+        const outstanding = payout.loan.totalRepayable; // Use loan.totalRepayable
+        const payAmount = Math.min(outstanding, remainingAmount);
+
+        // Create repayment record (PaymentConfirmation ties Batch -> LoanPayout)
+        const repayment = await tx.paymentConfirmation.create({
+          select: {
+            id: true,
+            amountSettled: true,
+            settledAt: true,
+            paymentBatchId: true,
+            loanPayoutId: true,
+          },
+          data: {
+            paymentBatchId: paymentBatch.id,
+            loanPayoutId: payout.id, // Use LoanPayout id
+            amountSettled: payAmount,
+          },
         });
+
+       repayments.push({ 
+  ...repayment, 
+  id: repayment.id.toString(), 
+  paymentBatchId: repayment.paymentBatchId.toString(), 
+  loanPayoutId: repayment.loanPayoutId.toString() 
+});
+        // Update LoanPayout and Loan if fully settled
+        if (payAmount >= outstanding) {
+          
+          await tx.loan.update({
+            where: { id: payout.loanId },
+            data: { status: 'REPAID' }, // Update Loan status to REPAID
+          });
+        }
+
+        remainingAmount -= payAmount;
       }
 
-      remainingAmount -= payAmount;
-    }
-
-    // Save remaining amount to organization credit balance
-    if (remainingAmount > 0) {
-      console.time('updateCreditBalance');
-      await prisma.organization.update({
-        where: { id: organizationId, tenantId: tenantId },
-        data: {
-          creditBalance: {
-            increment: remainingAmount,
+      // Save remaining amount to organization credit balance
+      if (remainingAmount > 0) {
+        console.time('updateCreditBalance');
+        await tx.organization.update({
+          where: { id: organizationId, tenantId: tenantId },
+          data: {
+            creditBalance: {
+              increment: remainingAmount,
+            },
           },
-        },
-      });
-      console.timeEnd('updateCreditBalance');
+        });
+        console.timeEnd('updateCreditBalance');
 
-      console.time('auditLogCreditBalance');
-      await prisma.auditLog.create({
+        console.time('auditLogCreditBalance');
+        await tx.auditLog.create({
+          data: {
+            tenantId: tenantId,
+            userId: id,
+            action: 'UPDATE',
+            resource: 'ORGANIZATION_CREDIT',
+            details: {
+              message: `User ${firstName} ${lastName} added ${remainingAmount} to organization ${organizationId} credit balance`,
+              organizationId,
+              amount: remainingAmount,
+              paymentMethod: method,
+              reference: reference || `BATCH-${Date.now()}`,
+              remarks: remarks || undefined,
+            },
+          },
+        });
+        console.timeEnd('auditLogCreditBalance');
+      }
+
+      // Log the repayment action
+      console.time('auditLogQuery');
+      await tx.auditLog.create({
         data: {
           tenantId: tenantId,
           userId: id,
-          action: 'UPDATE',
-          resource: 'ORGANIZATION_CREDIT',
+          action: 'CREATE',
+          resource: 'REPAYMENT',
           details: {
-            message: `User ${firstName} ${lastName} added ${remainingAmount} to organization ${organizationId} credit balance`,
-            organizationId,
-            amount: remainingAmount,
+            message: `User ${firstName} ${lastName} initiated repayment of ${totalAmount} for ${loanPayouts.length} loan payouts in organization ${organizationId}`,
+            loanPayoutIds: loanPayouts.map(payout => payout.id),
+            loanIds: loanPayouts.map(payout => payout.loanId), // Log both loanPayoutIds and loanIds
+            amount: totalAmount,
+            remainingAmount,
             paymentMethod: method,
             reference: reference || `BATCH-${Date.now()}`,
             remarks: remarks || undefined,
           },
         },
       });
-      console.timeEnd('auditLogCreditBalance');
-    }
+      console.timeEnd('auditLogQuery');
 
-    // Log the repayment action
-    console.time('auditLogQuery');
-    await prisma.auditLog.create({
-      data: {
-        tenantId: tenantId,
-        userId: id,
-        action: 'CREATE',
-        resource: 'REPAYMENT',
-        details: {
-          message: `User ${firstName} ${lastName} initiated repayment of ${totalAmount} for ${loans.length} loans in organization ${organizationId}`,
-          loanIds: loans.map(loan => loan.id),
-          amount: totalAmount,
-          remainingAmount,
-          paymentMethod: method,
-          reference: reference || `BATCH-${Date.now()}`,
-          remarks: remarks || undefined,
-        },
-      },
+      return repayments;
+
     });
-    console.timeEnd('auditLogQuery');
 
     res.status(201).json({
-      message: `Repayment processed for organization loans${remainingAmount > 0 ? `, ${remainingAmount} added to organization credit` : ''}`,
+      message: `Repayment processed for organization loan payouts }`,
       success: true,
       data: repayments,
     });
@@ -301,7 +319,6 @@ const createRepayment = async (
     await prisma.$disconnect();
   }
 };
-
 
 export default createRepayment;
 
