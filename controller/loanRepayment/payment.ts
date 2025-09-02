@@ -50,7 +50,7 @@ const createRepayment = async (
   req: AuthenticatedRequest,
   res: Response<ApiResponse<loanPayment[] | ErrorResponse>>
 ): Promise<void> => {
-  const { amount, organizationId } = req.body;
+  const { organizationId, totalAmount, method, reference, remarks } = req.body;
   const { id, tenantId, role, firstName, lastName, organizationId: userOrganizationId } = req.user!;
 
   // Validate user and required fields
@@ -74,9 +74,9 @@ const createRepayment = async (
   }
 
   // Validate request body
-  if (!amount || amount <= 0 || !organizationId) {
+  if (!totalAmount || totalAmount <= 0 || !organizationId || !method) {
     res.status(400).json({
-      message: 'Valid amount and organizationId are required',
+      message: 'Valid totalAmount, organizationId, and method are required',
       success: false,
       data: null,
     });
@@ -171,9 +171,9 @@ const createRepayment = async (
 
     // Calculate total repayable amount
     const totalRepayable: number = loans.reduce((sum, loan) => sum + loan.totalRepayable, 0);
-    if (amount < totalRepayable) {
+    if (totalAmount < totalRepayable) {
       res.status(400).json({
-        message: `Repayment amount (${amount}) is less than total repayable (${totalRepayable}) for ${loans.length} loans`,
+        message: `Repayment amount (${totalAmount}) is less than total repayable (${totalRepayable}) for ${loans.length} loans`,
         success: false,
         data: null,
       });
@@ -185,13 +185,14 @@ const createRepayment = async (
       data: {
         tenantId,
         organizationId,
-        totalAmount: amount,
-        paymentMethod: 'BANK_TRANSFER', // or from req.body if dynamic
-        reference: `BATCH-${Date.now()}`,
+        totalAmount,
+        paymentMethod: method,
+        reference: reference || `BATCH-${Date.now()}`,
+        remarks: remarks || undefined, // Store remarks if provided
       },
     });
 
-    let remainingAmount = amount;
+    let remainingAmount = totalAmount;
     const repayments: loanPayment[] = [];
 
     for (const loan of loans) {
@@ -253,6 +254,9 @@ const createRepayment = async (
             message: `User ${firstName} ${lastName} added ${remainingAmount} to organization ${organizationId} credit balance`,
             organizationId,
             amount: remainingAmount,
+            paymentMethod: method,
+            reference: reference || `BATCH-${Date.now()}`,
+            remarks: remarks || undefined,
           },
         },
       });
@@ -268,10 +272,13 @@ const createRepayment = async (
         action: 'CREATE',
         resource: 'REPAYMENT',
         details: {
-          message: `User ${firstName} ${lastName} initiated repayment of ${amount} for ${loans.length} loans in organization ${organizationId}`,
+          message: `User ${firstName} ${lastName} initiated repayment of ${totalAmount} for ${loans.length} loans in organization ${organizationId}`,
           loanIds: loans.map(loan => loan.id),
-          amount,
+          amount: totalAmount,
           remainingAmount,
+          paymentMethod: method,
+          reference: reference || `BATCH-${Date.now()}`,
+          remarks: remarks || undefined,
         },
       },
     });
