@@ -104,16 +104,36 @@ export const hardDeleteBorrowerOrganization = async (
     }
 
     // Transaction for cascading deletes
+
+
+      // Transaction for cascading deletes in correct order
     await prisma.$transaction([
+      // Step 1: Delete PaymentConfirmation records (depends on LoanPayout)
+      prisma.paymentConfirmation.deleteMany({
+        where: {
+          loanPayout: { loan: { organizationId: organizationIdNumber } },
+        },
+      }),
+      // Step 2: Delete LoanPayout records (depends on Loan)
+      prisma.loanPayout.deleteMany({
+        where: { loan: { organizationId: organizationIdNumber } },
+      }),
+      // Step 3: Delete Employee records
       prisma.employee.deleteMany({ where: { organizationId: organizationIdNumber } }),
+      // Step 4: Delete Loan records
       prisma.loan.deleteMany({ where: { organizationId: organizationIdNumber } }),
+      // Step 5: Delete ConsolidatedRepayment records
       prisma.consolidatedRepayment.deleteMany({ where: { organizationId: organizationIdNumber } }),
+      // Step 6: Delete PaymentBatch records
       prisma.paymentBatch.deleteMany({ where: { organizationId: organizationIdNumber } }),
+      // Step 7: Unlink users from the organization
       prisma.user.updateMany({
         where: { organizationId: organizationIdNumber },
         data: { organizationId: null },
       }),
+      // Step 8: Delete the Organization
       prisma.organization.delete({ where: { id: organizationIdNumber } }),
+      // Step 9: Log the action
       prisma.auditLog.create({
         data: {
           tenant: { connect: { id: tenantId } },
@@ -121,7 +141,7 @@ export const hardDeleteBorrowerOrganization = async (
           action: 'HARD_DELETE_BORROWER_ORGANIZATION',
           resource: 'Organization',
           details: {
-            organizationId,
+            organizationId: organizationIdNumber,
             message: 'Organization hard deleted',
           },
         },
