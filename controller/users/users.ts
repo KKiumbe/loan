@@ -62,7 +62,7 @@ export const registerUser = async (
 
     // Check if a user already exists for this employee
     const existingUser = await prisma.user.findFirst({
-      where: { employeeId: employee.id },
+      where: { phoneNumber: phoneNumber },
     });
 
     if (existingUser) {
