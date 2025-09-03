@@ -1,5 +1,6 @@
 import { PrismaClient, Prisma } from '@prisma/client';
 import { Request, Response } from 'express';
+import { z } from 'zod';
 import { AuthenticatedRequest } from '../../middleware/verifyToken';
 import { getUserOrganizationIdById } from '../userManagement/userManagement';
 import { sendSMS } from '../sms/sms';
@@ -495,86 +496,9 @@ const updateEmployee = async (
 
 
 
-const deleteEmployee = async (
-  req: AuthenticatedRequest,
-  res: Response
-): Promise<void> => {
-  const { tenantId, role } = req.user!;
-  const employeeId = parseInt(req.params.id);
-
-  try {
-    if (!role.includes('ADMIN') && !role.includes('ORG_ADMIN')) {
-      res.status(403).json({ error: 'Access denied.' });
-      return;
-    }
-
-    // Find employee and linked user
-    const employee = await prisma.employee.findFirst({
-      where: { id: employeeId, tenantId },
-      include: { user: {
-        include: {
-         loans: true,
-            LoanPayout: true,
-            ConsolidatedRepayment: true,
-            auditLogs: true
-
-        },
-      }
 
 
-       },
-    });
 
-    if (!employee) {
-      res.status(404).json({ error: 'Employee not found or unauthorized.' });
-      return;
-    }
-
-   if (employee.user) {
-  const userId = employee.user.id;
-
-  // Then update other relations
-  if (userId !== null && userId !== undefined) {
-    await prisma.$transaction([
-      prisma.loanPayout.updateMany({
-        where: { approvedById: userId },
-        data: { approvedById: null },
-      }),
-      prisma.consolidatedRepayment.updateMany({
-        where: { userId },
-        data: { userId: undefined },
-      }),
-      prisma.auditLog.updateMany({
-        where: { userId },
-        data: { userId: undefined },
-      }),
-    ]);
-
-    // Finally delete the user
-    await prisma.user.delete({ where: { id: userId } });
-  } else {
-    console.error('User ID is null or undefined');
-    // Handle this case accordingly
-  }
-}
-    // Delete employee
-    await prisma.employee.delete({
-      where: { id: employeeId },
-          
-
-
-      
-
-
-    });
-
-    res.status(200).json({ message: 'Employee and associated user deleted successfully' });
-
-  } catch (error: any) {
-    console.error('Failed to delete employee:', error.message);
-    res.status(500).json({ success: false, message: 'Internal server error', data: null });
-  }
-};
 const getEmployeeDetails = async (req: Request, res: Response): Promise<void> => {
   const { userId } = req.params;
 
@@ -644,13 +568,122 @@ const getEmployeeDetails = async (req: Request, res: Response): Promise<void> =>
 
 
 
+// Soft delete employee and associated user
+const softDeleteEmployeeUser = async (
+  req: AuthenticatedRequest ,
+  res: Response
+): Promise<void> => {
+  try {
+    const {  employeeId } = req.params;
+    const { id: userId, tenantId } = req.user!;
+
+    // Verify tenant exists
+    const tenant = await prisma.tenant.findUnique({ where: { id: tenantId } });
+    if (!tenant) {
+      res.status(404).json({ error: 'Tenant (Lender Organization) not found' });
+      return;
+    }
+
+    // Verify employee exists
+    const employee = await prisma.employee.findFirst({
+      where: { id: parseInt(employeeId), tenantId },
+      include: { user: true },
+    });
+    if (!employee) {
+      res.status(404).json({ error: 'Employee not found' });
+      return;
+    }
+
+    // Check for dependent records
+    const dependentLoans = await prisma.loan.count({ where: { userId: employee.user?.id } });
+    const dependentRepayments = await prisma.consolidatedRepayment.count({
+      where: { userId: employee.user?.id },
+    });
+    if (dependentLoans > 0 || dependentRepayments > 0) {
+      res.status(400).json({
+        error: 'Cannot delete employee with associated loans or repayments',
+      });
+      return;
+    }
+
+    // Soft delete: Update user status to DISABLED (Employee has no status field)
+    if (employee.user) {
+      await prisma.user.update({
+        where: { id: employee.user.id },
+        data: { status: 'DISABLED' },
+      });
+    }
+
+    // Log the action
+    await prisma.auditLog.create({
+      data: {
+        tenant: { connect: { id: tenantId } },
+        user: { connect: { id: userId } },
+        action: 'DELETE_EMPLOYEE_USER',
+        resource: 'Employee',
+        details: {
+          employeeId,
+          userId: employee.user?.id || null,
+          message: 'Employee and associated user soft deleted',
+        },
+      },
+    });
+
+    res.status(200).json({ message: 'Employee soft deleted successfully' });
+  } catch (error) {
+    console.error('Failed to soft delete Employee-User:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+// Hard delete employee and associated user
+const hardDeleteEmployeeUser = async (
+  req: AuthenticatedRequest ,
+  res: Response
+): Promise<void> => {
+  try {
+    const { tenantId } = req.user!;
+    const {userId} = req.params; // actually userId
+
+   
+    const user = await prisma.user.findFirst({
+  where: { id: parseInt(userId), tenantId },
+  include: { employee: true },
+});
+
+if (!user || !user.employee) {
+  res.status(404).json({ success: false, message: 'Employee user not found' });
+  return; // add a return statement here
+}
+
+    const employeeId = user.employee.id;
+
+    // 2. Delete Employee record
+    await prisma.employee.delete({
+      where: { id: employeeId },
+    });
+
+    // 3. Delete User record
+    await prisma.user.delete({
+      where: { id: parseInt(userId) },
+    });
+
+    res.json({ success: true, message: 'Employee and linked user deleted permanently' });
+  } catch (error) {
+    console.error('Error in hardDeleteEmployeeUser:', error);
+    res.status(500).json({ success: false, message: 'Error deleting employee and user' });
+  }
+};
+
+
+
 export {
   createEmployee,
   getEmployeeUsers,
   updateEmployee,
-  deleteEmployee,
+ 
   searchEmployeeByName,
   searchEmployeeByPhone,
 getEmployeeDetails,
-  getEmployeesWithoutUserProfiles
+  getEmployeesWithoutUserProfiles,hardDeleteEmployeeUser,softDeleteEmployeeUser
 };

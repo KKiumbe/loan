@@ -1,6 +1,6 @@
 import express from 'express';
 
-import { createEmployee, deleteEmployee, getEmployeeUsers, searchEmployeeByName, searchEmployeeByPhone, updateEmployee, getEmployeesWithoutUserProfiles, getEmployeeDetails } from '../../controller/employee/employee';
+import { createEmployee, getEmployeeUsers, searchEmployeeByName, searchEmployeeByPhone, updateEmployee, getEmployeesWithoutUserProfiles, getEmployeeDetails, hardDeleteEmployeeUser } from '../../controller/employee/employee';
 import checkAccess from '../../middleware/roleVerify';
 
 import upload from '../../middleware/uploadCustomers/upload';
@@ -33,7 +33,7 @@ router.get('/customers/employee',verifyToken,  getEmployeesWithoutUserProfiles);
 //router.put('/:employeeId', verifyToken, checkAccess('employee', 'update'), updateEmployee);
 
 // Delete Employee (ADMIN, ORG_ADMIN)
-router.delete('/employee/:id', verifyToken, deleteEmployee);
+router.delete('/employee-user/:userId', verifyToken, hardDeleteEmployeeUser);
 
 
 

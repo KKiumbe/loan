@@ -5,6 +5,7 @@ import { createBorrowerOrganization, getOrganizationAdmins, getOrganizationById,
 
 import checkAccess from '../../middleware/roleVerify';
 import verifyToken from '../../middleware/verifyToken';
+import { hardDeleteBorrowerOrganization, softDeleteBorrowerOrganization } from '../../controller/organization/deleteOrg';
 
 
 const router = express.Router();
@@ -37,5 +38,23 @@ router.put(
 
 // Search organizations (Authenticated users with read permission)
 router.get('/organizations-search',verifyToken, searchOrganizations);
+
+
+
+//delete routes
+
+
+router.delete(
+  '/soft-delete-org/:organizationId',
+  verifyToken,
+  softDeleteBorrowerOrganization
+);
+
+// Hard delete organization
+router.delete(
+  '/delete-org/:organizationId',
+ verifyToken,
+  hardDeleteBorrowerOrganization
+);
 
 export default router;
