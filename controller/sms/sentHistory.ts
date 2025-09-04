@@ -40,18 +40,7 @@ export const getSentSmsHistory = async (
       return;
     }
 
-    // Check permissions
-if (
-  !req.user?.role.some((role) =>
-    ROLE_PERMISSIONS[role as keyof typeof ROLE_PERMISSIONS]?.sms_history && 
-    Array.isArray(ROLE_PERMISSIONS[role as keyof typeof ROLE_PERMISSIONS]?.sms_history) && 
-    ROLE_PERMISSIONS[role as keyof typeof ROLE_PERMISSIONS]?.sms_history.every((item) => typeof item === 'string') && 
-    (ROLE_PERMISSIONS[role as keyof typeof ROLE_PERMISSIONS]?.sms_history as string[]).includes('read')
-  )
-) {
-  res.status(403).json({ message: 'Access denied. Insufficient permissions.' });
-  return;
-}
+
 
     // Fetch SMS history and total count concurrently
     const [data, totalRecords] = await Promise.all([
