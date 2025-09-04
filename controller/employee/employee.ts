@@ -140,7 +140,7 @@ const createEmployee = async (req: AuthenticatedRequest, res: Response<APIRespon
     });
 
     // Send SMS to employee
-    const welcomeMessage = `Welcome to ${organization.name}, ${firstName}! Your employee profile has been created. Contact HR for account setup.`;
+    const welcomeMessage = `Welcome to ${organization.name}, ${firstName}! Your  profile has been created. Contact support for account setup.`;
     await sendSMS(tenantId, phoneNumber, welcomeMessage);
     console.log(`SMS sent to ${phoneNumber}: ${welcomeMessage}`);
 
@@ -637,46 +637,83 @@ const softDeleteEmployeeUser = async (
 };
 
 // Hard delete employee and associated user
+
 const hardDeleteEmployeeUser = async (
-  req: AuthenticatedRequest ,
+  req: AuthenticatedRequest,
   res: Response
 ): Promise<void> => {
   try {
     const { tenantId } = req.user!;
-    const {userId} = req.params; // actually userId
+    const { userId } = req.params;
 
-   
-    const user = await prisma.user.findFirst({
-  where: { id: parseInt(userId), tenantId },
-  include: { employee: true },
-});
+    // Start a transaction
+    await prisma.$transaction(async (tx) => {
+      // 1. Find the user and associated employee
+      const user = await tx.user.findFirst({
+        where: { id: parseInt(userId), tenantId },
+        include: { employee: true },
+      });
 
-if (!user || !user.employee) {
-  res.status(404).json({ success: false, message: 'Employee user not found' });
-  return; // add a return statement here
-}
+      if (!user || !user.employee) {
+        res.status(404).json({ success: false, message: 'Employee user not found' });
+        return;
+      }
 
-    const employeeId = user.employee.id;
+      const employeeId = user.employee.id;
 
-    // 2. Delete Employee record
-    await prisma.employee.delete({
-      where: { id: employeeId },
+      // 2. Delete related records that depend on the User
+      // Delete ConsolidatedRepayment records
+      await tx.consolidatedRepayment.deleteMany({
+        where: { userId: parseInt(userId) },
+      });
+
+      // Delete AuditLog records
+      await tx.auditLog.deleteMany({
+        where: { userId: parseInt(userId) },
+      });
+
+      // 3. Delete PaymentConfirmation records associated with LoanPayouts for this User's Loans
+      await tx.paymentConfirmation.deleteMany({
+        where: {
+          loanPayout: {
+            loan: {
+              userId: parseInt(userId),
+            },
+          },
+        },
+      });
+
+      // 4. Delete LoanPayout records associated with Loans for this User
+      await tx.loanPayout.deleteMany({
+        where: {
+          loan: {
+            userId: parseInt(userId),
+          },
+        },
+      });
+
+      // 5. Delete Loan records for this User
+      await tx.loan.deleteMany({
+        where: { userId: parseInt(userId) },
+      });
+
+      // 6. Delete Employee record
+      await tx.employee.delete({
+        where: { id: employeeId },
+      });
+
+      // 7. Delete User record
+      await tx.user.delete({
+        where: { id: parseInt(userId) },
+      });
     });
 
-    // 3. Delete User record
-    await prisma.user.delete({
-      where: { id: parseInt(userId) },
-    });
-
-    res.json({ success: true, message: 'Employee and linked user deleted permanently' });
+    res.json({ success: true, message: 'Employee and linked user data deleted permanently' });
   } catch (error) {
     console.error('Error in hardDeleteEmployeeUser:', error);
-    res.status(500).json({ success: false, message: 'Error deleting employee and user' });
+    res.status(500).json({ success: false, message: 'Error deleting employee and user data' });
   }
 };
-
-
-
 export {
   createEmployee,
   getEmployeeUsers,

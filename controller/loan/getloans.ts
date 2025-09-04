@@ -15,14 +15,40 @@ const prisma = new PrismaClient();
 
 // Helper Functions
 
-export const calculateLoanDetails = (
+
+
+
+// helper to get transaction cost based on bands
+export const getTransactionCost = async (
+ 
+  amount: number
+): Promise<number> => {
+  const band = await prisma.transactionCostBand.findFirst({
+    where: {
+    
+      minAmount: { lte: amount },
+      maxAmount: { gte: amount },
+    },
+  });
+
+  return band ? band.cost : 0;
+};
+
+export const calculateLoanDetails = async (
+
   amount: number,
   interestRate: number,
   interestRateType: 'DAILY' | 'MONTHLY' = 'MONTHLY',
   loanDurationDays = 30,
   baseInterestRate?: number,
   dailyInterestRate?: number
-): LoanDetails & { appliedInterestRate: number; loanDurationDays: number } => {
+): Promise<
+  LoanDetails & {
+    appliedInterestRate: number;
+    loanDurationDays: number;
+    transactionCharge: number;
+  }
+> => {
   if (!amount || isNaN(amount) || amount <= 0) {
     throw new Error('Invalid loan amount');
   }
@@ -30,7 +56,6 @@ export const calculateLoanDetails = (
   const dueDate = new Date();
   dueDate.setDate(dueDate.getDate() + loanDurationDays);
 
- console.log(`dueDate: ${dueDate}, totalRepayable: ${amount * (1 + interestRate)}, appliedInterestRate: ${interestRate}, loanDurationDays: ${loanDurationDays}`);
   let totalRepayable: number;
   let appliedInterestRate: number;
 
@@ -51,11 +76,23 @@ export const calculateLoanDetails = (
     totalRepayable = amount * (1 + appliedInterestRate);
   }
 
+  // ✅ get transaction cost
+  const transactionCharge = await getTransactionCost(amount);
+
+  // add transaction charge to total repayable
+  totalRepayable += transactionCharge;
+
   if (isNaN(totalRepayable)) {
     throw new Error('Failed to calculate total repayable');
   }
 
-  return { dueDate, totalRepayable, appliedInterestRate, loanDurationDays };
+  return {
+    dueDate,
+    totalRepayable,
+    appliedInterestRate,
+    loanDurationDays,
+    transactionCharge,
+  };
 };
 
 

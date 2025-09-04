@@ -110,22 +110,20 @@ const loanDurationDays = Math.ceil(
   (endOfMonth.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)
 );
 
-
   const {
   dueDate,
   totalRepayable,
   appliedInterestRate
-} = calculateLoanDetails(
-   amount,
+} = await calculateLoanDetails(
+      
+  amount,
   interestRateToApply,
-  theloanType,
-  
-  loanDurationDays,
+  theloanType,        // DAILY or MONTHLY
+  loanDurationDays,   // optional param
   org.baseInterestRate,
   org.dailyInterestRate
-
-  
 );
+
 
 
 const transactionBand = await prisma.transactionCostBand.findFirst({

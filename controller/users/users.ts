@@ -12,8 +12,10 @@ export const registerUser = async (
   res: Response,
   next: NextFunction
 ): Promise<void> => {
-  const { employeeId, phoneNumber, idNumber, password } = req.body;
+  const { employeeId, password } = req.body;
   const { tenantId } = req.user!;
+
+  console.log(`this is the user details ${JSON.stringify(req.body)}`);
 
   if (!req.user!.role.includes('ORG_ADMIN') && !req.user!.role.includes('ADMIN')) {
     res.status(403).json({ message: 'Access denied. Only admins can create users.' });
@@ -42,40 +44,26 @@ export const registerUser = async (
     if (employeeId) {
       employee = await prisma.employee.findFirst({
         where: { id: employeeId, tenantId },
+        select: { id: true, phoneNumber: true, idNumber: true, firstName: true, lastName: true },
       });
-    } else {
-      employee = await prisma.employee.findFirst({
-        where: {
-          OR: [
-            phoneNumber ? { phoneNumber } : {},
-            idNumber ? { idNumber } : {},
-          ].filter(Boolean),
-          tenantId,
-        },
-      });
-    }
+    } 
+
 
     if (!employee) {
       res.status(404).json({ message: 'Employee not found' });
       return;
     }
 
-    // Check if a user already exists for this employee
-    const existingUser = await prisma.user.findFirst({
-      where: { phoneNumber: phoneNumber },
+   
+
+    
+    const userExists = await prisma.user.findFirst({
+      where: { employee:{
+        id: employee.id
+      } },
     });
 
-    if (existingUser) {
-      res.status(400).json({ message: 'User already exists for this employee' });
-      return;
-    }
-
-    // Check if the phone number is already used by another user
-    const userByPhone = await prisma.user.findFirst({
-      where: { phoneNumber: employee.phoneNumber },
-    });
-
-    if (userByPhone) {
+    if (userExists) {
       res.status(400).json({ message: 'Phone number is already registered' });
       return;
     }
@@ -89,12 +77,6 @@ export const registerUser = async (
     const hashedPassword = await bcrypt.hash(password, 10);
 
 
-    console.log("Creating user for employee:", {
-  id: employee.id,
-  phoneNumber: employee.phoneNumber,
-  firstName: employee.firstName,
-  lastName: employee.lastName,
-});
 
 
     const newUser = await prisma.user.create({
