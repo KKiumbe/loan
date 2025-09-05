@@ -1,6 +1,6 @@
 import express from 'express';
 
-import { createEmployee, getEmployeeUsers, searchEmployeeByName, searchEmployeeByPhone, updateEmployee, getEmployeesWithoutUserProfiles, getEmployeeDetails, hardDeleteEmployeeUser } from '../../controller/employee/employee';
+import { createEmployee, getEmployeeUsers, searchEmployeeByPhone, updateEmployee, getEmployeesWithoutUserProfiles, getEmployeeDetails, hardDeleteEmployeeUser, getEmployeeUsersByOrgID, searchEmployeeByName, getEmployeesByOrganization } from '../../controller/employee/employee';
 import checkAccess from '../../middleware/roleVerify';
 
 import upload from '../../middleware/uploadCustomers/upload';
@@ -23,6 +23,7 @@ router.get('/employee-details/:userId',verifyToken,   getEmployeeDetails);
 router.put('/update-employee/:userId', verifyToken, updateEmployee);
 // Get Employee by ID (ADMIN, ORG_ADMIN, EMPLOYEE)
 router.get('/customers/employee-users',verifyToken,  getEmployeeUsers);
+router.get('/customers/employee-users-by-ID',verifyToken,  getEmployeeUsersByOrgID);
 
 
 //getEmployeesWithoutUserProfiles
@@ -35,7 +36,14 @@ router.get('/customers/employee',verifyToken,  getEmployeesWithoutUserProfiles);
 // Delete Employee (ADMIN, ORG_ADMIN)
 router.delete('/employee-user/:userId', verifyToken, hardDeleteEmployeeUser);
 
+//getEmployeesByOrganization
 
+router.get(
+  '/employees/by-organization',verifyToken,
+ 
+  
+  getEmployeesByOrganization
+)
 
 router.get(
   '/employees/search-by-name',verifyToken,

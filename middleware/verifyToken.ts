@@ -34,7 +34,7 @@ const verifyToken = (req: AuthenticatedRequest, res: Response, next: NextFunctio
 
   try {
     const decoded = verify(token, process.env.JWT_SECRET) as TokenPayload;
-    console.log('Token verified, user:', decoded);
+   
     req.user = decoded;
     next();
   } catch (err) {

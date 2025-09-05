@@ -104,8 +104,8 @@ page.drawText(tenant.name || 'Unnamed Tenant', {
 
   // Separator line
   page.drawLine({
-    start: { x: 50, y: page.getHeight() - 120 },
-    end: { x: 562, y: page.getHeight() - 120 },
+    start: { x: 50, y: page.getHeight() - 130 },
+    end: { x: 562, y: page.getHeight() - 130 },
     thickness: 1.5,
     color: rgb(0, 0.48, 1),
   });

@@ -9,12 +9,13 @@ import { UserDetailsWithRelations} from '../../types/user';
 
 
 
+
 const prisma = new PrismaClient();
 
-
-
-
-
+interface SearchResult {
+  total: number;
+  data: (Employee & { organization: { id: number; name: string; }; user: { id: number; firstName: string; lastName: string; phoneNumber: string; } | null; })[];
+}
 
 const createEmployee = async (req: AuthenticatedRequest, res: Response<APIResponse<Employee>>): Promise<void> => {
   const { organizationId, phoneNumber, idNumber, grossSalary, firstName, lastName, jobId, secondaryPhoneNumber } = req.body as Employee;
@@ -217,6 +218,100 @@ const getEmployeeUsers = async (
 
 
 
+export const getEmployeeUsersByOrgID = async (
+  req: AuthenticatedRequest,
+  res: Response<APIResponseEmployee<PaginatedResponse<EmployeeWithExtras>>>
+): Promise<void> => {
+  const startTime = Date.now();
+
+  try {
+    const tenantId = req.user?.tenantId;
+    if (!tenantId) {
+      res.status(400).json({ success: false, message: 'Tenant ID is required', data: { total: 0, data: [] } });
+      return;
+    }
+
+    const { orgId } = req.body; // Expecting orgId from request body
+    if (!orgId || isNaN(Number(orgId))) {
+      res.status(400).json({ success: false, message: 'Valid Organization ID is required', data: { total: 0, data: [] } });
+      return;
+    }
+
+    const page = Math.max(1, parseInt(req.query.page as string, 10) || 1);
+    const limit = Math.max(1, parseInt(req.query.limit as string, 10) || 10);
+
+    // Validate organization exists and belongs to tenant
+    const organization = await prisma.organization.findUnique({
+      where: { id: Number(orgId), tenantId },
+    });
+    if (!organization) {
+      res.status(404).json({ success: false, message: 'Organization not found', data: { total: 0, data: [] } });
+      return;
+    }
+
+    // Count total employees for the specific organization
+    const total = await prisma.employee.count({
+      where: { tenantId, organizationId: Number(orgId) },
+    });
+
+    // Fetch employees for the specific organization
+    const employees = await prisma.employee.findMany({
+      where: {
+        tenantId,
+        organizationId: Number(orgId),
+      },
+      skip: (page - 1) * limit,
+      take: limit,
+      orderBy: { createdAt: 'desc' },
+      include: {
+        organization: { select: { id: true, name: true } },
+        tenant: { select: { name: true } },
+        user: {
+          select: {
+            id: true,
+            phoneNumber: true,
+            firstName: true,
+            lastName: true,
+            createdAt: true,
+            loans: {
+              select: {
+                id: true,
+                amount: true,
+                interestRate: true,
+                status: true,
+                createdAt: true,
+                dueDate: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    res.json({
+      success: true,
+      data: {
+        total,
+        data: employees,
+      },
+    });
+
+    console.log(`✅ Employee list retrieved in ${Date.now() - startTime}ms`);
+  } catch (err) {
+    console.error('❌ Error retrieving employees:', err instanceof Error ? err.message : String(err));
+    res.status(500).json({
+      success: false,
+      message: err instanceof Error ? err.message : 'Failed to retrieve employees',
+      data: { total: 0, data: [] },
+    });
+  } finally {
+    await prisma.$disconnect();
+  }
+};
+
+
+
+
 const getEmployeesWithoutUserProfiles = async (
   req: AuthenticatedRequest,
   res: Response<APIResponseEmployee<PaginatedResponse<Employees>>>
@@ -269,87 +364,259 @@ const getEmployeesWithoutUserProfiles = async (
 
 
 // Search Employee by Name
-const searchEmployeeByName = async (req: AuthenticatedRequest, res: Response<APIResponse<Employee & { organization: { id: number; name: string }; user: { id: number; firstName: string; lastName: string; phoneNumber: string } | null }>>): Promise<void> => {
+const searchEmployeeByName = async (
+  req: AuthenticatedRequest,
+  res: Response<APIResponseEmployee<PaginatedResponse<EmployeeWithExtras>>>
+): Promise<void> => {
   try {
     const tenantId = req.user?.tenantId;
     const { name, organizationId } = req.query as { name?: string; organizationId?: string };
 
     if (!tenantId) {
-      res.status(400).json({ message: 'Tenant ID is required.' });
-      return;
-    }
-    if (!name || !name.trim()) {
-      res.status(400).json({ message: 'Query parameter `name` is required.' });
+      res.status(400).json({
+        message: 'Tenant ID is required.',
+        success: false,
+        data: { total: 0, data: [] },
+      });
       return;
     }
 
-    const where: any = {
-      tenantId,
-      OR: [
-        { firstName: { contains: name.trim(), mode: 'insensitive' } },
-        { lastName: { contains: name.trim(), mode: 'insensitive' } },
-      ],
-    };
+    if (!name && !organizationId) {
+      res.status(400).json({
+        message: 'At least one of `name` or `organizationId` is required.',
+        success: false,
+        data: { total: 0, data: [] },
+      });
+      return;
+    }
+
+    const where: Prisma.EmployeeWhereInput = { tenantId };
+
+    // add name filter if present
+    if (name?.trim()) {
+      const trimmedName = name.trim();
+      where.user = {
+        OR: [
+          { firstName: { contains: trimmedName, mode: 'insensitive' } },
+          { lastName: { contains: trimmedName, mode: 'insensitive' } },
+        ],
+      };
+    }
+
+    // add organization filter if present
     if (organizationId) {
       where.organizationId = parseInt(organizationId, 10);
     }
+
+    const total = await prisma.employee.count({ where });
 
     const employees = await prisma.employee.findMany({
       where,
       include: {
         organization: { select: { id: true, name: true } },
-        user: { select: { id: true, firstName: true, lastName: true, phoneNumber: true } },
+        tenant: { select: { name: true } },
+        user: {
+          select: {
+            id: true,
+            phoneNumber: true,
+            firstName: true,
+            lastName: true,
+            createdAt: true,
+            loans: {
+              select: {
+                id: true,
+                amount: true,
+                interestRate: true,
+                status: true,
+                createdAt: true,
+                dueDate: true,
+              },
+            },
+          },
+        },
       },
       orderBy: { createdAt: 'desc' },
       take: 50,
     });
 
-    res.json({ data: employees });
+    res.json({
+      success: true,
+      data: { total, data: employees },
+    });
   } catch (error: any) {
     console.error('Error in searchEmployeeByName:', error);
-    res.status(500).json({ message: 'Internal server error' });
+    res.status(500).json({
+      message: 'Internal server error',
+      success: false,
+      data: { total: 0, data: [] },
+    });
+  }
+};
+
+
+const getEmployeesByOrganization = async (
+  req: AuthenticatedRequest,
+  res: Response<APIResponseEmployee<PaginatedResponse<EmployeeWithExtras>>>
+): Promise<void> => {
+  try {
+    const tenantId = req.user?.tenantId;
+    const { organizationId } = req.query as { organizationId?: string };
+
+    if (!tenantId) {
+      res.status(400).json({
+        message: 'Tenant ID is required.',
+        success: false,
+        data: { total: 0, data: [] },
+      });
+      return;
+    }
+
+    if (!organizationId) {
+      res.status(400).json({
+        message: '`organizationId` is required.',
+        success: false,
+        data: { total: 0, data: [] },
+      });
+      return;
+    }
+
+    const where: Prisma.EmployeeWhereInput = {
+      tenantId,
+      organizationId: parseInt(organizationId, 10),
+    };
+
+    const total = await prisma.employee.count({ where });
+
+    const employees = await prisma.employee.findMany({
+      where,
+      include: {
+        organization: { select: { id: true, name: true } },
+        tenant: { select: { name: true } },
+        user: {
+          select: {
+            id: true,
+            phoneNumber: true,
+            firstName: true,
+            lastName: true,
+            createdAt: true,
+            loans: {
+              select: {
+                id: true,
+                amount: true,
+                interestRate: true,
+                status: true,
+                createdAt: true,
+                dueDate: true,
+              },
+            },
+          },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 50,
+    });
+
+    res.json({
+      success: true,
+      data: { total, data: employees },
+    });
+  } catch (error: any) {
+    console.error('Error in getEmployeesByOrganization:', error);
+    res.status(500).json({
+      message: 'Internal server error',
+      success: false,
+      data: { total: 0, data: [] },
+    });
   }
 };
 
 // Search Employee by Phone
-const searchEmployeeByPhone = async (req: AuthenticatedRequest, res: Response<APIResponse<Employee & { organization: { id: number; name: string }; user: { id: number; firstName: string; lastName: string; phoneNumber: string } | null }>>): Promise<void> => {
+
+
+const searchEmployeeByPhone = async (
+  req: AuthenticatedRequest,
+  res: Response<APIResponseEmployee<PaginatedResponse<EmployeeWithExtras>>>
+): Promise<void> => {
   try {
     const tenantId = req.user?.tenantId;
     const { phone, organizationId } = req.query as { phone?: string; organizationId?: string };
 
     if (!tenantId) {
-      res.status(400).json({ message: 'Tenant ID is required.' });
-      return;
-    }
-    if (!phone || !phone.trim()) {
-      res.status(400).json({ message: 'Query parameter `phone` is required.' });
+      res.status(400).json({
+        message: 'Tenant ID is required.',
+        success: false,
+        data: { total: 0, data: [] },
+      });
       return;
     }
 
-    const normalized = phone.trim().replace(/\D/g, '');
+    if (!phone && !organizationId) {
+      res.status(400).json({
+        message: 'At least one of `phone` or `organizationId` is required.',
+        success: false,
+        data: { total: 0, data: [] },
+      });
+      return;
+    }
 
-    const where: any = {
-      tenantId,
-      phoneNumber: { contains: normalized, mode: 'insensitive' },
-    };
+    const where: Prisma.EmployeeWhereInput = { tenantId };
+
+    // add phone filter if present
+    if (phone?.trim()) {
+      const trimmedPhone = phone.trim();
+      where.OR = [
+        { phoneNumber: { contains: trimmedPhone, mode: 'insensitive' } },
+        { secondaryPhoneNumber: { contains: trimmedPhone, mode: 'insensitive' } },
+      ];
+    }
+
+    // add organization filter if present
     if (organizationId) {
       where.organizationId = parseInt(organizationId, 10);
     }
+
+    const total = await prisma.employee.count({ where });
 
     const employees = await prisma.employee.findMany({
       where,
       include: {
         organization: { select: { id: true, name: true } },
-        user: { select: { id: true, firstName: true, lastName: true, phoneNumber: true } },
+        tenant: { select: { name: true } },
+        user: {
+          select: {
+            id: true,
+            phoneNumber: true,
+            firstName: true,
+            lastName: true,
+            createdAt: true,
+            loans: {
+              select: {
+                id: true,
+                amount: true,
+                interestRate: true,
+                status: true,
+                createdAt: true,
+                dueDate: true,
+              },
+            },
+          },
+        },
       },
       orderBy: { createdAt: 'desc' },
       take: 50,
     });
 
-    res.json({ data: employees });
+    res.json({
+      success: true,
+      data: { total, data: employees },
+    });
   } catch (error: any) {
     console.error('Error in searchEmployeeByPhone:', error);
-    res.status(500).json({ message: 'Internal server error' });
+    res.status(500).json({
+      message: 'Internal server error',
+      success: false,
+      data: { total: 0, data: [] },
+    });
   }
 };
 
@@ -719,8 +986,9 @@ export {
   getEmployeeUsers,
   updateEmployee,
  
-  searchEmployeeByName,
+
   searchEmployeeByPhone,
+  searchEmployeeByName,
 getEmployeeDetails,
-  getEmployeesWithoutUserProfiles,hardDeleteEmployeeUser,softDeleteEmployeeUser
+  getEmployeesWithoutUserProfiles,hardDeleteEmployeeUser,softDeleteEmployeeUser,getEmployeesByOrganization
 };
