@@ -42,6 +42,7 @@ async function callMpesaB2B(payload: any): Promise<any> {
       headers: {
         Authorization: `Bearer ${accessToken}`,
         "Content-Type": "application/json",
+        Accept: "application/json",
       },
       timeout: 30000,
     });
