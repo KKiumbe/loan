@@ -20,6 +20,8 @@ import {
  
 } from '../../types/mpesa';
 import { AuthenticatedRequest } from '../../middleware/verifyToken';
+import { MpesaResult } from '../../types/loans/loansPayments';
+
 
 const prisma = new PrismaClient();
 
@@ -171,6 +173,28 @@ const prisma = new PrismaClient();
 
 
 
+//b2b results , just print the response for now 
+
+const handleB2BResult = async (
+  req: Request<{}, {}, MpesaResult>,
+  res: Response
+): Promise<void> => {
+  const result = req.body;
+  console.log('M-Pesa B2B Result:', JSON.stringify(result, null, 2));
+  res.status(200).json({ message: 'B2B result received' });
+};
+
+
+//i need b2b timeout function 
+
+const handleB2BTimeout = async (
+  req: Request<{}, {}, MpesaTimeout>,
+  res: Response
+): Promise<void> => {
+  const timeout = req.body;
+  console.log('M-Pesa B2B Timeout:', JSON.stringify(timeout, null, 2));
+  res.status(200).json({ message: 'B2B timeout received' });
+};
 
 
 
@@ -402,5 +426,5 @@ export {
   handleB2CTimeout,
   handleAccountBalanceResult,
   handleAccountBalanceTimeout,
-  getLatestBalance
+  getLatestBalance,handleB2BResult,handleB2BTimeout
 };
