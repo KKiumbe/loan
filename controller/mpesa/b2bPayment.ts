@@ -51,19 +51,21 @@ export const initiateB2BTransfer = async (
   const resultUrl = `${process.env.APP_BASE_URL}/api/b2b-result`;
     const queueTimeoutUrl = `${process.env.APP_BASE_URL}/api/b2b-timeout`;
 
-    const payload = {
-      amount: req.body.amount,
-      partyA: mpesaConfig.b2cShortCode,
-      partyB: mpesaConfig.b2cShortCode,
-      initiatorName: mpesaConfig.initiatorName,
-      securityCredential: mpesaConfig.securityCredential,
-      consumerKey: mpesaConfig.consumerKey,
-      consumerSecret: mpesaConfig.consumerSecret,
-      commandID: "BusinessTransferFromMMFToUtility",
-      remarks: req.body.remarks ?? "Transfer to utility account",
-      queueTimeoutUrl: queueTimeoutUrl,
-      resultUrl: resultUrl
-    };
+   const payload = {
+  Initiator: mpesaConfig.initiatorName,
+  SecurityCredential: mpesaConfig.securityCredential,
+  CommandID: "BusinessTransferFromMMFToUtility",
+  SenderIdentifierType: "4",   // 4 = Shortcode
+  RecieverIdentifierType: "4", // 4 = Shortcode
+  Amount: req.body.amount,
+  PartyA: mpesaConfig.b2cShortCode,
+  PartyB: mpesaConfig.b2cShortCode,
+  Remarks: req.body.remarks ?? "Transfer to utility account",
+  QueueTimeOutURL: queueTimeoutUrl,
+  ResultURL: resultUrl,
+  AccountReference: "UtilityPayment" // optional but good to include
+};
+
 
     const response = await callMpesaB2B(payload);
 
