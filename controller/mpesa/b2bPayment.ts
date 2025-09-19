@@ -33,14 +33,12 @@ export const initiateB2BTransfer = async (
     console.log(`object mpesaConfig: ${JSON.stringify(mpesaConfig)}`);
 
     const accessToken = await getMpesaAccessToken(mpesaConfig.consumerKey, mpesaConfig.consumerSecret);
-
+    console.log(`this is the access token ${accessToken}`);
     async function callMpesaB2B(payload: any): Promise<any> {
   try {
     const response = await axios.post(process.env.MPESA_B2B_URL ?? '', payload, {
-       headers: {
-        "Content-Type": "application/json"
-      },
-      //headers: { Authorization: `Bearer ${accessToken}` },
+     
+      headers: { Authorization: `Bearer ${accessToken}` },
       timeout: 30000,
     });
 
