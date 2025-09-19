@@ -74,7 +74,10 @@ export const initiateB2CPayment = async ({
   try {
     console.time('mpesaB2CQuery');
     const { data } = await axios.post(b2cUrl, payload, {
-      headers: { Authorization: `Bearer ${accessToken}` },
+      headers: { Authorization: `Bearer ${accessToken}` , 
+         "Content-Type": "application/json"
+        },
+       
       timeout: 30000,
     });
     console.timeEnd('mpesaB2CQuery');
