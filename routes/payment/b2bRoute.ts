@@ -7,7 +7,7 @@ import { initiateB2BTransfer } from '../../controller/mpesa/b2bPayment';
 const router = express.Router();
 
 
-router.get('/b2b-transfer', verifyToken, initiateB2BTransfer);
+router.post('/b2b-transfer', verifyToken, initiateB2BTransfer);
 
 
 export default router;
