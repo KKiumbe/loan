@@ -34,19 +34,30 @@ export const initiateB2BTransfer = async (
 
     const accessToken = await getMpesaAccessToken(mpesaConfig.consumerKey, mpesaConfig.consumerSecret);
     console.log(`this is the access token ${accessToken}`);
-    async function callMpesaB2B(payload: any): Promise<any> {
+
+
+async function callMpesaB2B(payload: any): Promise<any> {
   try {
     const response = await axios.post(process.env.MPESA_B2B_URL ?? '', payload, {
-     
-      headers: { Authorization: `Bearer ${accessToken}` },
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+      },
       timeout: 30000,
     });
 
     return response.data;
   } catch (error: any) {
-    throw new Error(error.response?.data?.error_description || 'An error occurred');
+    console.error("M-Pesa B2B Error:", error.response?.data || error.message);
+    throw new Error(
+      error.response?.data?.errorMessage ||
+      error.response?.data?.error_description ||
+      error.message ||
+      "An unknown error occurred"
+    );
   }
 }
+
 
   const resultUrl = `${process.env.APP_BASE_URL}/api/b2b-result`;
     const queueTimeoutUrl = `${process.env.APP_BASE_URL}/api/b2b-timeout`;
