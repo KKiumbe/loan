@@ -175,25 +175,74 @@ const prisma = new PrismaClient();
 
 //b2b results , just print the response for now 
 
-const handleB2BResult = async (
-  req: Request<{}, {}, MpesaResult>,
-  res: Response
-): Promise<void> => {
-  const result = req.body;
-  console.log('M-Pesa B2B Result:', JSON.stringify(result, null, 2));
-  res.status(200).json({ message: 'B2B result received' });
+
+
+
+
+
+// Define type for Safaricom B2B callback
+type MpesaB2BResult = {
+  ResultType: number;
+  ResultCode: number;
+  ResultDesc: string;
+  OriginatorConversationID: string;
+  ConversationID: string;
+  TransactionID?: string;
+  ResultParameters?: {
+    ResultParameter:
+      | { Key: string; Value: string }
+      | { Key: string; Value: string }[];
+  };
+  ReferenceData?: any;
 };
 
+type MpesaB2BCallback = {
+  Result: MpesaB2BResult;
+};
 
-// const handleAccountBalanceResultFromMpesa = async (
-//   req: Request<{}, {}, MpesaAccBalanceResult>,
-//   res: Response
-// ): Promise<void> => {
-//   const result = req.body;
-//   console.log('M-Pesa Acc balance Result:', JSON.stringify(result, null, 2));
-//   res.status(200).json({ message: 'Mpesa Acc balance result received' });
-// };
+ const handleB2BResult = async (
+  req: Request<{}, {}, MpesaB2BCallback>,
+  res: Response
+): Promise<void> => {
+  try {
+    const { Result } = req.body;
 
+    if (!Result) {
+      throw new Error("Missing Result in callback");
+    }
+
+    console.log("M-Pesa B2B Result:", JSON.stringify(Result, null, 2));
+
+    // ✅ Determine status
+    const status = Result.ResultCode === 0 ? "SUCCESS" : "FAILED";
+
+    // ✅ Update record in DB
+    const updated = await prisma.b2BTransfer.update({
+      where: {
+        originatorConversationID: Result.OriginatorConversationID,
+      },
+      data: {
+        conversationID: Result.ConversationID,
+        transactionID: Result.TransactionID,
+        resultCode: Result.ResultCode,
+        resultDesc: Result.ResultDesc,
+        status,
+      },
+    });
+
+    res.status(200).json({
+      message: "B2B result processed",
+      status,
+      updated,
+    });
+  } catch (error: any) {
+    console.error("Error handling B2B result:", error.message);
+    res.status(500).json({
+      message: "Failed to process B2B result",
+      error: error.message,
+    });
+  }
+};
 
 
 
@@ -468,6 +517,7 @@ const getLatestBalance = async (
         id: latest.id,
         utilityAccountBalance: latest.utilityAccountBalance ?? null,
         workingAccountBalance: latest.workingAccountBalance ?? null,
+        mmfBalance: latest.mmfBalance ?? null
       },
     });
     return;

@@ -13,6 +13,9 @@ const prisma = new PrismaClient();
 
 
 
+
+
+
 export const initiateB2BTransfer = async (
   req: AuthenticatedRequest,
   res: Response<ApiResponse<any>>
@@ -25,72 +28,90 @@ export const initiateB2BTransfer = async (
       throw new Error(settings.message);
     }
 
-
-
-
     const { mpesaConfig } = settings;
 
-    console.log(`object mpesaConfig: ${JSON.stringify(mpesaConfig)}`);
-
-    const accessToken = await getMpesaAccessToken(mpesaConfig.consumerKey, mpesaConfig.consumerSecret);
-    console.log(`this is the access token ${accessToken}`);
-
-
-async function callMpesaB2B(payload: any): Promise<any> {
-  try {
-    const response = await axios.post(process.env.MPESA_B2B_URL ?? '', payload, {
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        "Content-Type": "application/json",
-        Accept: "application/json",
-      },
-      timeout: 30000,
-    });
-
-    return response.data;
-  } catch (error: any) {
-    console.error("M-Pesa B2B Error:", error.response?.data || error.message);
-    throw new Error(
-      error.response?.data?.errorMessage ||
-      error.response?.data?.error_description ||
-      error.message ||
-      "An unknown error occurred"
+    const accessToken = await getMpesaAccessToken(
+      mpesaConfig.consumerKey,
+      mpesaConfig.consumerSecret
     );
-  }
-}
 
+    async function callMpesaB2B(payload: any): Promise<any> {
+      try {
+        const response = await axios.post(
+          process.env.MPESA_B2B_URL ?? "",
+          payload,
+          {
+            headers: {
+              Authorization: `Bearer ${accessToken}`,
+              "Content-Type": "application/json",
+              Accept: "application/json",
+            },
+            timeout: 30000,
+          }
+        );
 
-  const resultUrl = `${process.env.APP_BASE_URL}/api/b2b-result`;
+        return response.data;
+      } catch (error: any) {
+        console.error("M-Pesa B2B Error:", error.response?.data || error.message);
+        throw new Error(
+          error.response?.data?.errorMessage ||
+            error.response?.data?.error_description ||
+            error.message ||
+            "An unknown error occurred"
+        );
+      }
+    }
+
+    const resultUrl = `${process.env.APP_BASE_URL}/api/b2b-result`;
     const queueTimeoutUrl = `${process.env.APP_BASE_URL}/api/b2b-timeout`;
 
-   const payload = {
-  Initiator: mpesaConfig.initiatorName,
-  SecurityCredential: mpesaConfig.securityCredential,
-  CommandID: "BusinessTransferFromMMFToUtility",
-  SenderIdentifierType: "4",   // 4 = Shortcode
-  RecieverIdentifierType: "4", // 4 = Shortcode
-  Amount: req.body.amount,
-  PartyA: mpesaConfig.b2cShortCode,
-  PartyB: mpesaConfig.b2cShortCode,
-  Remarks: req.body.remarks ?? "Transfer to utility account",
-  QueueTimeOutURL: queueTimeoutUrl,
-  ResultURL: resultUrl,
-  AccountReference: "UtilityPayment" // optional but good to include
-};
+    const payload = {
+      Initiator: mpesaConfig.initiatorName,
+      SecurityCredential: mpesaConfig.securityCredential,
+      CommandID: "BusinessTransferFromMMFToUtility",
+      SenderIdentifierType: "4", // 4 = Shortcode
+      RecieverIdentifierType: "4", // 4 = Shortcode
+      Amount: req.body.amount,
+      PartyA: mpesaConfig.b2cShortCode,
+      PartyB: mpesaConfig.b2cShortCode,
+      Remarks: req.body.remarks ?? "Transfer to utility account",
+      QueueTimeOutURL: queueTimeoutUrl,
+      ResultURL: resultUrl,
+      AccountReference: "UtilityPayment", // optional but good to include
+    };
 
-
+    // 🔹 Call Safaricom API
     const response = await callMpesaB2B(payload);
+
+    // 🔹 Create record in DB with PENDING status
+    const transferRecord = await prisma.b2BTransfer.create({
+      data: {
+        tenantId,
+        amount: req.body.amount,
+        partyA: mpesaConfig.b2cShortCode,
+        partyB: mpesaConfig.b2cShortCode,
+        commandID: payload.CommandID,
+        remarks: payload.Remarks,
+        conversationID: response.ConversationID,
+        originatorConversationID: response.OriginatorConversationID,
+        resultDesc: response.ResponseDescription,
+        status: "PENDING", // ✅ explicitly set pending
+      },
+    });
 
     res.json({
       success: true,
-      message: "B2B transfer initiated successfully",
-      data: response
+      message: "B2B transfer initiated and saved as PENDING",
+      data: {
+        safaricom: response,
+        db: transferRecord,
+      },
     });
   } catch (error: any) {
     res.status(500).json({
       success: false,
       message: error.message,
-      data: null
+      data: null,
     });
   }
 };

@@ -84,5 +84,7 @@ export interface ResponseMpesaBalance{
   id: number;
   workingAccountBalance?: number | null;
   utilityAccountBalance?: number | null;
+  mmfBalance ?: number | null;
+
 
 }
