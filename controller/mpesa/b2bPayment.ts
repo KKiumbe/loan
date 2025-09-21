@@ -2,7 +2,7 @@
 import { PrismaClient } from '@prisma/client';
 import { AuthenticatedRequest } from '../../middleware/verifyToken';
 import { Response } from 'express';
-import { AccountBalanceRequest, ApiResponse } from '../../types/payment/b2b';
+import { AccountBalanceRequest, ApiResponse, ApiResponseforB2B } from '../../types/payment/b2b';
 import { getTenantSettings, isMPESASettingsSuccess } from './mpesaConfig';
 import dotenv from 'dotenv';
 import axios from 'axios';
@@ -177,5 +177,49 @@ export const getAccountBalance = async (  req: AuthenticatedRequest,
     res.json(result);
   } catch (error: any) {
     res.status(500).json({ success: false, message: error.message, data: null });
+  }
+};
+
+
+
+
+// Fetch all B2B transfers for the logged-in tenant
+
+
+
+export const getB2BTransactions = async (
+  req: AuthenticatedRequest,
+  res: Response<ApiResponseforB2B>
+): Promise<void> => {
+  try {
+    const tenantId = req.user?.tenantId;
+
+    if (!tenantId) {
+      res.status(401).json({
+        success: false,
+        message: 'Unauthorized: Tenant not found in request',
+        data: null,
+       
+      });
+      return;
+    }
+
+    const transactions = await prisma.b2BTransfer.findMany({
+      where: { tenantId },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    res.status(200).json({
+      success: true,
+      message: 'B2B transactions fetched successfully',
+      data: transactions,
+      
+    });
+  } catch (error) {
+    console.error('Error fetching B2B transactions:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch B2B transactions',
+    });
   }
 };

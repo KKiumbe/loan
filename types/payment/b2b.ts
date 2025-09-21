@@ -48,3 +48,12 @@ export interface MpesaAccBalanceResult {
     };
   }
 }
+
+
+// src/types/index.ts
+
+export interface ApiResponseforB2B<T = any> {
+  success: boolean;
+  message?: string;
+  data?: T;
+}
