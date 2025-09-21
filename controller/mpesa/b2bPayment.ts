@@ -65,13 +65,18 @@ export const initiateB2BTransfer = async (
     const resultUrl = `${process.env.APP_BASE_URL}/api/b2b-result`;
     const queueTimeoutUrl = `${process.env.APP_BASE_URL}/api/b2b-timeout`;
 
+        const amount = parseFloat(req.body.amount);
+    if (isNaN(amount)) {
+      throw new Error("Invalid amount provided");
+    }
+
     const payload = {
       Initiator: mpesaConfig.initiatorName,
       SecurityCredential: mpesaConfig.securityCredential,
       CommandID: "BusinessTransferFromMMFToUtility",
       SenderIdentifierType: "4", // 4 = Shortcode
       RecieverIdentifierType: "4", // 4 = Shortcode
-      Amount: req.body.amount,
+      Amount: amount,
       PartyA: mpesaConfig.b2cShortCode,
       PartyB: mpesaConfig.b2cShortCode,
       Remarks: req.body.remarks ?? "Transfer to utility account",
