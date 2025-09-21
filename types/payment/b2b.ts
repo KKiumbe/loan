@@ -42,6 +42,7 @@ export interface MpesaAccBalanceResult {
     OriginatorConversationID: string;
     ConversationID: string;
     TransactionID: string;
+    mmfBalance: number;
     ResultParameters: {
       ResultParameter: { Key: string; Value: string }[];
     };
