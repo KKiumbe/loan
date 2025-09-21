@@ -274,6 +274,7 @@ originatorConversationID String @unique
   transactionID         String
   workingAccountBalance Float? // Working Account available balance
   utilityAccountBalance Float? // Utility Account available balance
+  mmfBalance            Float @default(0)
  
   tenantId              Int
   tenant                Tenant    @relation(fields: [tenantId], references: [id])

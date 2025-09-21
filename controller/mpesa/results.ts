@@ -35,7 +35,6 @@ const prisma = new PrismaClient();
 
 
 
-
   const handleB2CResult = async (
     req: Request<{}, {}, MpesaResultWrapper>,
     res: Response
@@ -186,16 +185,86 @@ const handleB2BResult = async (
 };
 
 
-const handleAccountBalanceResultFromMpesa = async (
-  req: Request<{}, {}, MpesaAccBalanceResult>,
-  res: Response
-): Promise<void> => {
-  const result = req.body;
-  console.log('M-Pesa Acc balance Result:', JSON.stringify(result, null, 2));
-  res.status(200).json({ message: 'Mpesa Acc balance result received' });
+// const handleAccountBalanceResultFromMpesa = async (
+//   req: Request<{}, {}, MpesaAccBalanceResult>,
+//   res: Response
+// ): Promise<void> => {
+//   const result = req.body;
+//   console.log('M-Pesa Acc balance Result:', JSON.stringify(result, null, 2));
+//   res.status(200).json({ message: 'Mpesa Acc balance result received' });
+// };
+
+
+
+
+
+
+const parseMpesaBalance = (balanceString: string) => {
+  return balanceString.split("&").map(entry => {
+    const [accountName, currency, available, current, reserved, uncleared] =
+      entry.split("|");
+    return {
+      accountName: accountName.trim(),
+      currency: currency.trim(),
+      availableBalance: parseFloat(available),
+      currentBalance: parseFloat(current),
+      reservedAmount: parseFloat(reserved),
+      unClearedBalance: parseFloat(uncleared),
+    };
+  });
 };
 
-//i need b2b timeout function 
+
+
+// controllers/mpesaController.ts
+ const handleAccountBalanceResultFromMpesa = async (
+  req: Request<{ tenantId: string }, {}, MpesaAccBalanceResult>,
+  res: Response
+) => {
+  const tenantId = parseInt(req.params.tenantId, 10);
+  
+  const { Result } = req.body;
+  const mpesaStatus = Result.ResultCode === 0 ? "SUCCESS" : "FAILED";
+
+  const balanceParam = Result.ResultParameters.ResultParameter.find(
+    p => p.Key === "AccountBalance"
+  );
+
+  let mmfBalance = 0;
+  let utilityBalance = 0;
+
+  if (balanceParam) {
+    const accounts = parseMpesaBalance(balanceParam.Value);
+    mmfBalance = accounts.find(a => a.accountName === "Working Account")?.availableBalance ?? 0;
+    utilityBalance = accounts.find(a => a.accountName === "Utility Account")?.availableBalance ?? 0;
+  }
+
+  // Save to DB tied to tenant
+  await prisma.mPesaBalance.create({
+    data: {
+      resultType: Result.ResultType,
+      resultCode: Result.ResultCode,
+      resultDesc: Result.ResultDesc,
+      originatorConversationID: Result.OriginatorConversationID,
+      conversationID: Result.ConversationID,
+      transactionID: Result.TransactionID,
+      workingAccountBalance: mmfBalance,
+      utilityAccountBalance: utilityBalance,
+      mmfBalance,
+      tenantId, // ✅ tie to tenant
+    },
+  });
+
+  res.status(200).json({
+    message: "Mpesa balance saved successfully",
+    tenantId,
+    status: mpesaStatus,
+    mmfBalance,
+    utilityBalance,
+  });
+};
+
+
 
 const handleB2BTimeout = async (
   req: Request<{}, {}, MpesaTimeout>,

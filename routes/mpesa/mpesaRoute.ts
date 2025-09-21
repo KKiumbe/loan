@@ -15,7 +15,7 @@ router.post('/b2c-timeout', handleB2CTimeout);
 router.post('/b2b-timeout', handleB2BTimeout);
 
 router.post('/b2b-result', handleB2BResult);
-router.post('/acc-balance', handleAccountBalanceResultFromMpesa);
+router.post('/:tenantId/acc-balance', handleAccountBalanceResultFromMpesa);
 
 router.post('/accountbalance-result', handleAccountBalanceResult);
 router.post('/accountbalance-timeout', handleAccountBalanceTimeout);

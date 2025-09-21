@@ -123,8 +123,8 @@ export const getAccountBalance = async (  req: AuthenticatedRequest,
     const accessToken = await getMpesaAccessToken(mpesaConfig.consumerKey, mpesaConfig.consumerSecret);
     console.log(`this is the access token ${accessToken}`);
 
-      const queueTimeoutUrl = `${process.env.APP_BASE_URL}/api/b2b-timeout`;
-      const resultUrl = `${process.env.APP_BASE_URL}/api/acc-balance`;
+      const queueTimeoutUrl = `${process.env.APP_BASE_URL}/api/${tenantId}/b2b-timeout`;
+      const resultUrl = `${process.env.APP_BASE_URL}/api/${tenantId}/acc-balance`;
   try {
     const payload = {
       Initiator: mpesaConfig.initiatorName,

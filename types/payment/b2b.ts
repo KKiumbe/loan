@@ -34,4 +34,16 @@ export interface ApiResponse<T> {
 
 export type MpesaResult = any;
 
-export type MpesaAccBalanceResult = any;
+export interface MpesaAccBalanceResult {
+  Result: {
+    ResultType: number;
+    ResultCode: number;
+    ResultDesc: string;
+    OriginatorConversationID: string;
+    ConversationID: string;
+    TransactionID: string;
+    ResultParameters: {
+      ResultParameter: { Key: string; Value: string }[];
+    };
+  }
+}
