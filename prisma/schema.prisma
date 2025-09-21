@@ -48,6 +48,8 @@ model Tenant {
   MPesaBalance MPesaBalance[]
 
   TransactionCostBand TransactionCostBand[]
+
+  B2BTransfer B2BTransfer[]
 }
 
 enum TenantStatus {
@@ -371,4 +373,38 @@ enum SMSStatus {
   SENT
   FAILED
   DELIVERED
+}
+
+
+model B2BTransfer {
+  id                      Int       @id @default(autoincrement())
+  tenantId                Int
+  tenant                  Tenant    @relation(fields: [tenantId], references: [id])
+
+  amount                  Float
+  partyA                  String    // Working account shortcode
+  partyB                  String    // Utility account shortcode
+  commandID               String    // e.g. BusinessTransferFromMMFToUtility
+  remarks                 String?
+  occasion                String?
+
+  // Response data from API
+  conversationID          String?
+  originatorConversationID String?  @unique
+  transactionID           String?   // once completed
+
+  resultCode              Int?
+  resultDesc              String?
+
+  status                  B2BStatus @default(PENDING)
+
+  createdAt               DateTime  @default(now())
+  updatedAt               DateTime  @updatedAt
+}
+
+enum B2BStatus {
+  PENDING
+  PROCESSING
+  SUCCESS
+  FAILED
 }

@@ -13,6 +13,17 @@ export interface B2BPaymentPayload {
   Occasion?: string;              // Optional metadata
 }
 
+export interface AccountBalanceRequest {
+  Initiator: string;
+  SecurityCredential: string;
+  CommandID: string;
+  PartyA: string;
+  IdentifierType: string;
+  Remarks: string;
+  QueueTimeOutURL: string;
+  ResultURL: string;
+}
+
 
 export interface ApiResponse<T> {
   success: boolean;
@@ -20,3 +31,7 @@ export interface ApiResponse<T> {
   data: T | null;
   error?: string | null;
 }
+
+export type MpesaResult = any;
+
+export type MpesaAccBalanceResult = any;

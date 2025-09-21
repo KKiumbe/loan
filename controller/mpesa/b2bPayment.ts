@@ -2,7 +2,7 @@
 import { PrismaClient } from '@prisma/client';
 import { AuthenticatedRequest } from '../../middleware/verifyToken';
 import { Response } from 'express';
-import { ApiResponse } from '../../types/payment/b2b';
+import { AccountBalanceRequest, ApiResponse } from '../../types/payment/b2b';
 import { getTenantSettings, isMPESASettingsSuccess } from './mpesaConfig';
 import dotenv from 'dotenv';
 import axios from 'axios';
@@ -92,5 +92,69 @@ async function callMpesaB2B(payload: any): Promise<any> {
       message: error.message,
       data: null
     });
+  }
+};
+
+
+
+
+
+
+
+
+export const getAccountBalance = async (  req: AuthenticatedRequest,
+  res: Response<ApiResponse<any>>
+): Promise<void> => {
+
+     const tenantId = req.user?.tenantId!;
+    const settings = await getTenantSettings(tenantId);
+
+    if (!isMPESASettingsSuccess(settings)) {
+      throw new Error(settings.message);
+    }
+
+
+
+
+    const { mpesaConfig } = settings;
+
+    console.log(`object mpesaConfig: ${JSON.stringify(mpesaConfig)}`);
+
+    const accessToken = await getMpesaAccessToken(mpesaConfig.consumerKey, mpesaConfig.consumerSecret);
+    console.log(`this is the access token ${accessToken}`);
+
+      const queueTimeoutUrl = `${process.env.APP_BASE_URL}/api/b2b-timeout`;
+      const resultUrl = `${process.env.APP_BASE_URL}/api/acc-balance`;
+  try {
+    const payload = {
+      Initiator: mpesaConfig.initiatorName,
+      SecurityCredential: mpesaConfig.securityCredential,
+      CommandID: "AccountBalance",
+      PartyA: mpesaConfig.b2cShortCode,
+      IdentifierType: "4",
+      Remarks: "ok",
+      QueueTimeOutURL: queueTimeoutUrl,
+      ResultURL: resultUrl,
+    };
+
+
+
+    const url = `${process.env.MPESA_ACCOUNT_BALANCE_URL}`;
+
+    const { data } = await axios.post(url, payload, {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+      },
+    });
+
+    const result = {
+      success: true,
+      message: "Account balance fetched successfully",
+      data,
+    };
+    res.json(result);
+  } catch (error: any) {
+    res.status(500).json({ success: false, message: error.message, data: null });
   }
 };

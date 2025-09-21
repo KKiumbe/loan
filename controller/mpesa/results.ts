@@ -21,6 +21,7 @@ import {
 } from '../../types/mpesa';
 import { AuthenticatedRequest } from '../../middleware/verifyToken';
 import { MpesaResult } from '../../types/loans/loansPayments';
+import { MpesaAccBalanceResult } from '../../types/payment/b2b';
 
 
 const prisma = new PrismaClient();
@@ -184,6 +185,15 @@ const handleB2BResult = async (
   res.status(200).json({ message: 'B2B result received' });
 };
 
+
+const handleAccountBalanceResultFromMpesa = async (
+  req: Request<{}, {}, MpesaAccBalanceResult>,
+  res: Response
+): Promise<void> => {
+  const result = req.body;
+  console.log('M-Pesa Acc balance Result:', JSON.stringify(result, null, 2));
+  res.status(200).json({ message: 'Mpesa Acc balance result received' });
+};
 
 //i need b2b timeout function 
 
@@ -426,5 +436,5 @@ export {
   handleB2CTimeout,
   handleAccountBalanceResult,
   handleAccountBalanceTimeout,
-  getLatestBalance,handleB2BResult,handleB2BTimeout
+  getLatestBalance,handleB2BResult,handleB2BTimeout,handleAccountBalanceResultFromMpesa
 };
