@@ -34,6 +34,8 @@ export interface ApiResponse<T> {
 
 export type MpesaResult = any;
 
+export type MpesaC2BResult = any;
+
 export interface MpesaAccBalanceResult {
   Result: {
     ResultType: number;
