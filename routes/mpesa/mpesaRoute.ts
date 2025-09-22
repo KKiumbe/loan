@@ -27,7 +27,7 @@ router.get('/latest-mpesa-balance',verifyToken, checkAccess('mpesa', 'read'),get
 
 //handleC2BResults
 
-router.post('/c2b-result', handleC2BResults);
+router.post('/c2b-callback', handleC2BResults);
 // Route to handle Lipa Na M-Pesa requests
 
 
