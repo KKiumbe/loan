@@ -9,6 +9,7 @@ import path from 'path';
 import dotenv from 'dotenv';
 import { AuthenticatedRequest } from '../../middleware/verifyToken';
 import ROLE_PERMISSIONS from '../../DatabaseConfig/role';
+import { uploadToDropbox } from './dropbox';
 
 dotenv.config();
 
@@ -72,10 +73,12 @@ const deleteOldBackups = async (): Promise<void> => {
 };
 
 // Run backup and cleanup task
-const runTask = async (): Promise<void> => {
+export const runTask = async (): Promise<void> => {
   try {
     console.log('Starting backup and cleanup task...');
     const backupFile = await backupDatabase();
+
+     await uploadToDropbox(backupFile);
     await deleteOldBackups();
 
     // Log to audit log
@@ -133,21 +136,5 @@ if (!role.some((r) => ROLE_PERMISSIONS[r as keyof typeof ROLE_PERMISSIONS]?.back
 };
 
 // Scheduler function
-const startBackup = (): void => {
-  if (!DB_USER || !DB_PASSWORD || !DB_NAME) {
-    console.error('Missing required environment variables (DB_USER, DB_PASSWORD, DB_NAME). Check your .env file.');
-    return;
-  }
 
-  cron.schedule('0 0 * * *', () => {
-    console.log('Running task at:', new Date().toLocaleString('en-US', { timeZone: 'Africa/Nairobi' }));
-    runTask().catch((error) => console.error('Scheduled task failed:', error));
-  }, {
-    scheduled: true,
-    timezone: 'Africa/Nairobi',
-  });
 
-  console.log('Scheduler started. Task will run every midnight.');
-};
-
-export default startBackup;

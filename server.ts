@@ -7,7 +7,7 @@ import cookieParser from 'cookie-parser';
 import path from 'path';
 import { PrismaClient } from '@prisma/client';
 import dotenv from 'dotenv';
-import startBackup from './controller/jobs/backup';
+
 import authRoutes from './routes/userRoute/userRoute';
 import mpesaRoute from './routes/mpesa/mpesaRoute';
 import SMSRoute from './routes/sms/sendSms';
@@ -123,8 +123,7 @@ app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
 });
 
 // Start scheduled jobs
-startBackup();
-// startInvoiceGen(); // Uncomment when implemented
+
 
 // Start the server
 const server = app.listen(Number(PORT), '0.0.0.0', () => {
