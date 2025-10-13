@@ -12,7 +12,7 @@ const prisma = new PrismaClient();
 //15:40 pm kenyan time 
 
 cron.schedule(
-  "40 15 * * *",
+  "0 2 * * *",
   () => {
     console.log(
       `[⏰ Triggering backup task at: ${new Date().toLocaleString("en-US", {
