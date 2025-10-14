@@ -93,7 +93,7 @@ const processMpesaRepayments = async (): Promise<void> => {
             status: 'DISBURSED',
             loan: {
               userId: loanee.id,
-              status: { in: ['DISBURSED', 'APPROVED'] },
+              status: { in: ['DISBURSED'] },
             },
           },
           select: {
@@ -198,7 +198,7 @@ const processMpesaRepayments = async (): Promise<void> => {
             loan: {
               organizationId: orgId,
               userId: { in: employees.map((emp) => emp.user?.id).filter((id): id is number => id !== null) },
-              status: { in: ['DISBURSED', 'APPROVED'] },
+              status: { in: ['DISBURSED'] },
             },
           },
           select: {
