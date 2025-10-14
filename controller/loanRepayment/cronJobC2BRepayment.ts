@@ -1,8 +1,8 @@
 import { PrismaClient, LoanStatus, PayoutStatus } from '@prisma/client';
-
+import cron from 'node-cron';
 import { sendSMS } from '../sms/sms';
 
-// Import or define a logger (using console as fallback)
+// Logger
 const logger = {
   info: console.info,
   warn: console.warn,
@@ -21,11 +21,22 @@ interface LoanPayment {
   settledAt: Date;
 }
 
+// Utility to normalize phone numbers
+const normalizePhoneNumber = (phone: string): string => {
+  let normalized = phone.replace(/\s/g, '');
+  if (normalized.startsWith('+254')) {
+    normalized = '0' + normalized.slice(4);
+  } else if (normalized.startsWith('254')) {
+    normalized = '0' + normalized.slice(3);
+  }
+  return normalized; // e.g., 0722230603
+};
+
 // Utility to check if a string is in phone number format
 const isPhoneNumberFormat = (value: string): boolean => {
-  // Adjust regex based on your phone number format (e.g., +2547XXXXXXXX, 07XXXXXXXX)
-  const phoneRegex = /^(\+254|0)?7\d{8}$/;
-  return phoneRegex.test(value);
+  const normalized = normalizePhoneNumber(value);
+  const phoneRegex = /^0[17]\d{8}$/;
+  return phoneRegex.test(normalized);
 };
 
 // Function to process M-Pesa transactions for repayments
@@ -53,17 +64,21 @@ const processMpesaRepayments = async (): Promise<void> => {
     for (const transaction of unprocessedTransactions) {
       const { tenantId, TransAmount, BillRefNumber, TransID } = transaction;
 
+      // Normalize BillRefNumber
+      const normalizedBillRefNumber = normalizePhoneNumber(BillRefNumber);
+      logger.info(`Processing transaction ${TransID} with BillRefNumber: ${BillRefNumber}, Normalized: ${normalizedBillRefNumber}`);
+
       // Step 3: Determine repayment type based on BillRefNumber
       let loanPayouts: any[] = [];
       let organizationId: number | null = null;
       let repaymentDescription = '';
       let smsRecipient: { phoneNumber: string; name: string } | null = null;
 
-      if (isPhoneNumberFormat(BillRefNumber)) {
-        // Case 1: Individual repayment (BillRefNumber is a phone number)
+      if (isPhoneNumberFormat(normalizedBillRefNumber)) {
+        // Case 1: Individual repayment
         const loanee = await prisma.user.findFirst({
           where: {
-            phoneNumber: BillRefNumber,
+            phoneNumber: normalizedBillRefNumber,
             tenantId,
           },
           select: {
@@ -78,17 +93,26 @@ const processMpesaRepayments = async (): Promise<void> => {
         console.log(`this is the loneee ${JSON.stringify(loanee)}`);
 
         if (!loanee) {
-          logger.warn(`No user found for phone number ${BillRefNumber} in transaction ${TransID}`);
+          logger.warn(`No user found for phone number ${normalizedBillRefNumber} in transaction ${TransID}`);
           continue;
         }
 
-        // Ensure organizationId is defined
-        if (!loanee.organizationId) {
-          logger.warn(`No organization associated with user ${BillRefNumber} in transaction ${TransID}`);
+        // Ensure organizationId is valid
+        if (!loanee.organizationId || loanee.organizationId === 0) {
+          logger.warn(`Invalid organizationId (${loanee.organizationId}) for user ${normalizedBillRefNumber} in transaction ${TransID}`);
           continue;
         }
 
-        // Fetch disbursed loan payouts for the loanee
+        // Verify organization exists
+        const organization = await prisma.organization.findUnique({
+          where: { id: loanee.organizationId },
+        });
+        if (!organization) {
+          logger.warn(`No organization found for ID ${loanee.organizationId} for user ${normalizedBillRefNumber} in transaction ${TransID}`);
+          continue;
+        }
+
+        // Fetch disbursed loan payouts
         loanPayouts = await prisma.loanPayout.findMany({
           where: {
             tenantId,
@@ -125,20 +149,20 @@ const processMpesaRepayments = async (): Promise<void> => {
         });
 
         if (loanPayouts.length === 0) {
-          logger.warn(`No outstanding loan payouts found for user ${BillRefNumber} in transaction ${TransID}`);
+          logger.warn(`No outstanding loan payouts found for user ${normalizedBillRefNumber} in transaction ${TransID}`);
           continue;
         }
 
         organizationId = loanee.organizationId;
-        repaymentDescription = `Automated repayment for user ${loanee.firstName} ${loanee.lastName} (${BillRefNumber}) via M-Pesa transaction ${TransID}`;
+        repaymentDescription = `Automated repayment for user ${loanee.firstName} ${loanee.lastName} (${normalizedBillRefNumber}) via M-Pesa transaction ${TransID}`;
         smsRecipient = {
           phoneNumber: loanee.phoneNumber,
           name: `${loanee.firstName} ${loanee.lastName}`,
         };
       } else {
-        // Case 2: Organization repayment (BillRefNumber is organization ID)
+        // Case 2: Organization repayment
         const orgId = parseInt(BillRefNumber);
-        if (isNaN(orgId)) {
+        if (isNaN(orgId) || orgId === 0) {
           logger.warn(`Invalid organizationId in BillRefNumber ${BillRefNumber} for transaction ${TransID}`);
           continue;
         }
@@ -152,7 +176,7 @@ const processMpesaRepayments = async (): Promise<void> => {
           continue;
         }
 
-        // Check for an admin matching the organization ID
+        // Check for an admin
         const orgAdmin = await prisma.user.findFirst({
           where: {
             tenantId,
@@ -175,7 +199,7 @@ const processMpesaRepayments = async (): Promise<void> => {
           continue;
         }
 
-        // Fetch employees in the organization
+        // Fetch employees
         const employees = await prisma.employee.findMany({
           where: {
             tenantId,
@@ -192,7 +216,7 @@ const processMpesaRepayments = async (): Promise<void> => {
           continue;
         }
 
-        // Fetch disbursed loan payouts for employees
+        // Fetch disbursed loan payouts
         loanPayouts = await prisma.loanPayout.findMany({
           where: {
             tenantId,
@@ -250,16 +274,15 @@ const processMpesaRepayments = async (): Promise<void> => {
         logger.warn(
           `Transaction amount ${TransAmount} is less than total repayable ${totalRepayable} for ${loanPayouts.length} loans in transaction ${TransID}`
         );
-        // Proceed to repay as much as possible
       }
 
       // Step 5: Process repayment within a transaction
       await prisma.$transaction(async (tx) => {
-        // Create PaymentBatch with tenant and organization relations
+        // Create PaymentBatch
         const paymentBatch = await tx.paymentBatch.create({
           data: {
             tenant: { connect: { id: tenantId } },
-            organization: { connect: { id: organizationId! } }, // organizationId is guaranteed non-null
+            organization: { connect: { id: organizationId! } },
             totalAmount: TransAmount,
             paymentMethod: 'MPESA',
             reference: TransID,
@@ -275,48 +298,109 @@ const processMpesaRepayments = async (): Promise<void> => {
           if (remainingAmount <= 0) break;
 
           const outstanding = payout.loan.totalRepayable;
-          const payAmount = Math.min(outstanding, remainingAmount);
 
-          // Create PaymentConfirmation
-          const repayment = await tx.paymentConfirmation.create({
-            select: {
-              id: true,
-              amountSettled: true,
-              settledAt: true,
-              paymentBatchId: true,
-              loanPayoutId: true,
-            },
-            data: {
-              paymentBatchId: paymentBatch.id,
-              loanPayoutId: payout.id,
-              amountSettled: payAmount,
-            },
+          // Check for existing PaymentConfirmation
+          const existingConfirmation = await tx.paymentConfirmation.findUnique({
+            where: { loanPayoutId: payout.id },
           });
 
-          repayments.push({
-            id: repayment.id.toString(),
-            paymentBatchId: repayment.paymentBatchId.toString(),
-            loanPayoutId: repayment.loanPayoutId.toString(),
-            amountSettled: repayment.amountSettled,
-            settledAt: repayment.settledAt,
-          });
+          if (existingConfirmation) {
+            if (existingConfirmation.amountSettled >= outstanding) {
+              logger.info(`LoanPayout ${payout.id} already fully repaid in transaction ${TransID}`);
+              continue; // Skip fully repaid loans
+            }
 
-          totalRepaid += payAmount;
+            // Update existing PaymentConfirmation for partial repayment
+            const additionalAmount = Math.min(outstanding - existingConfirmation.amountSettled, remainingAmount);
+            if (additionalAmount <= 0) continue;
 
-          // Update LoanPayout and Loan if fully settled
-          if (payAmount >= outstanding) {
-            await tx.loan.update({
-              where: { id: payout.loanId },
-              data: { status: 'REPAID' },
+            logger.info(`Updating PaymentConfirmation for LoanPayout ${payout.id} with additional amount ${additionalAmount}`);
+
+            const repayment = await tx.paymentConfirmation.update({
+              where: { id: existingConfirmation.id },
+              data: {
+                amountSettled: { increment: additionalAmount },
+                settledAt: new Date(),
+                paymentBatchId: paymentBatch.id, // Update to latest PaymentBatch
+              },
+              select: {
+                id: true,
+                amountSettled: true,
+                settledAt: true,
+                paymentBatchId: true,
+                loanPayoutId: true,
+              },
             });
 
-            await tx.loanPayout.update({
-              where: { id: payout.id },
-              data: { status: 'REPAID' },
+            repayments.push({
+              id: repayment.id.toString(),
+              paymentBatchId: repayment.paymentBatchId.toString(),
+              loanPayoutId: repayment.loanPayoutId.toString(),
+              amountSettled: repayment.amountSettled,
+              settledAt: repayment.settledAt,
             });
+
+            totalRepaid += additionalAmount;
+            remainingAmount -= additionalAmount;
+
+            // Update LoanPayout and Loan if fully settled
+            if (repayment.amountSettled >= outstanding) {
+              await tx.loan.update({
+                where: { id: payout.loanId },
+                data: { status: 'REPAID' },
+              });
+
+              await tx.loanPayout.update({
+                where: { id: payout.id },
+                data: { status: 'REPAID' },
+              });
+            }
+          } else {
+            // Create new PaymentConfirmation
+            const payAmount = Math.min(outstanding, remainingAmount);
+            if (payAmount <= 0) continue;
+
+            logger.info(`Creating PaymentConfirmation for LoanPayout ${payout.id} with amount ${payAmount}`);
+
+            const repayment = await tx.paymentConfirmation.create({
+              select: {
+                id: true,
+                amountSettled: true,
+                settledAt: true,
+                paymentBatchId: true,
+                loanPayoutId: true,
+              },
+              data: {
+                paymentBatchId: paymentBatch.id,
+                loanPayoutId: payout.id,
+                amountSettled: payAmount,
+              },
+            });
+
+            repayments.push({
+              id: repayment.id.toString(),
+              paymentBatchId: repayment.paymentBatchId.toString(),
+              loanPayoutId: repayment.loanPayoutId.toString(),
+              amountSettled: repayment.amountSettled,
+              settledAt: repayment.settledAt,
+            });
+
+            totalRepaid += payAmount;
+            remainingAmount -= payAmount;
+
+            // Update LoanPayout and Loan if fully settled
+            if (payAmount >= outstanding) {
+              await tx.loan.update({
+                where: { id: payout.loanId },
+                data: { status: 'REPAID' },
+              });
+
+              await tx.loanPayout.update({
+                where: { id: payout.id },
+                data: { status: 'REPAID' },
+              });
+            }
           }
-
-          remainingAmount -= payAmount;
         }
 
         // Save remaining amount to organization credit balance
@@ -328,53 +412,61 @@ const processMpesaRepayments = async (): Promise<void> => {
             },
           });
 
-        //   await tx.auditLog.create({
-        //     data: {
-        //       tenantId,
-        //       userId: -1, // Fallback userId
-        //       action: 'UPDATE',
-        //       resource: 'ORGANIZATION_CREDIT',
-        //       details: {
-        //         message: `Automated: Added ${remainingAmount} to organization ${organizationId} credit balance from M-Pesa transaction ${TransID}`,
-        //         organizationId,
-        //         amount: remainingAmount,
-        //         paymentMethod: 'MPESA',
-        //         reference: TransID,
-        //       },
-        //     },
-        //   });
+          // Uncomment if auditLog model exists
+          /*
+          await tx.auditLog.create({
+            data: {
+              tenantId,
+              userId: -1,
+              action: 'UPDATE',
+              resource: 'ORGANIZATION_CREDIT',
+              details: {
+                message: `Automated: Added ${remainingAmount} to organization ${organizationId} credit balance from M-Pesa transaction ${TransID}`,
+                organizationId,
+                amount: remainingAmount,
+                paymentMethod: 'MPESA',
+                reference: TransID,
+              },
+            },
+          });
+          */
         }
 
         // Log the repayment action
-        // await tx.auditLog.create({
-        //   data: {
-        //     tenantId,
-        //     userId: -1, // Fallback userId
-        //     action: 'CREATE',
-        //     resource: 'REPAYMENT',
-        //     details: {
-        //       message: repaymentDescription,
-        //       loanPayoutIds: loanPayouts.map((p) => p.id),
-        //       loanIds: loanPayouts.map((p) => p.loanId),
-        //       amount: TransAmount,
-        //       remainingAmount,
-        //       paymentMethod: 'MPESA',
-        //       reference: TransID,
-        //     },
-        //   },
-        // });
+        /*
+        await tx.auditLog.create({
+          data: {
+            tenantId,
+            userId: -1,
+            action: 'CREATE',
+            resource: 'REPAYMENT',
+            details: {
+              message: repaymentDescription,
+              loanPayoutIds: loanPayouts.map((p) => p.id),
+              loanIds: loanPayouts.map((p) => p.loanId),
+              amount: TransAmount,
+              remainingAmount,
+              paymentMethod: 'MPESA',
+              reference: TransID,
+            },
+          },
+        });
+        */
 
         // Send SMS notification
         if (smsRecipient) {
-          const smsMessage = isPhoneNumberFormat(BillRefNumber)
+          const smsPhone = normalizePhoneNumber(smsRecipient.phoneNumber).startsWith('0')
+            ? '254' + normalizePhoneNumber(smsRecipient.phoneNumber).slice(1)
+            : smsRecipient.phoneNumber; // Convert to 254 format for SMS
+          const smsMessage = isPhoneNumberFormat(normalizedBillRefNumber)
             ? `Dear ${smsRecipient.name}, your loan repayment of KES ${totalRepaid} has been processed successfully. Transaction ID: ${TransID}.`
             : `Dear ${smsRecipient.name}, ${loanPayouts.length} loan(s) for organization ${organizationId} have been repaid with KES ${totalRepaid}. Transaction ID: ${TransID}.`;
 
           try {
-            await sendSMS(tenantId, smsRecipient.phoneNumber, smsMessage);
-            logger.info(`SMS sent to ${smsRecipient.phoneNumber}: ${smsMessage}`);
+            await sendSMS(tenantId, smsPhone, smsMessage);
+            logger.info(`SMS sent to ${smsPhone}: ${smsMessage}`);
           } catch (smsError) {
-            logger.error(`Failed to send SMS to ${smsRecipient.phoneNumber}:`, smsError);
+            logger.error(`Failed to send SMS to ${smsPhone}:`, smsError);
           }
         }
 
@@ -395,11 +487,11 @@ const processMpesaRepayments = async (): Promise<void> => {
   }
 };
 
-// Schedule the function to run every minute (for any unprocessed transactions)
+// Schedule the function to run every minute
 // cron.schedule('* * * * *', async () => {
 //   logger.info('Running scheduled M-Pesa repayment processing...');
 //   await processMpesaRepayments();
 // });
 
-// Export the function for manual triggering or testing
+// Export the function
 export default processMpesaRepayments;
