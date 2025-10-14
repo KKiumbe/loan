@@ -110,7 +110,7 @@ export const verifyOTP = async (
 
 
 
- const resetPassword = async (
+ export const resetPassword = async (
   req: Request,
   res: Response,
   next: NextFunction
@@ -158,4 +158,4 @@ export const verifyOTP = async (
 };
 
 
-export default { requestOTP, verifyOTP, resetPassword };
+export default { requestOTP, verifyOTP};

@@ -2,7 +2,7 @@
 import express, { Request, Response, NextFunction } from 'express';
 import { register, signin } from '../../controller/auth/signupSignIn';
 import { registerUser, createOrgAdmin } from '../../controller/users/users';
-import { requestOTP, verifyOTP, resetPassword } from '../../controller/auth/resetPassword';
+import { requestOTP, resetPassword, verifyOTP } from '../../controller/auth/resetPassword';
 import  verifyToken, { AuthenticatedRequest } from '../../middleware/verifyToken';
 
 const router = express.Router();
