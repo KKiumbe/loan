@@ -636,14 +636,20 @@ export {
   getLatestBalance,handleB2BResult,handleB2BTimeout,handleAccountBalanceResultFromMpesa,handleC2BResults
 };
 
-function parseTransTime(TransTime: string): string {
-  // Assuming TransTime is in the format 'YYYYMMDDHHMMSS'
-  if (!TransTime || typeof TransTime !== 'string' || TransTime.length !== 14) return TransTime;
-  const year = TransTime.slice(0, 4);
-  const month = TransTime.slice(4, 6);
-  const day = TransTime.slice(6, 8);
-  const hour = TransTime.slice(8, 10);
-  const minute = TransTime.slice(10, 12);
-  const second = TransTime.slice(12, 14);
-  return `${year}-${month}-${day}T${hour}:${minute}:${second}`;
+
+function parseTransTime(transTime: string): Date {
+  // Example input: "20251014141034" -> 2025-10-14 14:10:34
+  if (!transTime || transTime.length !== 14) {
+    throw new Error(`Invalid TransTime format: ${transTime}`);
+  }
+
+  const year = transTime.substring(0, 4);
+  const month = transTime.substring(4, 6);
+  const day = transTime.substring(6, 8);
+  const hour = transTime.substring(8, 10);
+  const minute = transTime.substring(10, 12);
+  const second = transTime.substring(12, 14);
+
+  const isoString = `${year}-${month}-${day}T${hour}:${minute}:${second}Z`;
+  return new Date(isoString);
 }
