@@ -128,14 +128,12 @@ export const registerDeletedUser = async (
       email,
       password,
       role,
-      organizationId,
+      organizationName,
       isLender,
     } = req.body;
 
- 
-
     // 🧩 Basic validation
-    if (!firstName || !lastName || !phoneNumber || !password) {
+    if (!firstName || !lastName || !phoneNumber || !password || !tenantId) {
       res.status(400).json({ message: "Missing required fields" });
       return;
     }
@@ -150,43 +148,50 @@ export const registerDeletedUser = async (
       return;
     }
 
-    // 🏢 Determine correct organization ID
-    let orgId = organizationId;
+    // 🏢 Determine or create organization
+    let organization;
 
     if (isLender) {
-      // Check for or create global lender organization
-      let globalOrg = await prisma.organization.findFirst({
+      // ✅ Ensure there’s a global lender org for the tenant
+      organization = await prisma.organization.findFirst({
         where: {
           tenantId,
           isGlobalLenderOrg: true,
         },
       });
 
-      if (!globalOrg) {
-        globalOrg = await prisma.organization.create({
+      if (!organization) {
+        organization = await prisma.organization.create({
           data: {
-            tenantId,
             name: "Overall Lenders",
+            tenantId,
             status: "ACTIVE",
             isGlobalLenderOrg: true,
           },
         });
       }
-
-      orgId = globalOrg.id;
-    }
-
-    if (!orgId || orgId === 0) {
-      res.status(400).json({
-        message: "Organization ID required (or set isLender=true to assign to global lender org)",
-      });
-      return;
+    } else {
+      // ✅ Register a new organization if name is provided
+      if (organizationName) {
+        organization = await prisma.organization.create({
+          data: {
+            name: organizationName,
+            tenantId,
+            status: "ACTIVE",
+          },
+        });
+      } else {
+        res.status(400).json({
+          message: "Organization name required (or set isLender=true to use global lender org)",
+        });
+        return;
+      }
     }
 
     // 🔐 Hash password
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    // 👤 Create new user
+    // 👤 Create user
     const user = await prisma.user.create({
       data: {
         firstName,
@@ -194,16 +199,17 @@ export const registerDeletedUser = async (
         phoneNumber,
         email,
         password: hashedPassword,
-        tenantId,
-        organizationId: orgId,
-        role: role || "ADMIN",
+        tenantId: parseInt(tenantId),
+        organizationId: organization.id,
+        role: Array.isArray(role) ? role : [role || "ADMIN"],
         createdBy: req.user?.id || null,
       },
     });
 
     res.status(201).json({
-      message: "User registered successfully",
+      message: "User and organization registered successfully",
       user,
+      organization,
     });
   } catch (error: any) {
     console.error("Error registering user:", error);
