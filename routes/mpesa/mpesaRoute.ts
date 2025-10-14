@@ -4,6 +4,7 @@ import { PrismaClient } from '@prisma/client';
 import { getLatestBalance, handleAccountBalanceResult, handleAccountBalanceResultFromMpesa, handleAccountBalanceTimeout, handleB2BResult, handleB2BTimeout, handleB2CResult, handleB2CTimeout, handleC2BResults } from '../../controller/mpesa/results';
 import checkAccess from '../../middleware/roleVerify';
 import verifyToken from '../../middleware/verifyToken';
+import { verifyIP } from '../../middleware/verifyMpesaC2B';
 
 const prisma = new PrismaClient();
 
@@ -27,7 +28,7 @@ router.get('/latest-mpesa-balance',verifyToken, checkAccess('mpesa', 'read'),get
 
 //handleC2BResults
 
-router.post('/c2b-callback', handleC2BResults);
+router.post('/c2b-callback',verifyIP, handleC2BResults);
 // Route to handle Lipa Na M-Pesa requests
 
 
