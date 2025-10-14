@@ -328,41 +328,41 @@ const processMpesaRepayments = async (): Promise<void> => {
             },
           });
 
-          await tx.auditLog.create({
-            data: {
-              tenantId,
-              userId: -1, // Fallback userId
-              action: 'UPDATE',
-              resource: 'ORGANIZATION_CREDIT',
-              details: {
-                message: `Automated: Added ${remainingAmount} to organization ${organizationId} credit balance from M-Pesa transaction ${TransID}`,
-                organizationId,
-                amount: remainingAmount,
-                paymentMethod: 'MPESA',
-                reference: TransID,
-              },
-            },
-          });
+        //   await tx.auditLog.create({
+        //     data: {
+        //       tenantId,
+        //       userId: -1, // Fallback userId
+        //       action: 'UPDATE',
+        //       resource: 'ORGANIZATION_CREDIT',
+        //       details: {
+        //         message: `Automated: Added ${remainingAmount} to organization ${organizationId} credit balance from M-Pesa transaction ${TransID}`,
+        //         organizationId,
+        //         amount: remainingAmount,
+        //         paymentMethod: 'MPESA',
+        //         reference: TransID,
+        //       },
+        //     },
+        //   });
         }
 
         // Log the repayment action
-        await tx.auditLog.create({
-          data: {
-            tenantId,
-            userId: -1, // Fallback userId
-            action: 'CREATE',
-            resource: 'REPAYMENT',
-            details: {
-              message: repaymentDescription,
-              loanPayoutIds: loanPayouts.map((p) => p.id),
-              loanIds: loanPayouts.map((p) => p.loanId),
-              amount: TransAmount,
-              remainingAmount,
-              paymentMethod: 'MPESA',
-              reference: TransID,
-            },
-          },
-        });
+        // await tx.auditLog.create({
+        //   data: {
+        //     tenantId,
+        //     userId: -1, // Fallback userId
+        //     action: 'CREATE',
+        //     resource: 'REPAYMENT',
+        //     details: {
+        //       message: repaymentDescription,
+        //       loanPayoutIds: loanPayouts.map((p) => p.id),
+        //       loanIds: loanPayouts.map((p) => p.loanId),
+        //       amount: TransAmount,
+        //       remainingAmount,
+        //       paymentMethod: 'MPESA',
+        //       reference: TransID,
+        //     },
+        //   },
+        // });
 
         // Send SMS notification
         if (smsRecipient) {
