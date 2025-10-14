@@ -106,15 +106,22 @@ export const verifyOTP = async (
   }
 };
 
-export const resetPassword = async (
+
+
+
+
+ const resetPassword = async (
   req: Request,
   res: Response,
   next: NextFunction
 ): Promise<void> => {
-  const { phoneNumber, newPassword } = req.body as { phoneNumber?: string; newPassword?: string };
+  const { phoneNumber, newPassword } = req.body as {
+    phoneNumber?: string;
+    newPassword?: string;
+  };
 
   if (!phoneNumber || !newPassword) {
-    res.status(400).json({ message: 'Phone number and new password are required' });
+    res.status(400).json({ message: 'Phone number and new password are required.' });
     return;
   }
 
@@ -124,8 +131,20 @@ export const resetPassword = async (
   }
 
   try {
+    // ✅ Check if the user exists by phone number
+    const existingUser = await prisma.user.findUnique({
+      where: { phoneNumber },
+    });
+
+    if (!existingUser) {
+      res.status(404).json({ message: 'User with this phone number does not exist.' });
+      return;
+    }
+
+    // ✅ Hash the new password
     const hashedPassword = await bcrypt.hash(newPassword, 10);
 
+    // ✅ Update the password
     await prisma.user.update({
       where: { phoneNumber },
       data: { password: hashedPassword },
@@ -137,5 +156,6 @@ export const resetPassword = async (
     next(error);
   }
 };
+
 
 export default { requestOTP, verifyOTP, resetPassword };
