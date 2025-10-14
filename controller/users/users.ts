@@ -124,6 +124,7 @@ export const registerDeletedUser = async (
       firstName,
       lastName,
       phoneNumber,
+      tenantId,
       email,
       password,
       role,
@@ -131,11 +132,7 @@ export const registerDeletedUser = async (
       isLender,
     } = req.body;
 
-    const tenantId = req.user?.tenantId;
-    if (!tenantId) {
-      res.status(400).json({ message: "Missing tenant context" });
-      return;
-    }
+ 
 
     // 🧩 Basic validation
     if (!firstName || !lastName || !phoneNumber || !password) {
