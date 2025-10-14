@@ -75,6 +75,8 @@ const processMpesaRepayments = async (): Promise<void> => {
           },
         });
 
+        console.log(`this is the loneee ${loanee}`);
+
         if (!loanee) {
           logger.warn(`No user found for phone number ${BillRefNumber} in transaction ${TransID}`);
           continue;
