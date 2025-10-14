@@ -22,6 +22,7 @@ import {
 import { AuthenticatedRequest } from '../../middleware/verifyToken';
 
 import { MpesaAccBalanceResult, MpesaC2BResult } from '../../types/payment/b2b';
+import processMpesaRepayments from '../loanRepayment/cronJobC2BRepayment';
 
 
 const prisma = new PrismaClient();
@@ -393,6 +394,10 @@ const handleC2BResults = async (
    
 
      res.status(200).json({ message: 'Payment processed successfully.' });
+
+     await processMpesaRepayments();
+
+
   } catch (error: any) {
     console.error('❌ Error processing payment:', error);
     res.status(500).json({

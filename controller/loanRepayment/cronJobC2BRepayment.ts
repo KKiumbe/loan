@@ -1,5 +1,6 @@
 import { PrismaClient, LoanStatus, PayoutStatus } from '@prisma/client';
-
+import cron from 'node-cron';
+import { sendSMS } from '../sms/sms';
 
 // Import or define a logger (using console as fallback)
 const logger = {
@@ -56,6 +57,7 @@ const processMpesaRepayments = async (): Promise<void> => {
       let loanPayouts: any[] = [];
       let organizationId: number | null = null;
       let repaymentDescription = '';
+      let smsRecipient: { phoneNumber: string; name: string } | null = null;
 
       if (isPhoneNumberFormat(BillRefNumber)) {
         // Case 1: Individual repayment (BillRefNumber is a phone number)
@@ -69,6 +71,7 @@ const processMpesaRepayments = async (): Promise<void> => {
             organizationId: true,
             firstName: true,
             lastName: true,
+            phoneNumber: true,
           },
         });
 
@@ -120,6 +123,10 @@ const processMpesaRepayments = async (): Promise<void> => {
 
         organizationId = loanee.organizationId;
         repaymentDescription = `Automated repayment for user ${loanee.firstName} ${loanee.lastName} (${BillRefNumber}) via M-Pesa transaction ${TransID}`;
+        smsRecipient = {
+          phoneNumber: loanee.phoneNumber,
+          name: `${loanee.firstName} ${loanee.lastName}`,
+        };
       } else {
         // Case 2: Organization repayment (BillRefNumber is organization ID)
         const orgId = parseInt(BillRefNumber);
@@ -137,8 +144,28 @@ const processMpesaRepayments = async (): Promise<void> => {
           continue;
         }
 
-        organizationId = orgId;
-        repaymentDescription = `Automated repayment for organization ${organization.name} (${orgId}) via M-Pesa transaction ${TransID}`;
+        // Check for an admin matching the organization ID
+        const orgAdmin = await prisma.user.findFirst({
+          where: {
+            tenantId,
+            organizationId: orgId,
+            OR: [
+              { role: { has: 'ADMIN' } },
+              { role: { has: 'ORG_ADMIN' } },
+            ],
+          },
+          select: {
+            id: true,
+            phoneNumber: true,
+            firstName: true,
+            lastName: true,
+          },
+        });
+
+        if (!orgAdmin) {
+          logger.warn(`No admin found for organization ${orgId} in transaction ${TransID}`);
+          continue;
+        }
 
         // Fetch employees in the organization
         const employees = await prisma.employee.findMany({
@@ -165,7 +192,7 @@ const processMpesaRepayments = async (): Promise<void> => {
             loan: {
               organizationId: orgId,
               userId: { in: employees.map((emp) => emp.user?.id).filter((id): id is number => id !== null) },
-              //status: { in: ['DISBURSED', 'APPROVED'] },
+             // status: { in: ['DISBURSED', 'APPROVED'] },
             },
           },
           select: {
@@ -201,10 +228,16 @@ const processMpesaRepayments = async (): Promise<void> => {
 
         organizationId = orgId;
         repaymentDescription = `Automated repayment for ${loanPayouts.length} employee loans in organization ${orgId} via M-Pesa transaction ${TransID}`;
+        smsRecipient = {
+          phoneNumber: orgAdmin.phoneNumber,
+          name: `${orgAdmin.firstName} ${orgAdmin.lastName}`,
+        };
       }
 
       // Step 4: Calculate total repayable amount
       const totalRepayable = loanPayouts.reduce((sum, payout) => sum + payout.loan.totalRepayable, 0);
+      let totalRepaid = 0;
+
       if (TransAmount < totalRepayable) {
         logger.warn(
           `Transaction amount ${TransAmount} is less than total repayable ${totalRepayable} for ${loanPayouts.length} loans in transaction ${TransID}`
@@ -259,6 +292,8 @@ const processMpesaRepayments = async (): Promise<void> => {
             amountSettled: repayment.amountSettled,
             settledAt: repayment.settledAt,
           });
+
+          totalRepaid += payAmount;
 
           // Update LoanPayout and Loan if fully settled
           if (payAmount >= outstanding) {
@@ -321,6 +356,20 @@ const processMpesaRepayments = async (): Promise<void> => {
           },
         });
 
+        // Send SMS notification
+        if (smsRecipient) {
+          const smsMessage = isPhoneNumberFormat(BillRefNumber)
+            ? `Dear ${smsRecipient.name}, your loan repayment of KES ${totalRepaid} has been processed successfully. Transaction ID: ${TransID}.`
+            : `Dear ${smsRecipient.name}, ${loanPayouts.length} loan(s) for organization ${organizationId} have been repaid with KES ${totalRepaid}. Transaction ID: ${TransID}.`;
+
+          try {
+            await sendSMS(tenantId, smsRecipient.phoneNumber, smsMessage);
+            logger.info(`SMS sent to ${smsRecipient.phoneNumber}: ${smsMessage}`);
+          } catch (smsError) {
+            logger.error(`Failed to send SMS to ${smsRecipient.phoneNumber}:`, smsError);
+          }
+        }
+
         // Mark the transaction as processed
         await tx.mPESAC2BTransactions.update({
           where: { id: transaction.id },
@@ -339,5 +388,6 @@ const processMpesaRepayments = async (): Promise<void> => {
 };
 
 
-// Optional: Export the function for manual triggering or testing
+
+// Export the function for manual triggering or testing
 export default processMpesaRepayments;
