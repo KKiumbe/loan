@@ -324,14 +324,85 @@ const handleB2BTimeout = async (
   res.status(200).json({ message: 'B2B timeout received' });
 };
 
+
+
+
+
 const handleC2BResults = async (
   req: Request<{}, {}, MpesaC2BResult>,
   res: Response
 ): Promise<void> => {
-  const timeout = req.body;
-  console.log('M-Pesa C2B result:', JSON.stringify(timeout, null, 2));
-  res.status(200).json({ message: 'C2B  received' });
+  const paymentData = req.body;
+
+  if (!paymentData) {
+     res.status(400).json({ message: 'No payment data received' });
+  }
+
+  const paymentInfo = {
+    ShortCode: paymentData.BusinessShortCode,
+    TransID: paymentData.TransID,
+    TransTime: parseTransTime(paymentData.TransTime),
+    TransAmount: parseFloat(paymentData.TransAmount),
+    ref: paymentData.BillRefNumber,
+    phone: paymentData.MSISDN,
+    FirstName: paymentData.FirstName,
+  };
+
+  try {
+    // ✅ 1. Prevent duplicate transactions
+    const existingTransaction = await prisma.mPESAC2BTransactions.findUnique({
+      where: { TransID: paymentInfo.TransID },
+    });
+
+    if (existingTransaction) {
+      res.status(409).json({
+        message: 'Transaction already processed.',
+        transactionId: paymentInfo.TransID,
+      });
+    }
+
+    // ✅ 2. Identify tenant via ShortCode
+    const mpesaConfig = await prisma.mPESAConfig.findUnique({
+      where: { b2cShortCode: paymentInfo.ShortCode },
+    });
+
+    if (!mpesaConfig) {
+      console.error(`No tenant found for ShortCode: ${paymentInfo.ShortCode}`);
+     res.status(404).json({
+        message: `No tenant configuration found for ShortCode ${paymentInfo.ShortCode}`,
+      });
+    }
+
+    const tenantId = mpesaConfig?.tenantId!;
+
+    // ✅ 3. Save M-Pesa transaction
+    const savedTransaction = await prisma.mPESAC2BTransactions.create({
+      data: {
+        TransID: paymentInfo.TransID,
+        TransTime: paymentInfo.TransTime,
+        ShortCode: paymentInfo.ShortCode,
+        TransAmount: paymentInfo.TransAmount,
+        BillRefNumber: paymentInfo.ref,
+        MSISDN: paymentInfo.phone,
+        FirstName: paymentInfo.FirstName,
+        tenantId,
+        processed: false,
+      },
+    });
+
+   
+
+     res.status(200).json({ message: 'Payment processed successfully.' });
+  } catch (error: any) {
+    console.error('❌ Error processing payment:', error);
+    res.status(500).json({
+      message: 'Error processing payment.',
+      error: error.message,
+    });
+  }
 };
+
+
 
 
 
@@ -564,3 +635,15 @@ export {
   handleAccountBalanceTimeout,
   getLatestBalance,handleB2BResult,handleB2BTimeout,handleAccountBalanceResultFromMpesa,handleC2BResults
 };
+
+function parseTransTime(TransTime: string): string {
+  // Assuming TransTime is in the format 'YYYYMMDDHHMMSS'
+  if (!TransTime || typeof TransTime !== 'string' || TransTime.length !== 14) return TransTime;
+  const year = TransTime.slice(0, 4);
+  const month = TransTime.slice(4, 6);
+  const day = TransTime.slice(6, 8);
+  const hour = TransTime.slice(8, 10);
+  const minute = TransTime.slice(10, 12);
+  const second = TransTime.slice(12, 14);
+  return `${year}-${month}-${day}T${hour}:${minute}:${second}`;
+}

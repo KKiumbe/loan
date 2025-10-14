@@ -642,6 +642,55 @@ const searchTransactionById = async (req: AuthenticatedRequest, res: Response): 
 
 
 
+
+export const getAllC2BMpesaTransactions = async (
+  req: AuthenticatedRequest,
+  res: Response
+): Promise<void> => {
+  try {
+    const tenantId = req.user?.tenantId;
+
+    if (!tenantId) {
+      res.status(401).json({ message: "Unauthorized: Tenant ID not found." });
+      return;
+    }
+
+    // ✅ Fetch all M-Pesa C2B transactions for the current tenant
+    const transactions = await prisma.mPESAC2BTransactions.findMany({
+      where: { tenantId },
+      orderBy: { TransTime: "desc" },
+      include: {
+        tenant: {
+          select: {
+            name: true,
+          },
+        },
+        mpesaConfig: {
+          select: {
+           
+            b2cShortCode: true,
+          },
+        },
+      },
+    });
+
+    res.status(200).json({
+      message: "C2B Transactions fetched successfully.",
+      count: transactions.length,
+      transactions,
+    });
+  } catch (error: any) {
+    console.error("❌ Error fetching C2B transactions:", error);
+    res.status(500).json({
+      message: "Error fetching M-Pesa C2B transactions.",
+      error: error.message,
+    });
+  }
+};
+
+
+
+
 export {
   getAllLoanPayouts,
  

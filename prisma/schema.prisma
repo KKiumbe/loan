@@ -50,6 +50,8 @@ model Tenant {
   TransactionCostBand TransactionCostBand[]
 
   B2BTransfer B2BTransfer[]
+
+  MPESAC2BTransactions MPESAC2BTransactions[]
 }
 
 enum TenantStatus {
@@ -263,6 +265,24 @@ model PaymentConfirmation {
   settledAt       DateTime       @default(now())
 }
 
+
+model MPESAC2BTransactions {
+  id            String      @id @default(uuid())
+  tenantId      Int
+  TransID       String      @unique
+  TransTime     DateTime
+  ShortCode     String
+  TransAmount   Float
+  BillRefNumber String
+  MSISDN        String
+  FirstName     String
+  processed     Boolean     @default(false)
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+  mpesaConfig   MPESAConfig @relation(fields: [ShortCode], references: [b2cShortCode], onDelete: Cascade)
+  tenant        Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+}
+
 model MPesaBalance {
   id                    Int       @id @default(autoincrement())
   resultType            Int
@@ -322,7 +342,8 @@ model ConsolidatedRepayment {
 model MPESAConfig {
   tenantId           Int      @unique
   tenant             Tenant   @relation(fields: [tenantId], references: [id])
-  b2cShortCode       String
+  b2cShortCode       String @unique
+ 
   initiatorName      String
   securityCredential String
   consumerKey        String
@@ -330,6 +351,8 @@ model MPESAConfig {
   name               String?  // Optional reference name
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
+
+  MPESAC2BTransactions MPESAC2BTransactions[]
 }
 
 model SMSConfig {
