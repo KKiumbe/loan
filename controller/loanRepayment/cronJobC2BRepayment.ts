@@ -250,7 +250,7 @@ const processMpesaRepayments = async (): Promise<void> => {
         // Create PaymentBatch
         const paymentBatch = await tx.paymentBatch.create({
           data: {
-            tenantId,
+            tenantId: tenantId!,
             organizationId: organizationId!,
             totalAmount: TransAmount,
             paymentMethod: 'MPESA',
