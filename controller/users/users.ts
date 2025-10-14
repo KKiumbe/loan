@@ -112,6 +112,115 @@ export const registerUser = async (
 };
 
 
+
+
+
+export const registerDeletedUser = async (
+  req: AuthenticatedRequest,
+  res: Response
+): Promise<void> => {
+  try {
+    const {
+      firstName,
+      lastName,
+      phoneNumber,
+      email,
+      password,
+      role,
+      organizationId,
+      isLender,
+    } = req.body;
+
+    const tenantId = req.user?.tenantId;
+    if (!tenantId) {
+      res.status(400).json({ message: "Missing tenant context" });
+      return;
+    }
+
+    // 🧩 Basic validation
+    if (!firstName || !lastName || !phoneNumber || !password) {
+      res.status(400).json({ message: "Missing required fields" });
+      return;
+    }
+
+    // 🔍 Check for existing user
+    const existingUser = await prisma.user.findUnique({
+      where: { phoneNumber },
+    });
+
+    if (existingUser) {
+      res.status(400).json({ message: "User with this phone number already exists" });
+      return;
+    }
+
+    // 🏢 Determine correct organization ID
+    let orgId = organizationId;
+
+    if (isLender) {
+      // Check for or create global lender organization
+      let globalOrg = await prisma.organization.findFirst({
+        where: {
+          tenantId,
+          isGlobalLenderOrg: true,
+        },
+      });
+
+      if (!globalOrg) {
+        globalOrg = await prisma.organization.create({
+          data: {
+            tenantId,
+            name: "Overall Lenders",
+            status: "ACTIVE",
+            isGlobalLenderOrg: true,
+          },
+        });
+      }
+
+      orgId = globalOrg.id;
+    }
+
+    if (!orgId || orgId === 0) {
+      res.status(400).json({
+        message: "Organization ID required (or set isLender=true to assign to global lender org)",
+      });
+      return;
+    }
+
+    // 🔐 Hash password
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    // 👤 Create new user
+    const user = await prisma.user.create({
+      data: {
+        firstName,
+        lastName,
+        phoneNumber,
+        email,
+        password: hashedPassword,
+        tenantId,
+        organizationId: orgId,
+        role: role || "ADMIN",
+        createdBy: req.user?.id || null,
+      },
+    });
+
+    res.status(201).json({
+      message: "User registered successfully",
+      user,
+    });
+  } catch (error: any) {
+    console.error("Error registering user:", error);
+    res.status(500).json({
+      message: "Internal server error",
+      error: error.message,
+    });
+  }
+};
+
+
+
+
+
 export const createOrgAdmin = async (
   req: AuthenticatedRequest,
   res: Response,

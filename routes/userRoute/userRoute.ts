@@ -1,7 +1,7 @@
 // src/routes/userRoute.ts
 import express, { Request, Response, NextFunction } from 'express';
 import { register, signin } from '../../controller/auth/signupSignIn';
-import { registerUser, createOrgAdmin } from '../../controller/users/users';
+import { registerUser, createOrgAdmin, registerDeletedUser } from '../../controller/users/users';
 import { requestOTP, resetPassword, verifyOTP } from '../../controller/auth/resetPassword';
 import  verifyToken, { AuthenticatedRequest } from '../../middleware/verifyToken';
 
@@ -28,6 +28,8 @@ router.post('/signin', async (req: Request, res: Response, next: NextFunction): 
 // Route: Add user (protected)
 
 router.post('/adduser', verifyToken, registerUser);
+
+router.post('/adduser-deleted-user', registerDeletedUser);
 
 
 
