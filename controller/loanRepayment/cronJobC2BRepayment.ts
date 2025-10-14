@@ -1,5 +1,5 @@
 import { PrismaClient, LoanStatus, PayoutStatus } from '@prisma/client';
-import cron from 'node-cron';
+
 import { sendSMS } from '../sms/sms';
 
 // Import or define a logger (using console as fallback)
@@ -28,7 +28,7 @@ const isPhoneNumberFormat = (value: string): boolean => {
   return phoneRegex.test(value);
 };
 
-// Cron job function to process M-Pesa transactions for repayments
+// Function to process M-Pesa transactions for repayments
 const processMpesaRepayments = async (): Promise<void> => {
   try {
     console.time('processMpesaRepayments');
@@ -80,6 +80,12 @@ const processMpesaRepayments = async (): Promise<void> => {
           continue;
         }
 
+        // Ensure organizationId is defined
+        if (!loanee.organizationId) {
+          logger.warn(`No organization associated with user ${BillRefNumber} in transaction ${TransID}`);
+          continue;
+        }
+
         // Fetch disbursed loan payouts for the loanee
         loanPayouts = await prisma.loanPayout.findMany({
           where: {
@@ -87,7 +93,7 @@ const processMpesaRepayments = async (): Promise<void> => {
             status: 'DISBURSED',
             loan: {
               userId: loanee.id,
-              //status: { in: ['DISBURSED', 'APPROVED'] },
+              status: { in: ['DISBURSED', 'APPROVED'] },
             },
           },
           select: {
@@ -192,7 +198,7 @@ const processMpesaRepayments = async (): Promise<void> => {
             loan: {
               organizationId: orgId,
               userId: { in: employees.map((emp) => emp.user?.id).filter((id): id is number => id !== null) },
-             // status: { in: ['DISBURSED', 'APPROVED'] },
+              status: { in: ['DISBURSED', 'APPROVED'] },
             },
           },
           select: {
@@ -247,11 +253,11 @@ const processMpesaRepayments = async (): Promise<void> => {
 
       // Step 5: Process repayment within a transaction
       await prisma.$transaction(async (tx) => {
-        // Create PaymentBatch
+        // Create PaymentBatch with tenant and organization relations
         const paymentBatch = await tx.paymentBatch.create({
           data: {
-            tenantId: tenantId!,
-            organizationId: organizationId!,
+            tenant: { connect: { id: tenantId } },
+            organization: { connect: { id: organizationId! } }, // organizationId is guaranteed non-null
             totalAmount: TransAmount,
             paymentMethod: 'MPESA',
             reference: TransID,
@@ -387,7 +393,11 @@ const processMpesaRepayments = async (): Promise<void> => {
   }
 };
 
-
+// Schedule the function to run every minute (for any unprocessed transactions)
+// cron.schedule('* * * * *', async () => {
+//   logger.info('Running scheduled M-Pesa repayment processing...');
+//   await processMpesaRepayments();
+// });
 
 // Export the function for manual triggering or testing
 export default processMpesaRepayments;
