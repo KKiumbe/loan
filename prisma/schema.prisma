@@ -121,7 +121,7 @@ model User {
   resetCode          String?
   resetCodeExpiresAt DateTime?
   tenant          Tenant         @relation(fields: [tenantId], references: [id])
-  organizationId   Int?
+  organizationId   Int            @default(0)
 
 
   organization    Organization?   @relation(fields: [organizationId], references: [id])
