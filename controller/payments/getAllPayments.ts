@@ -659,19 +659,8 @@ export const getAllC2BMpesaTransactions = async (
     const transactions = await prisma.mPESAC2BTransactions.findMany({
       where: { tenantId },
       orderBy: { TransTime: "desc" },
-      include: {
-        tenant: {
-          select: {
-            name: true,
-          },
-        },
-        mpesaConfig: {
-          select: {
-           
-            b2cShortCode: true,
-          },
-        },
-      },
+      
+      
     });
 
     res.status(200).json({
