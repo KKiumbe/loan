@@ -1,6 +1,5 @@
 // src/controllers/paymentController.ts
-import { PrismaClient, LoanStatus 
-} from '@prisma/client';
+import { PrismaClient, LoanStatus } from '@prisma/client';
 import { Request, Response } from 'express';
 import { LoanPayout, Payment, PaymentBatch, PaymentConfirmation, PaymentConfirmationCreateNestedManyWithoutPaymentBatchInput } from '../../types/loans/loansPayments';
 import { AuthenticatedRequest } from '../../middleware/verifyToken';
@@ -677,6 +676,68 @@ export const getAllC2BMpesaTransactions = async (
   }
 };
 
+
+export const searchC2BMpesaTransactions = async (
+  req: AuthenticatedRequest,
+  res: Response
+): Promise<void> => {
+  try {
+    const tenantId = req.user?.tenantId;
+
+    if (!tenantId) {
+      res.status(401).json({ message: "Unauthorized: Tenant ID not found." });
+      return;
+    }
+
+    const { query = "", page = "1", pageSize = "10" } = req.query;
+
+    // Convert page and pageSize to integers, with defaults
+    const pageNum = parseInt(page as string, 10) || 1;
+    const size = parseInt(pageSize as string, 10) || 10;
+    const skip = (pageNum - 1) * size;
+
+    // Build Prisma where clause for case-insensitive search
+    const where = {
+      tenantId,
+      ...(query
+        ? {
+            OR: [
+              { FirstName: { contains: query as string, mode: 'insensitive' as const } },
+              { TransID: { contains: query as string, mode: 'insensitive' as const } },
+              { BillRefNumber: { contains: query as string, mode: 'insensitive' as const } },
+            ],
+          }
+        : {}),
+    };
+
+    // Fetch transactions with pagination
+    const transactions = await prisma.mPESAC2BTransactions.findMany({
+      where,
+      skip,
+      take: size,
+      orderBy: { TransTime: "desc" },
+      include: {
+        mpesaConfig: { select: { b2cShortCode: true } },
+        tenant: { select: { id: true } },
+      },
+    });
+
+    // Get total count for pagination
+    const totalCount = await prisma.mPESAC2BTransactions.count({ where });
+
+    res.status(200).json({
+      message: "C2B Transactions fetched successfully.",
+      count: totalCount,
+      transactions,
+    });
+  } catch (error: any) {
+    console.error("❌ Error fetching C2B transactions:", error);
+    res.status(500).json({
+      message: "Error fetching M-Pesa C2B transactions.",
+      error: error.message,
+    });
+  }
+};
 
 
 
