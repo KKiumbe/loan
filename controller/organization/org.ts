@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
-import { PrismaClient, Organization, Tenant, User, Loan ,OrganizationStus} from '@prisma/client';
+import { PrismaClient, Organization, Tenant, User, Loan, LoanStatus, OrganizationStus } from '@prisma/client';
 
 import { z } from 'zod';
 import { CreateOrganizationRequest, GetBorrowerOrganizationsQuery, OrganizationParams, OrganizationriolizedAdminsResponse, OrganizationSearchResponse, OrganizationStatsResponse, SearchQueryParams } from '../../types/organization';
@@ -446,7 +446,8 @@ export const getOrganizations = async (
   }
 };
 
-// Get organization by ID
+
+
 
 
 export const getOrganizationById = async (
@@ -456,8 +457,8 @@ export const getOrganizationById = async (
 ): Promise<void> => {
   try {
     const orgId: number = parseInt(req.params.orgId, 10);
-    if (isNaN(orgId)) {
-      res.status(400).json({ error: 'Invalid organization ID' });
+    if (isNaN(orgId) || orgId <= 0 || orgId > 9999999) {
+      res.status(400).json({ error: 'Invalid organization ID. Must be a positive integer with 7 or fewer digits.' });
       return;
     }
 
@@ -467,13 +468,12 @@ export const getOrganizationById = async (
       return;
     }
 
+    // Fetch organization with basic details
     const organization = await prisma.organization.findFirst({
       where: { id: orgId, tenantId },
       include: {
         tenant: true,
         users: true,
-        loans: true,
-        repayments: true,
         Employee: true,
         PaymentBatch: true,
       },
@@ -484,24 +484,59 @@ export const getOrganizationById = async (
       return;
     }
 
-    // Convert the relevant fields from decimals to percentages
-    const responseData = {
-      ...organization,
-      interestRate: organization.interestRate * 100,
-      dailyInterestRate: organization.dailyInterestRate * 100,
-      baseInterestRate: organization.baseInterestRate * 100,
-      loanLimitMultiplier: organization.loanLimitMultiplier * 100,
-    };
+    // Fetch loan metrics separately for efficiency
+        const [countsByStatus, totalLoansCount, sums] = await Promise.all([
+          prisma.loan.groupBy({
+            by: ['status'],
+            where: { organizationId: orgId, tenantId },
+            _count: { _all: true },
+          }),
+          prisma.loan.count({
+            where: { organizationId: orgId, tenantId },
+          }),
+          prisma.loan.aggregate({
+            where: { organizationId: orgId, tenantId, status: { not: 'REPAID' } },
+            _sum: { totalRepayable: true, repaidAmount: true },
+          }),
+        ]);
+    
+        // Process loan metrics
+        const totalLoans: number = totalLoansCount || 0;
+    
+        const loansByStatusObj: Record<string, number> = (countsByStatus || []).reduce((acc: Record<string, number>, item: any) => {
+          const count = (item._count && (item._count as any)._all) || 0;
+          acc[item.status] = count;
+          return acc;
+        }, {});
+    
+        const totalUnpaidAmount: number = ((sums && sums._sum && (sums._sum.totalRepayable || 0)) - (sums && sums._sum && (sums._sum.repaidAmount || 0))) || 0;
+    
+        // Convert interest rates to percentages and include loan metrics
+        const responseData = {
+          ...organization,
+          interestRate: organization.interestRate * 100,
+          dailyInterestRate: organization.dailyInterestRate * 100,
+          baseInterestRate: organization.baseInterestRate * 100,
+          loanLimitMultiplier: organization.loanLimitMultiplier * 100,
+          loanMetrics: {
+            totalLoans,
+            loansByStatus: Object.fromEntries(
+              Object.values(LoanStatus).map(status => [
+                status,
+                (loansByStatusObj[status] || 0),
+              ])
+            ),
+            totalUnpaidAmount: Number(totalUnpaidAmount.toFixed(2)),
+          },
+        };
 
     res.json(responseData);
   } catch (error: any) {
     next(error);
+  } finally {
+    await prisma.$disconnect();
   }
 };
-
-// Update an organization
-
-
 
 
 export const updateOrganization = async (

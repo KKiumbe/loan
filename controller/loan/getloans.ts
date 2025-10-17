@@ -657,6 +657,7 @@ export const getAllLoansWithDetails = async (
             amount: true,
             status: true,
             transactionId: true,
+            amountRepaid: true,
             method: true,
             createdAt: true,
           },
