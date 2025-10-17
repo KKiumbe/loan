@@ -81,11 +81,7 @@ const processMpesaRepayments = async (): Promise<void> => {
         logger.info(`Attempting user lookup for phone: ${normalizedBillRefNumber}, tenantId: ${tenantId}`);
         const loanee = await prisma.user.findFirst({
           where: {
-            OR: [
-              { phoneNumber: normalizedBillRefNumber },
-              { phoneNumber: `${BillRefNumber}` },
-              
-            ],
+            phoneNumber: normalizedBillRefNumber, // Only check normalized format (07xxxxxxxx or 01xxxxxxxx)
             tenantId,
           },
           select: {
@@ -104,21 +100,21 @@ const processMpesaRepayments = async (): Promise<void> => {
           continue;
         }
 
-        // Allow processing even if organizationId is 0, using loan's organizationId as fallback
+        // Enforce valid organizationId
         if (!loanee.organizationId || loanee.organizationId === 0) {
-          logger.warn(`User ${normalizedBillRefNumber} has invalid organizationId (${loanee.organizationId}). Using loan's organizationId as fallback.`);
-        } else {
-          const organization = await prisma.organization.findUnique({
-            where: { id: loanee.organizationId },
-          });
-          if (!organization) {
-            logger.warn(`No organization found for ID ${loanee.organizationId} for user ${normalizedBillRefNumber} in transaction ${TransID}`);
-            continue;
-          }
-          organizationId = loanee.organizationId;
+          logger.warn(`User ${normalizedBillRefNumber} has invalid organizationId (${loanee.organizationId}) in transaction ${TransID}`);
+          continue;
         }
 
-        // Fetch disbursed or partially paid loan payouts
+        const organization = await prisma.organization.findUnique({
+          where: { id: loanee.organizationId },
+        });
+        if (!organization) {
+          logger.warn(`No organization found for ID ${loanee.organizationId} for user ${normalizedBillRefNumber} in transaction ${TransID}`);
+          continue;
+        }
+
+        organizationId = loanee.organizationId;
         loanPayouts = await prisma.loanPayout.findMany({
           where: {
             tenantId,
@@ -159,7 +155,6 @@ const processMpesaRepayments = async (): Promise<void> => {
           continue;
         }
 
-        organizationId = organizationId || loanPayouts[0].loan.organizationId;
         repaymentDescription = `Automated repayment for user ${loanee.firstName} ${loanee.lastName} (${normalizedBillRefNumber}) via M-Pesa transaction ${TransID}`;
         smsRecipient = {
           phoneNumber: loanee.phoneNumber,
@@ -168,8 +163,11 @@ const processMpesaRepayments = async (): Promise<void> => {
       } else {
         // Case 2: Organization repayment
         const orgId = parseInt(BillRefNumber);
-        if (isNaN(orgId) || orgId === 0) {
-          logger.warn(`Invalid organizationId in BillRefNumber ${BillRefNumber} for transaction ${TransID}`);
+        if (isNaN(orgId) || orgId <= 0 || orgId > 9999999) {
+          logger.warn(`Invalid organizationId ${BillRefNumber} (parsed: ${orgId}) for transaction ${TransID}. Must be a positive integer with 7 or fewer digits.`);
+          if (BillRefNumber.match(/^\d+$/) && BillRefNumber.length >= 10) {
+            logger.warn(`BillRefNumber ${BillRefNumber} resembles an invalid phone number. Consider manual review.`);
+          }
           continue;
         }
 
@@ -185,8 +183,10 @@ const processMpesaRepayments = async (): Promise<void> => {
           where: {
             tenantId,
             organizationId: orgId,
-          
-           
+            OR: [
+              { role: { has: 'ADMIN' } },
+              { role: { has: 'ORG_ADMIN' } },
+            ],
           },
           select: {
             id: true,
