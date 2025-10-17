@@ -745,14 +745,14 @@ export const getLoansByOrganization = async (
     });
 
     // 4. Count per status this month
-    const statuses: LoanStatus[] = ['PENDING', 'APPROVED', 'REJECTED', 'REPAID', 'DISBURSED'];
-    const statusCountsThisMonth: Record<LoanStatus, number> = {
-      PENDING: 0,
-      APPROVED: 0,
-      REJECTED: 0,
-      REPAID: 0,
-      DISBURSED: 0,
-    };
+    const statuses: LoanStatus[] = Object.values(LoanStatus);
+    const statusCountsThisMonth: Record<LoanStatus, number> = Object.values(LoanStatus).reduce(
+      (acc, status) => {
+        acc[status] = 0;
+        return acc;
+      },
+      {} as Record<LoanStatus, number>
+    );
 
     await Promise.all(
       statuses.map(async (status) => {

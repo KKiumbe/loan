@@ -277,205 +277,360 @@ const processMpesaRepayments = async (): Promise<void> => {
       }
 
       // Step 5: Process repayment within a transaction
-      await prisma.$transaction(async (tx) => {
-        // Create PaymentBatch
-        const paymentBatch = await tx.paymentBatch.create({
-          data: {
-            tenant: { connect: { id: tenantId } },
-            organization: { connect: { id: organizationId! } },
-            totalAmount: TransAmount,
-            paymentMethod: 'MPESA',
-            reference: TransID,
-            remarks: repaymentDescription,
-          },
-        });
+   
 
-        let remainingAmount = TransAmount;
-        const repayments: LoanPayment[] = [];
+      // Inside the prisma.$transaction block
+await prisma.$transaction(async (tx) => {
+  // Create PaymentBatch
+  const paymentBatch = await tx.paymentBatch.create({
+    data: {
+      tenant: { connect: { id: tenantId } },
+      organization: { connect: { id: organizationId! } },
+      totalAmount: TransAmount,
+      paymentMethod: 'MPESA',
+      reference: TransID,
+      remarks: repaymentDescription,
+    },
+  });
 
-        // Process each loan payout
-        for (const payout of loanPayouts) {
-          if (remainingAmount <= 0) break;
+  let remainingAmount = TransAmount;
+  const repayments: LoanPayment[] = [];
 
-          const outstanding = payout.loan.totalRepayable;
+  // Process each loan payout
+  for (const payout of loanPayouts) {
+    if (remainingAmount <= 0) break;
 
-          // Check for existing PaymentConfirmation
-          const existingConfirmation = await tx.paymentConfirmation.findUnique({
-            where: { loanPayoutId: payout.id },
-          });
+    const outstanding = payout.loan.totalRepayable - (payout.loan.repaidAmount || 0);
+    if (outstanding <= 0) {
+      logger.info(`LoanPayout ${payout.id} already fully repaid in transaction ${TransID}`);
+      continue;
+    }
 
-          if (existingConfirmation) {
-            if (existingConfirmation.amountSettled >= outstanding) {
-              logger.info(`LoanPayout ${payout.id} already fully repaid in transaction ${TransID}`);
-              continue; // Skip fully repaid loans
-            }
+    // Calculate amount to apply to this payout
+    const payAmount = Math.min(outstanding, remainingAmount);
+    if (payAmount <= 0) continue;
 
-            // Update existing PaymentConfirmation for partial repayment
-            const additionalAmount = Math.min(outstanding - existingConfirmation.amountSettled, remainingAmount);
-            if (additionalAmount <= 0) continue;
+    // Check for existing PaymentConfirmation
+    const existingConfirmation = await tx.paymentConfirmation.findUnique({
+      where: { loanPayoutId: payout.id },
+    });
 
-            logger.info(`Updating PaymentConfirmation for LoanPayout ${payout.id} with additional amount ${additionalAmount}`);
-
-            const repayment = await tx.paymentConfirmation.update({
-              where: { id: existingConfirmation.id },
-              data: {
-                amountSettled: { increment: additionalAmount },
-                settledAt: new Date(),
-                paymentBatchId: paymentBatch.id, // Update to latest PaymentBatch
-              },
-              select: {
-                id: true,
-                amountSettled: true,
-                settledAt: true,
-                paymentBatchId: true,
-                loanPayoutId: true,
-              },
-            });
-
-            repayments.push({
-              id: repayment.id.toString(),
-              paymentBatchId: repayment.paymentBatchId.toString(),
-              loanPayoutId: repayment.loanPayoutId.toString(),
-              amountSettled: repayment.amountSettled,
-              settledAt: repayment.settledAt,
-            });
-
-            totalRepaid += additionalAmount;
-            remainingAmount -= additionalAmount;
-
-            // Update LoanPayout and Loan if fully settled
-            if (repayment.amountSettled >= outstanding) {
-              await tx.loan.update({
-                where: { id: payout.loanId },
-                data: { status: 'REPAID' },
-              });
-
-              await tx.loanPayout.update({
-                where: { id: payout.id },
-                data: { status: 'REPAID' },
-              });
-            }
-          } else {
-            // Create new PaymentConfirmation
-            const payAmount = Math.min(outstanding, remainingAmount);
-            if (payAmount <= 0) continue;
-
-            logger.info(`Creating PaymentConfirmation for LoanPayout ${payout.id} with amount ${payAmount}`);
-
-            const repayment = await tx.paymentConfirmation.create({
-              select: {
-                id: true,
-                amountSettled: true,
-                settledAt: true,
-                paymentBatchId: true,
-                loanPayoutId: true,
-              },
-              data: {
-                paymentBatchId: paymentBatch.id,
-                loanPayoutId: payout.id,
-                amountSettled: payAmount,
-              },
-            });
-
-            repayments.push({
-              id: repayment.id.toString(),
-              paymentBatchId: repayment.paymentBatchId.toString(),
-              loanPayoutId: repayment.loanPayoutId.toString(),
-              amountSettled: repayment.amountSettled,
-              settledAt: repayment.settledAt,
-            });
-
-            totalRepaid += payAmount;
-            remainingAmount -= payAmount;
-
-            // Update LoanPayout and Loan if fully settled
-            if (payAmount >= outstanding) {
-              await tx.loan.update({
-                where: { id: payout.loanId },
-                data: { status: 'REPAID' },
-              });
-
-              await tx.loanPayout.update({
-                where: { id: payout.id },
-                data: { status: 'REPAID' },
-              });
-            }
-          }
-        }
-
-        // Save remaining amount to organization credit balance
-        if (remainingAmount > 0) {
-          await tx.organization.update({
-            where: { id: organizationId!, tenantId },
-            data: {
-              creditBalance: { increment: remainingAmount },
-            },
-          });
-
-          // Uncomment if auditLog model exists
-          /*
-          await tx.auditLog.create({
-            data: {
-              tenantId,
-              userId: -1,
-              action: 'UPDATE',
-              resource: 'ORGANIZATION_CREDIT',
-              details: {
-                message: `Automated: Added ${remainingAmount} to organization ${organizationId} credit balance from M-Pesa transaction ${TransID}`,
-                organizationId,
-                amount: remainingAmount,
-                paymentMethod: 'MPESA',
-                reference: TransID,
-              },
-            },
-          });
-          */
-        }
-
-        // Log the repayment action
-        /*
-        await tx.auditLog.create({
-          data: {
-            tenantId,
-            userId: -1,
-            action: 'CREATE',
-            resource: 'REPAYMENT',
-            details: {
-              message: repaymentDescription,
-              loanPayoutIds: loanPayouts.map((p) => p.id),
-              loanIds: loanPayouts.map((p) => p.loanId),
-              amount: TransAmount,
-              remainingAmount,
-              paymentMethod: 'MPESA',
-              reference: TransID,
-            },
-          },
-        });
-        */
-
-        // Send SMS notification
-        if (smsRecipient) {
-          const smsPhone = normalizePhoneNumber(smsRecipient.phoneNumber).startsWith('0')
-            ? '254' + normalizePhoneNumber(smsRecipient.phoneNumber).slice(1)
-            : smsRecipient.phoneNumber; // Convert to 254 format for SMS
-          const smsMessage = isPhoneNumberFormat(normalizedBillRefNumber)
-            ? `Dear ${smsRecipient.name}, your loan repayment of KES ${totalRepaid} has been processed successfully. Transaction ID: ${TransID}.`
-            : `Dear ${smsRecipient.name}, ${loanPayouts.length} loan(s) for organization ${organizationId} have been repaid with KES ${totalRepaid}. Transaction ID: ${TransID}.`;
-
-          try {
-            await sendSMS(tenantId, smsPhone, smsMessage);
-            logger.info(`SMS sent to ${smsPhone}: ${smsMessage}`);
-          } catch (smsError) {
-            logger.error(`Failed to send SMS to ${smsPhone}:`, smsError);
-          }
-        }
-
-        // Mark the transaction as processed
-        await tx.mPESAC2BTransactions.update({
-          where: { id: transaction.id },
-          data: { processed: true },
-        });
+    let repayment;
+    if (existingConfirmation) {
+      // Update existing PaymentConfirmation
+      logger.info(`Updating PaymentConfirmation for LoanPayout ${payout.id} with additional amount ${payAmount}`);
+      repayment = await tx.paymentConfirmation.update({
+        where: { id: existingConfirmation.id },
+        data: {
+          amountSettled: { increment: payAmount },
+          settledAt: new Date(),
+          paymentBatchId: paymentBatch.id,
+        },
+        select: {
+          id: true,
+          amountSettled: true,
+          settledAt: true,
+          paymentBatchId: true,
+          loanPayoutId: true,
+        },
       });
+    } else {
+      // Create new PaymentConfirmation
+      logger.info(`Creating PaymentConfirmation for LoanPayout ${payout.id} with amount ${payAmount}`);
+      repayment = await tx.paymentConfirmation.create({
+        select: {
+          id: true,
+          amountSettled: true,
+          settledAt: true,
+          paymentBatchId: true,
+          loanPayoutId: true,
+        },
+        data: {
+          paymentBatchId: paymentBatch.id,
+          loanPayoutId: payout.id,
+          amountSettled: payAmount,
+        },
+      });
+    }
+
+    repayments.push({
+      id: repayment.id.toString(),
+      paymentBatchId: repayment.paymentBatchId.toString(),
+      loanPayoutId: repayment.loanPayoutId.toString(),
+      amountSettled: repayment.amountSettled,
+      settledAt: repayment.settledAt,
+    });
+
+    // Update LoanPayout
+    const newPayoutAmountRepaid = (payout.amountRepaid || 0) + payAmount;
+    const payoutStatus = newPayoutAmountRepaid >= payout.loan.totalRepayable ? 'REPAID' : 'PPAID';
+    
+    await tx.loanPayout.update({
+      where: { id: payout.id },
+      data: {
+        amountRepaid: newPayoutAmountRepaid,
+        status: payoutStatus,
+        updatedAt: new Date(),
+      },
+    });
+
+    // Update Loan
+    const newLoanRepaidAmount = (payout.loan.repaidAmount || 0) + payAmount;
+    const loanStatus = newLoanRepaidAmount >= payout.loan.totalRepayable ? 'REPAID' : 'PPAID';
+
+    await tx.loan.update({
+      where: { id: payout.loanId },
+      data: {
+        repaidAmount: newLoanRepaidAmount,
+        status: loanStatus,
+        updatedAt: new Date(),
+      },
+    });
+
+    totalRepaid += payAmount;
+    remainingAmount -= payAmount;
+  }
+
+  // Save remaining amount to organization credit balance
+  if (remainingAmount > 0) {
+    await tx.organization.update({
+      where: { id: organizationId!, tenantId },
+      data: {
+        creditBalance: { increment: remainingAmount },
+      },
+    });
+
+    await tx.auditLog.create({
+      data: {
+        tenantId,
+        userId: -1, // System action
+        action: 'UPDATE',
+        resource: 'ORGANIZATION_CREDIT',
+        details: {
+          message: `Added ${remainingAmount} to organization ${organizationId} credit balance from M-Pesa transaction ${TransID}`,
+          organizationId,
+          amount: remainingAmount,
+          paymentMethod: 'MPESA',
+          reference: TransID,
+        },
+      },
+    });
+  }
+
+  // Log the repayment action
+  await tx.auditLog.create({
+    data: {
+      tenantId,
+      userId: -1, // System action
+      action: 'CREATE',
+      resource: 'REPAYMENT',
+      details: {
+        message: repaymentDescription,
+        loanPayoutIds: loanPayouts.map((p) => p.id),
+        loanIds: loanPayouts.map((p) => p.loanId),
+        amount: TransAmount,
+        remainingAmount,
+        paymentMethod: 'MPESA',
+        reference: TransID,
+        repayments: repayments.map((r) => ({
+          loanPayoutId: r.loanPayoutId,
+          amountSettled: r.amountSettled,
+        })),
+      },
+    },
+  });
+
+  // Send SMS notification
+// Inside the prisma.$transaction block
+await prisma.$transaction(async (tx) => {
+  // Create PaymentBatch
+  const paymentBatch = await tx.paymentBatch.create({
+    data: {
+      tenant: { connect: { id: tenantId } },
+      organization: { connect: { id: organizationId! } },
+      totalAmount: TransAmount,
+      paymentMethod: 'MPESA',
+      reference: TransID,
+      remarks: repaymentDescription,
+    },
+  });
+
+  let remainingAmount = TransAmount;
+  const repayments: LoanPayment[] = [];
+
+  // Process each loan payout
+  for (const payout of loanPayouts) {
+    if (remainingAmount <= 0) break;
+
+    const outstanding = payout.loan.totalRepayable - (payout.loan.repaidAmount || 0);
+    if (outstanding <= 0) {
+      logger.info(`LoanPayout ${payout.id} already fully repaid in transaction ${TransID}`);
+      continue;
+    }
+
+    // Calculate amount to apply to this payout
+    const payAmount = Math.min(outstanding, remainingAmount);
+    if (payAmount <= 0) continue;
+
+    // Check for existing PaymentConfirmation
+    const existingConfirmation = await tx.paymentConfirmation.findUnique({
+      where: { loanPayoutId: payout.id },
+    });
+
+    let repayment;
+    if (existingConfirmation) {
+      // Update existing PaymentConfirmation
+      logger.info(`Updating PaymentConfirmation for LoanPayout ${payout.id} with additional amount ${payAmount}`);
+      repayment = await tx.paymentConfirmation.update({
+        where: { id: existingConfirmation.id },
+        data: {
+          amountSettled: { increment: payAmount },
+          settledAt: new Date(),
+          paymentBatchId: paymentBatch.id,
+        },
+        select: {
+          id: true,
+          amountSettled: true,
+          settledAt: true,
+          paymentBatchId: true,
+          loanPayoutId: true,
+        },
+      });
+    } else {
+      // Create new PaymentConfirmation
+      logger.info(`Creating PaymentConfirmation for LoanPayout ${payout.id} with amount ${payAmount}`);
+      repayment = await tx.paymentConfirmation.create({
+        select: {
+          id: true,
+          amountSettled: true,
+          settledAt: true,
+          paymentBatchId: true,
+          loanPayoutId: true,
+        },
+        data: {
+          paymentBatchId: paymentBatch.id,
+          loanPayoutId: payout.id,
+          amountSettled: payAmount,
+        },
+      });
+    }
+
+    repayments.push({
+      id: repayment.id.toString(),
+      paymentBatchId: repayment.paymentBatchId.toString(),
+      loanPayoutId: repayment.loanPayoutId.toString(),
+      amountSettled: repayment.amountSettled,
+      settledAt: repayment.settledAt,
+    });
+
+    // Update LoanPayout
+    const newPayoutAmountRepaid = (payout.amountRepaid || 0) + payAmount;
+    const payoutStatus = newPayoutAmountRepaid >= payout.loan.totalRepayable ? 'REPAID' : 'PPAID';
+    
+    await tx.loanPayout.update({
+      where: { id: payout.id },
+      data: {
+        amountRepaid: newPayoutAmountRepaid,
+        status: payoutStatus,
+        updatedAt: new Date(),
+      },
+    });
+
+    // Update Loan
+    const newLoanRepaidAmount = (payout.loan.repaidAmount || 0) + payAmount;
+    const loanStatus = newLoanRepaidAmount >= payout.loan.totalRepayable ? 'REPAID' : 'PPAID';
+
+    await tx.loan.update({
+      where: { id: payout.loanId },
+      data: {
+        repaidAmount: newLoanRepaidAmount,
+        status: loanStatus,
+        updatedAt: new Date(),
+      },
+    });
+
+    totalRepaid += payAmount;
+    remainingAmount -= payAmount;
+  }
+
+  // Save remaining amount to organization credit balance
+  if (remainingAmount > 0) {
+    await tx.organization.update({
+      where: { id: organizationId!, tenantId },
+      data: {
+        creditBalance: { increment: remainingAmount },
+      },
+    });
+
+    await tx.auditLog.create({
+      data: {
+        tenantId,
+        userId: -1, // System action
+        action: 'UPDATE',
+        resource: 'ORGANIZATION_CREDIT',
+        details: {
+          message: `Added ${remainingAmount} to organization ${organizationId} credit balance from M-Pesa transaction ${TransID}`,
+          organizationId,
+          amount: remainingAmount,
+          paymentMethod: 'MPESA',
+          reference: TransID,
+        },
+      },
+    });
+  }
+
+  // Log the repayment action
+  await tx.auditLog.create({
+    data: {
+      tenantId,
+      userId: -1, // System action
+      action: 'CREATE',
+      resource: 'REPAYMENT',
+      details: {
+        message: repaymentDescription,
+        loanPayoutIds: loanPayouts.map((p) => p.id),
+        loanIds: loanPayouts.map((p) => p.loanId),
+        amount: TransAmount,
+        remainingAmount,
+        paymentMethod: 'MPESA',
+        reference: TransID,
+        repayments: repayments.map((r) => ({
+          loanPayoutId: r.loanPayoutId,
+          amountSettled: r.amountSettled,
+        })),
+      },
+    },
+  });
+
+  // Send SMS notification
+  if (smsRecipient) {
+    const smsPhone = normalizePhoneNumber(smsRecipient.phoneNumber).startsWith('0')
+      ? '254' + normalizePhoneNumber(smsRecipient.phoneNumber).slice(1)
+      : smsRecipient.phoneNumber;
+    const smsMessage = isPhoneNumberFormat(normalizedBillRefNumber)
+      ? `Dear ${smsRecipient.name}, your loan repayment of KES ${totalRepaid} has been processed successfully. Transaction ID: ${TransID}.`
+      : `Dear ${smsRecipient.name}, ${loanPayouts.length} loan(s) for organization ${organizationId} have been repaid with KES ${totalRepaid}. Transaction ID: ${TransID}.`;
+
+    try {
+      await sendSMS(tenantId, smsPhone, smsMessage);
+      logger.info(`SMS sent to ${smsPhone}: ${smsMessage}`);
+    } catch (smsError) {
+      logger.error(`Failed to send SMS to ${smsPhone}:`, smsError);
+    }
+  }
+
+  // Mark the transaction as processed
+  await tx.mPESAC2BTransactions.update({
+    where: { id: transaction.id },
+    data: { processed: true },
+  });
+});
+  // Mark the transaction as processed
+  await tx.mPESAC2BTransactions.update({
+    where: { id: transaction.id },
+    data: { processed: true },
+  });
+});
 
       logger.info(`Processed M-Pesa transaction ${TransID}: ${repaymentDescription}`);
     }

@@ -165,14 +165,14 @@ model Employee {
 
 
 
-model Loan {
+model  Loan {
   id                       Int            @id @default(autoincrement())
   userId                   Int
   user                     User           @relation(fields: [userId], references: [id] )
   organizationId           Int
   organization             Organization   @relation(fields: [organizationId], references: [id])
   amount                   Float
-  //transactionFee           Float @default(0)
+  repaidAmount              Float  @default(0)
   interestRate                 Float  
   interest                  Float @default(0)
   duration                 Int            @default(30) // 30 days
@@ -204,6 +204,7 @@ enum LoanStatus {
   REJECTED
   REPAID
   DISBURSED
+  PPAID
 }
 
 enum LoanType {
@@ -242,6 +243,7 @@ model PaymentBatch {
     tenant         Tenant             @relation(fields: [tenantId], references: [id])
     createdAt      DateTime           @default(now())
     updatedAt      DateTime           @updatedAt
+    amountRepaid  Float              @default(0)
 
     confirmation   PaymentConfirmation?
   }
@@ -251,6 +253,7 @@ enum PayoutStatus {
   DISBURSED
   FAILED
   REPAID
+  PPAID
 }
 
 

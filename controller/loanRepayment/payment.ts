@@ -4,6 +4,7 @@ import {  LoanStatus, PrismaClient } from '@prisma/client';
 import { AuthenticatedRequest } from '../../middleware/verifyToken';
 
 import { ErrorResponse, LoanRepayment,  } from '../../types/loans/loan';
+import { sendSMS } from '../sms/sms';
 
 
 
@@ -38,10 +39,6 @@ interface RepaymentRequestBody {
   
 }
 
-
-
-
-// Create repayment route handler
 
 
 
@@ -87,7 +84,7 @@ const createRepayment = async (
     if (role.includes('ORG_ADMIN')) {
       if (!userOrganizationId) {
         res.status(403).json({
-          message: 'ORG_ADMIN must have an employeeId',
+          message: 'ORG_ADMIN must have an organizationId',
           success: false,
           data: null,
         });
@@ -95,7 +92,7 @@ const createRepayment = async (
       }
       console.time('employeeQuery');
       const employee = await prisma.employee.findFirst({
-        where: { id: userOrganizationId, tenantId: tenantId },
+        where: { id: userOrganizationId, tenantId },
         select: { organizationId: true },
       });
       console.timeEnd('employeeQuery');
@@ -108,32 +105,34 @@ const createRepayment = async (
         });
         return;
       }
-    } else if (
-      role.includes('ADMIN') &&
-      tenantId !== (await prisma.organization.findUnique({ where: { id: organizationId } }))?.tenantId
-    ) {
-      res.status(403).json({
-        message: 'Unauthorized to initiate repayment for this organization',
-        success: false,
-        data: null,
-      });
-      return;
+    } else if (role.includes('ADMIN')) {
+      const org = await prisma.organization.findUnique({ where: { id: organizationId } });
+      if (!org || org.tenantId !== tenantId) {
+        res.status(403).json({
+          message: 'Unauthorized to initiate repayment for this organization',
+          success: false,
+          data: null,
+        });
+        return;
+      }
     }
 
     // Fetch all non-repaid loan payouts for the organization
     console.time('loanPayoutsQuery');
     const loanPayouts = await prisma.loanPayout.findMany({
       where: {
-        tenantId: tenantId,
-        status: 'DISBURSED', // Assumes PayoutStatus includes DISBURSED
+        tenantId,
+        status: 'DISBURSED',
         loan: {
-          organizationId: organizationId, // Join with Loan to filter by organizationId
+          organizationId,
+          status: { in: ['DISBURSED', 'PPAID'] }, // Include partially paid loans
         },
       },
       select: {
         id: true,
         loanId: true,
         amount: true,
+        amountRepaid: true,
         status: true,
         createdAt: true,
         updatedAt: true,
@@ -141,7 +140,8 @@ const createRepayment = async (
           select: {
             id: true,
             organizationId: true,
-            totalRepayable: true, // Include totalRepayable for repayment calculations
+            totalRepayable: true,
+            repaidAmount: true,
             status: true,
             user: {
               select: {
@@ -154,10 +154,7 @@ const createRepayment = async (
             organization: {
               select: {
                 id: true,
-                approvalSteps: true,
                 name: true,
-                loanLimitMultiplier: true,
-                interestRate: true,
               },
             },
           },
@@ -176,7 +173,10 @@ const createRepayment = async (
     }
 
     // Calculate total repayable amount
-    const totalRepayable: number = loanPayouts.reduce((sum, payout) => sum + payout.loan.totalRepayable, 0);
+    const totalRepayable = loanPayouts.reduce(
+      (sum, payout) => sum + (payout.loan.totalRepayable - (payout.loan.repaidAmount || 0)),
+      0
+    );
     if (totalAmount < totalRepayable) {
       res.status(400).json({
         message: `Repayment amount (${totalAmount}) is less than total repayable (${totalRepayable}) for ${loanPayouts.length} loan payouts`,
@@ -206,44 +206,83 @@ const createRepayment = async (
       for (const payout of loanPayouts) {
         if (remainingAmount <= 0) break;
 
-        const outstanding = payout.loan.totalRepayable; // Use loan.totalRepayable
+        const outstanding = payout.loan.totalRepayable - (payout.loan.repaidAmount || 0);
+        if (outstanding <= 0) continue;
+
         const payAmount = Math.min(outstanding, remainingAmount);
 
-        // Create repayment record (PaymentConfirmation ties Batch -> LoanPayout)
-        const repayment = await tx.paymentConfirmation.create({
-          select: {
-            id: true,
-            amountSettled: true,
-            settledAt: true,
-            paymentBatchId: true,
-            loanPayoutId: true,
-          },
+        // Check for existing PaymentConfirmation
+        const existingConfirmation = await tx.paymentConfirmation.findUnique({
+          where: { loanPayoutId: payout.id },
+        });
+
+        let repayment;
+        if (existingConfirmation) {
+          // Update existing PaymentConfirmation
+          repayment = await tx.paymentConfirmation.update({
+            where: { id: existingConfirmation.id },
+            data: {
+              amountSettled: { increment: payAmount },
+              settledAt: new Date(),
+              paymentBatchId: paymentBatch.id,
+            },
+            select: {
+              id: true,
+              amountSettled: true,
+              settledAt: true,
+              paymentBatchId: true,
+              loanPayoutId: true,
+            },
+          });
+        } else {
+          // Create new PaymentConfirmation
+          repayment = await tx.paymentConfirmation.create({
+            select: {
+              id: true,
+              amountSettled: true,
+              settledAt: true,
+              paymentBatchId: true,
+              loanPayoutId: true,
+            },
+            data: {
+              paymentBatchId: paymentBatch.id,
+              loanPayoutId: payout.id,
+              amountSettled: payAmount,
+            },
+          });
+        }
+
+        repayments.push({
+          id: repayment.id.toString(),
+          paymentBatchId: repayment.paymentBatchId.toString(),
+          loanPayoutId: repayment.loanPayoutId.toString(),
+          amountSettled: repayment.amountSettled,
+          settledAt: repayment.settledAt,
+        });
+
+        // Update LoanPayout
+        const newPayoutAmountRepaid = (payout.amountRepaid || 0) + payAmount;
+        const payoutStatus = newPayoutAmountRepaid >= payout.loan.totalRepayable ? 'REPAID' : 'PPAID';
+        await tx.loanPayout.update({
+          where: { id: payout.id },
           data: {
-            paymentBatchId: paymentBatch.id,
-            loanPayoutId: payout.id, // Use LoanPayout id
-            amountSettled: payAmount,
+            amountRepaid: newPayoutAmountRepaid,
+            status: payoutStatus,
+            updatedAt: new Date(),
           },
         });
 
-       repayments.push({ 
-  ...repayment, 
-  id: repayment.id.toString(), 
-  paymentBatchId: repayment.paymentBatchId.toString(), 
-  loanPayoutId: repayment.loanPayoutId.toString() 
-});
-        // Update LoanPayout and Loan if fully settled
-        if (payAmount >= outstanding) {
-          
-          await tx.loan.update({
-            where: { id: payout.loanId },
-            data: { status: 'REPAID' }, // Update Loan status to REPAID
-          });
-
-          await tx.loanPayout.update({
-            where: { id: payout.id },
-            data: { status: 'REPAID' }, // Update LoanPayout status to REPAID
-          });
-        }
+        // Update Loan
+        const newLoanRepaidAmount = (payout.loan.repaidAmount || 0) + payAmount;
+        const loanStatus = newLoanRepaidAmount >= payout.loan.totalRepayable ? 'REPAID' : 'PPAID';
+        await tx.loan.update({
+          where: { id: payout.loanId },
+          data: {
+            repaidAmount: newLoanRepaidAmount,
+            status: loanStatus,
+            updatedAt: new Date(),
+          },
+        });
 
         remainingAmount -= payAmount;
       }
@@ -252,19 +291,16 @@ const createRepayment = async (
       if (remainingAmount > 0) {
         console.time('updateCreditBalance');
         await tx.organization.update({
-          where: { id: organizationId, tenantId: tenantId },
+          where: { id: organizationId, tenantId },
           data: {
-            creditBalance: {
-              increment: remainingAmount,
-            },
+            creditBalance: { increment: remainingAmount },
           },
         });
         console.timeEnd('updateCreditBalance');
 
-        console.time('auditLogCreditBalance');
         await tx.auditLog.create({
           data: {
-            tenantId: tenantId,
+            tenantId,
             userId: id,
             action: 'UPDATE',
             resource: 'ORGANIZATION_CREDIT',
@@ -274,41 +310,73 @@ const createRepayment = async (
               amount: remainingAmount,
               paymentMethod: method,
               reference: reference || `BATCH-${Date.now()}`,
-              remarks: remarks || undefined,
             },
           },
         });
-        console.timeEnd('auditLogCreditBalance');
+      }
+
+      // Send SMS notifications to affected users
+      const totalRepaid = totalAmount - remainingAmount;
+      for (const payout of loanPayouts) {
+        const repayment = repayments.find(r => r.loanPayoutId === payout.id.toString());
+        if (!repayment) continue;
+
+        const remainingLoanAmount = payout.loan.totalRepayable - ((payout.loan.repaidAmount || 0) + repayment.amountSettled);
+        const smsPhone = payout.loan.user.phoneNumber.startsWith('0')
+          ? '254' + payout.loan.user.phoneNumber.slice(1)
+          : payout.loan.user.phoneNumber;
+        const smsMessage = `Dear ${payout.loan.user.firstName} ${payout.loan.user.lastName}, your loan repayment of KES ${repayment.amountSettled.toFixed(2)} has been processed. Remaining balance: KES ${remainingLoanAmount.toFixed(2)}. Ref: ${reference || paymentBatch.reference}.`;
+
+        try {
+          //await sendSMS(tenantId, smsPhone, smsMessage);
+          await tx.auditLog.create({
+            data: {
+              tenantId,
+              userId: id,
+              action: 'SEND_SMS',
+              resource: 'NOTIFICATION',
+              details: {
+                recipient: smsPhone,
+                message: smsMessage,
+                reference: reference || paymentBatch.reference,
+              },
+            },
+          });
+        } catch (smsError) {
+          console.error(`Failed to send SMS to ${smsPhone}:`, smsError);
+        }
       }
 
       // Log the repayment action
       console.time('auditLogQuery');
       await tx.auditLog.create({
         data: {
-          tenantId: tenantId,
+          tenantId,
           userId: id,
           action: 'CREATE',
           resource: 'REPAYMENT',
           details: {
             message: `User ${firstName} ${lastName} initiated repayment of ${totalAmount} for ${loanPayouts.length} loan payouts in organization ${organizationId}`,
-            loanPayoutIds: loanPayouts.map(payout => payout.id),
-            loanIds: loanPayouts.map(payout => payout.loanId), // Log both loanPayoutIds and loanIds
+            loanPayoutIds: loanPayouts.map(p => p.id),
+            loanIds: loanPayouts.map(p => p.loanId),
             amount: totalAmount,
             remainingAmount,
             paymentMethod: method,
             reference: reference || `BATCH-${Date.now()}`,
-            remarks: remarks || undefined,
+            repayments: repayments.map(r => ({
+              loanPayoutId: r.loanPayoutId,
+              amountSettled: r.amountSettled,
+            })),
           },
         },
       });
       console.timeEnd('auditLogQuery');
 
       return repayments;
-
     });
 
     res.status(201).json({
-      message: `Repayment processed for organization loan payouts }`,
+      message: `Repayment processed for ${repayments.length} loan payouts`,
       success: true,
       data: repayments,
     });
@@ -326,6 +394,7 @@ const createRepayment = async (
 };
 
 export default createRepayment;
+
 
 
 
