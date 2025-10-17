@@ -44,7 +44,7 @@ export const registerUser = async (
     if (employeeId) {
       employee = await prisma.employee.findFirst({
         where: { id: employeeId, tenantId },
-        select: { id: true, phoneNumber: true, idNumber: true, firstName: true, lastName: true },
+        select: { id: true, phoneNumber: true, idNumber: true, firstName: true, lastName: true ,organization: { select: { id: true, name: true } } },
       });
     } 
 
@@ -94,6 +94,7 @@ export const registerUser = async (
         createdBy: req.user!.id || null,
         lastLogin: new Date(),
         status: 'ACTIVE',
+        organization: { connect: { id: employee.organization.id } },
         tenantName: tenant.name || null,
         tenant: {
           connect: { id: tenantId },
