@@ -403,45 +403,45 @@ await prisma.$transaction(async (tx) => {
       },
     });
 
-    await tx.auditLog.create({
-      data: {
-        tenantId,
-        userId: -1, // System action
-        action: 'UPDATE',
-        resource: 'ORGANIZATION_CREDIT',
-        details: {
-          message: `Added ${remainingAmount} to organization ${organizationId} credit balance from M-Pesa transaction ${TransID}`,
-          organizationId,
-          amount: remainingAmount,
-          paymentMethod: 'MPESA',
-          reference: TransID,
-        },
-      },
-    });
+    // await tx.auditLog.create({
+    //   data: {
+    //     tenantId,
+    //     userId: -1, // System action
+    //     action: 'UPDATE',
+    //     resource: 'ORGANIZATION_CREDIT',
+    //     details: {
+    //       message: `Added ${remainingAmount} to organization ${organizationId} credit balance from M-Pesa transaction ${TransID}`,
+    //       organizationId,
+    //       amount: remainingAmount,
+    //       paymentMethod: 'MPESA',
+    //       reference: TransID,
+    //     },
+    //   },
+    // });
   }
 
   // Log the repayment action
-  await tx.auditLog.create({
-    data: {
-      tenantId,
-      userId: -1, // System action
-      action: 'CREATE',
-      resource: 'REPAYMENT',
-      details: {
-        message: repaymentDescription,
-        loanPayoutIds: loanPayouts.map((p) => p.id),
-        loanIds: loanPayouts.map((p) => p.loanId),
-        amount: TransAmount,
-        remainingAmount,
-        paymentMethod: 'MPESA',
-        reference: TransID,
-        repayments: repayments.map((r) => ({
-          loanPayoutId: r.loanPayoutId,
-          amountSettled: r.amountSettled,
-        })),
-      },
-    },
-  });
+  // await tx.auditLog.create({
+  //   data: {
+  //     tenantId,
+  //     userId: -1, // System action
+  //     action: 'CREATE',
+  //     resource: 'REPAYMENT',
+  //     details: {
+  //       message: repaymentDescription,
+  //       loanPayoutIds: loanPayouts.map((p) => p.id),
+  //       loanIds: loanPayouts.map((p) => p.loanId),
+  //       amount: TransAmount,
+  //       remainingAmount,
+  //       paymentMethod: 'MPESA',
+  //       reference: TransID,
+  //       repayments: repayments.map((r) => ({
+  //         loanPayoutId: r.loanPayoutId,
+  //         amountSettled: r.amountSettled,
+  //       })),
+  //     },
+  //   },
+  // });
 
   // Send SMS notification
 // Inside the prisma.$transaction block
@@ -565,45 +565,45 @@ await prisma.$transaction(async (tx) => {
       },
     });
 
-    await tx.auditLog.create({
-      data: {
-        tenantId,
-        userId: -1, // System action
-        action: 'UPDATE',
-        resource: 'ORGANIZATION_CREDIT',
-        details: {
-          message: `Added ${remainingAmount} to organization ${organizationId} credit balance from M-Pesa transaction ${TransID}`,
-          organizationId,
-          amount: remainingAmount,
-          paymentMethod: 'MPESA',
-          reference: TransID,
-        },
-      },
-    });
+    // await tx.auditLog.create({
+    //   data: {
+    //     tenantId,
+    //     userId: -1, // System action
+    //     action: 'UPDATE',
+    //     resource: 'ORGANIZATION_CREDIT',
+    //     details: {
+    //       message: `Added ${remainingAmount} to organization ${organizationId} credit balance from M-Pesa transaction ${TransID}`,
+    //       organizationId,
+    //       amount: remainingAmount,
+    //       paymentMethod: 'MPESA',
+    //       reference: TransID,
+    //     },
+    //   },
+    // });
   }
 
   // Log the repayment action
-  await tx.auditLog.create({
-    data: {
-      tenantId,
-      userId: -1, // System action
-      action: 'CREATE',
-      resource: 'REPAYMENT',
-      details: {
-        message: repaymentDescription,
-        loanPayoutIds: loanPayouts.map((p) => p.id),
-        loanIds: loanPayouts.map((p) => p.loanId),
-        amount: TransAmount,
-        remainingAmount,
-        paymentMethod: 'MPESA',
-        reference: TransID,
-        repayments: repayments.map((r) => ({
-          loanPayoutId: r.loanPayoutId,
-          amountSettled: r.amountSettled,
-        })),
-      },
-    },
-  });
+  // await tx.auditLog.create({
+  //   data: {
+  //     tenantId,
+  //     userId: -1, // System action
+  //     action: 'CREATE',
+  //     resource: 'REPAYMENT',
+  //     details: {
+  //       message: repaymentDescription,
+  //       loanPayoutIds: loanPayouts.map((p) => p.id),
+  //       loanIds: loanPayouts.map((p) => p.loanId),
+  //       amount: TransAmount,
+  //       remainingAmount,
+  //       paymentMethod: 'MPESA',
+  //       reference: TransID,
+  //       repayments: repayments.map((r) => ({
+  //         loanPayoutId: r.loanPayoutId,
+  //         amountSettled: r.amountSettled,
+  //       })),
+  //     },
+  //   },
+  // });
 
   // Send SMS notification
   if (smsRecipient) {
