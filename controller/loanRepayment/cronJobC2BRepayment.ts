@@ -22,12 +22,16 @@ interface LoanPayment {
 }
 
 // Utility to normalize phone numbers
+
+
 const normalizePhoneNumber = (phone: string): string => {
   let normalized = phone.replace(/\s/g, '');
   if (normalized.startsWith('+254')) {
     normalized = '0' + normalized.slice(4);
   } else if (normalized.startsWith('254')) {
     normalized = '0' + normalized.slice(3);
+  } else if (normalized.startsWith('7') || normalized.startsWith('1')) {
+    normalized = '0' + normalized;
   }
   return normalized; // e.g., 0722230603
 };
@@ -38,7 +42,6 @@ const isPhoneNumberFormat = (value: string): boolean => {
   const phoneRegex = /^0[17]\d{8}$/;
   return phoneRegex.test(normalized);
 };
-
 // Function to process M-Pesa transactions for repayments
 const processMpesaRepayments = async (): Promise<void> => {
   try {
