@@ -122,7 +122,7 @@ const createRepayment = async (
     const loanPayouts = await prisma.loanPayout.findMany({
       where: {
         tenantId,
-        status: 'DISBURSED',
+        status: { in: ['DISBURSED', 'PPAID'] },
         loan: {
           organizationId,
           status: { in: ['DISBURSED', 'PPAID'] }, // Include partially paid loans
