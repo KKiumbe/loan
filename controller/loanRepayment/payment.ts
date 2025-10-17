@@ -177,14 +177,14 @@ const createRepayment = async (
       (sum, payout) => sum + (payout.loan.totalRepayable - (payout.loan.repaidAmount || 0)),
       0
     );
-    if (totalAmount < totalRepayable) {
-      res.status(400).json({
-        message: `Repayment amount (${totalAmount}) is less than total repayable (${totalRepayable}) for ${loanPayouts.length} loan payouts`,
-        success: false,
-        data: null,
-      });
-      return;
-    }
+    // if (totalAmount < totalRepayable) {
+    //   res.status(400).json({
+    //     message: `Repayment amount (${totalAmount}) is less than total repayable (${totalRepayable}) for ${loanPayouts.length} loan payouts`,
+    //     success: false,
+    //     data: null,
+    //   });
+    //   return;
+    // }
 
     // Use a transaction to ensure atomicity
     const repayments: loanPayment[] = await prisma.$transaction(async (tx) => {
