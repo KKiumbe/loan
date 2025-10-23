@@ -112,9 +112,10 @@ export const disburseB2CPayment = async ({ phoneNumber, amount, loanId, userId, 
     if (!loanId || !userId || !tenantId) throw new Error('Missing identifiers');
 
     const sanitizedPhone = sanitizePhoneNumber(phoneNumber);
-    if (!/^2547\d{8}$/.test(sanitizedPhone)) {
-      throw new Error('Invalid phone number format after sanitization');
-    }
+ if (!/^254(7|1)\d{8}$/.test(sanitizedPhone)) {
+  throw new Error('Invalid phone number format after sanitization');
+}
+
 
 
 const settings = await getTenantSettings(tenantId);
