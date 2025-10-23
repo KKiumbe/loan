@@ -59,18 +59,32 @@ async function performDisbursement(loan: Loan, userId: number): Promise<{ payout
   //   return { payout };
   // }
 
-const rawPhone = loan.user.phoneNumber || ''; // value from DB
-let phone = rawPhone.trim().replace(/[\s-]/g, ''); // remove spaces/hyphens
 
+  const rawPhone = loan.user.phoneNumber || '';
+let phone = rawPhone.trim().replace(/[\s-]/g, '');
+
+// Handle +254 prefix
 if (phone.startsWith('+254')) {
-  phone = phone.replace('+', '');
-} else if (phone.startsWith('0')) {
-  phone = `254${phone.slice(1)}`;
-} else if (!phone.startsWith('254')) {
+  phone = phone.substring(1);
+}
+// Handle 07 or 01 prefixes
+else if (/^0\d{9}$/.test(phone)) {
+  phone = `254${phone.substring(1)}`;
+}
+// Handle already normalized 2547... or 2541...
+else if (/^254\d{9}$/.test(phone)) {
+  // valid, do nothing
+}
+// Handle edge cases (missing 0 or 254)
+else if (/^\d{9}$/.test(phone)) {
   phone = `254${phone}`;
+}
+else {
+  throw new Error(`Invalid phone number format after sanitization: ${phone}`);
 }
 
 const phoneNumber = phone;
+
 
 
   const result = await disburseB2CPayment({
