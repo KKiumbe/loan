@@ -14,16 +14,35 @@ const prisma = new PrismaClient();
 
 
 function sanitizePhoneNumber(phone: string): string {
-  let p = phone.trim().replace(/\D/g, '');
-  if (p.startsWith('0')) {
-    p = '254' + p.slice(1);
-  } else if (p.startsWith('7')) {
-    p = '254' + p;
-  } else if (!p.startsWith('254')) {
-    p = '254' + p;
-  } else if (p.startsWith('+')) {
+  if (!phone) return '';
+
+  let p = phone.trim().replace(/[\s-]/g, ''); // remove spaces and dashes
+
+  // Remove leading +
+  if (p.startsWith('+')) {
     p = p.slice(1);
   }
+
+  // Handle numbers like 07..., 01...
+  if (/^0\d{9}$/.test(p)) {
+    p = '254' + p.slice(1);
+  }
+  // Handle 7XXXXXXXX or 1XXXXXXXX (missing leading 0)
+  else if (/^[71]\d{8}$/.test(p)) {
+    p = '254' + p;
+  }
+  // Already correct (2547..., 2541...)
+  else if (/^254\d{9}$/.test(p)) {
+    // do nothing
+  }
+  // Handle other edge cases — prepend 254 if 9 digits long
+  else if (/^\d{9}$/.test(p)) {
+    p = '254' + p;
+  }
+  else {
+    throw new Error(`Invalid phone number format after sanitization: ${p}`);
+  }
+
   return p;
 }
 
