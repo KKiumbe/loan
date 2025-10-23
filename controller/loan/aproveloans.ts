@@ -59,10 +59,18 @@ async function performDisbursement(loan: Loan, userId: number): Promise<{ payout
   //   return { payout };
   // }
 
-  const phoneNumber = loan.user.phoneNumber.startsWith('+254')
-    ? loan.user.phoneNumber.replace('+', '')
-    : `254${loan.user.phoneNumber.replace(/^0/, '')}`;
+const rawPhone = loan.user.phoneNumber || ''; // value from DB
+let phone = rawPhone.trim().replace(/[\s-]/g, ''); // remove spaces/hyphens
 
+if (phone.startsWith('+254')) {
+  phone = phone.replace('+', '');
+} else if (phone.startsWith('0')) {
+  phone = `254${phone.slice(1)}`;
+} else if (!phone.startsWith('254')) {
+  phone = `254${phone}`;
+}
+
+const phoneNumber = phone;
 
 
   const result = await disburseB2CPayment({
