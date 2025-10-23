@@ -80,9 +80,20 @@ export const disburseLoan = async (req: AuthenticatedRequest, res: Response): Pr
       //const transactionFee = await getTransactionFee(loan.amount, loan.tenantId);
 
     // Normalize phone number for M-Pesa
-    const phoneNumber: string = loan.user.phoneNumber.startsWith('+254')
-      ? loan.user.phoneNumber.replace('+', '')
-      : `254${loan.user.phoneNumber.replace(/^0/, '')}`;
+
+const rawPhone = loan.user.phoneNumber || ''; // value from DB
+let phone = rawPhone.trim().replace(/[\s-]/g, ''); // remove spaces/hyphens
+
+if (phone.startsWith('+254')) {
+  phone = phone.replace('+', '');
+} else if (phone.startsWith('0')) {
+  phone = `254${phone.slice(1)}`;
+} else if (!phone.startsWith('254')) {
+  phone = `254${phone}`;
+}
+
+const phoneNumber = phone;
+
 
     // Call M-Pesa API
     const mpesaResponse: MpesaResponseDisburse = await disburseB2CPayment({
