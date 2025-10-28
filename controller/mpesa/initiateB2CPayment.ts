@@ -128,9 +128,9 @@ const { mpesaConfig } = settings;
 
 
 
-
-    const resultUrl = `${process.env.APP_BASE_URL}/api/b2c-result`;
-    const queueTimeoutUrl = `${process.env.APP_BASE_URL}/api/b2c-timeout`;
+    const baseurl ='https://app.lumela.co.ke';
+    const resultUrl = `${baseurl}/api/b2c-result`;
+    const queueTimeoutUrl = `${baseurl}/api/b2c-timeout`;
 
     await prisma.loan.update({
       where: { id: loanId },
