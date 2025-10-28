@@ -135,6 +135,10 @@ export const getAccountBalance = async (  req: AuthenticatedRequest,
      const tenantId = req.user?.tenantId!;
     const settings = await getTenantSettings(tenantId);
 
+    const baseurl = process.env.APP_BASE_URL;
+
+    console.log(`this is the base url ${baseurl}`);
+
     if (!isMPESASettingsSuccess(settings)) {
       throw new Error(settings.message);
     }
@@ -149,8 +153,8 @@ export const getAccountBalance = async (  req: AuthenticatedRequest,
     const accessToken = await getMpesaAccessToken(mpesaConfig.consumerKey, mpesaConfig.consumerSecret);
     console.log(`this is the access token ${accessToken}`);
 
-      const queueTimeoutUrl = `${process.env.APP_BASE_URL}/api/${tenantId}/b2b-timeout`;
-      const resultUrl = `${process.env.APP_BASE_URL}/api/${tenantId}/acc-balance`;
+      const queueTimeoutUrl = `${baseurl}/api/${tenantId}/b2b-timeout`;
+      const resultUrl = `${baseurl}/api/${tenantId}/acc-balance`; 
   try {
     const payload = {
       Initiator: mpesaConfig.initiatorName,
