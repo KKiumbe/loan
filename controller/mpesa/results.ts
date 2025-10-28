@@ -274,6 +274,8 @@ const parseMpesaBalance = (balanceString: string) => {
   const tenantId = parseInt(req.params.tenantId, 10);
   
   const { Result } = req.body;
+
+  console.log(`mpesa balance result for tenant ${tenantId}:`, JSON.stringify(Result, null, 2));
   const mpesaStatus = Result.ResultCode === 0 ? "SUCCESS" : "FAILED";
 
   const balanceParam = Result.ResultParameters.ResultParameter.find(

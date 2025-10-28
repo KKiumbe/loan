@@ -84,6 +84,15 @@ export const register = async (req: Request, res: Response) => {
       },
       });
 
+         const newOrg = await prisma.organization.create({
+        data: {
+          name: tenantName || `${tenantName} Org`,
+          tenantId: newTenant.id,
+          isGlobalLenderOrg: true,
+        },
+      });
+
+
       const newUser: NewUser = await prisma.user.create({
       data: {
         firstName,
@@ -95,6 +104,7 @@ export const register = async (req: Request, res: Response) => {
         gender: gender ?? null,
         password: hashedPassword,
         tenantName,
+        organization: { connect: { id: newOrg.id } },
         role: defaultRoles,
         tenant: {
         connect: { id: newTenant.id },
