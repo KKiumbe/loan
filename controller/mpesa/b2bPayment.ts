@@ -135,7 +135,7 @@ export const getAccountBalance = async (  req: AuthenticatedRequest,
      const tenantId = req.user?.tenantId!;
     const settings = await getTenantSettings(tenantId);
 
-    const baseurl = process.env.APP_BASE_URL;
+    const baseurl = `https://app.lumela.co.ke`;
 
     console.log(`this is the base url ${baseurl}`);
 
