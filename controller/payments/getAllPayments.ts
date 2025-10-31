@@ -1,7 +1,7 @@
 // src/controllers/paymentController.ts
 import { PrismaClient, LoanStatus } from '@prisma/client';
 import { Request, Response } from 'express';
-import { LoanPayout, Payment, PaymentBatch, PaymentConfirmation, PaymentConfirmationCreateNestedManyWithoutPaymentBatchInput } from '../../types/loans/loansPayments';
+import { LoanPayout, LoanPayoutSearchByName, Payment, PaymentBatch, PaymentConfirmation, PaymentConfirmationCreateNestedManyWithoutPaymentBatchInput } from '../../types/loans/loansPayments';
 import { AuthenticatedRequest } from '../../middleware/verifyToken';
 
 
@@ -21,7 +21,7 @@ const getAllLoanPayouts = async (req: AuthenticatedRequest, res: Response): Prom
   try {
     
 
-const payouts: LoanPayout[] = await prisma.loanPayout.findMany({
+const rawPayouts = await prisma.loanPayout.findMany({
   where: {
     tenantId: user.tenantId,
   },
@@ -29,7 +29,7 @@ const payouts: LoanPayout[] = await prisma.loanPayout.findMany({
     createdAt: 'desc',
   },
   include: {
-    loan: {
+    Loan: {
       select: {
         id: true,
         amount: true,
@@ -39,14 +39,14 @@ const payouts: LoanPayout[] = await prisma.loanPayout.findMany({
         disbursedAt: true,
         tenantId: true,
         userId: true,
-        user: {
+        User: {
           select: {
             firstName: true,
             lastName: true,
             phoneNumber: true,
           },
         },
-        organization: {
+        Organization: {
           select: {
             id: true,
             name: true,
@@ -54,15 +54,16 @@ const payouts: LoanPayout[] = await prisma.loanPayout.findMany({
         },
       },
     },
-    approvedBy: {
+    User: {
       select: {
         firstName: true,
         lastName: true,
-      },
+        phoneNumber: true,
+      }
     },
-    confirmation: {
+    PaymentConfirmation: {
       include: {
-        paymentBatch: {
+        PaymentBatch: {
           select: {
             id: true,
             reference: true,
@@ -77,7 +78,42 @@ const payouts: LoanPayout[] = await prisma.loanPayout.findMany({
   },
 });
 
-    res.status(200).json({ data: payouts });
+const payouts: LoanPayout[] = rawPayouts.map((payout) => ({
+  id: payout.id,
+  loanId: payout.loanId,
+  amount: payout.amount,
+  method: payout.method,
+  transactionId: payout.transactionId,
+  status: payout.status,
+  tenantId: payout.tenantId,
+  createdAt: payout.createdAt,
+  updatedAt: payout.updatedAt,
+  loan: payout.Loan ? {
+    id: payout.Loan.id,
+    amount: payout.Loan.amount,
+    interestRate: payout.Loan.interestRate,
+    status: payout.Loan.status,
+    createdAt: payout.Loan.createdAt,
+    disbursedAt: payout.Loan.disbursedAt,
+    tenantId: payout.Loan.tenantId,
+    userId: payout.Loan.userId,
+    user: payout.Loan.User,
+    organization: payout.Loan.Organization,
+  } : null,
+  user: payout.User ? {
+    firstName: payout.User.firstName,
+    lastName: payout.User.lastName,
+    phoneNumber: payout.User.phoneNumber,
+  } : null,
+  confirmation: payout.PaymentConfirmation ? {
+    id: payout.PaymentConfirmation.id,
+    amountSettled: payout.PaymentConfirmation.amountSettled,
+    settledAt: payout.PaymentConfirmation.settledAt,
+    paymentBatch: payout.PaymentConfirmation.PaymentBatch,
+  } : null,
+}));
+
+res.status(200).json({ data: payouts });
   } catch (error: any) {
     console.error('Error fetching payouts:', error);
     res.status(500).json({ message: 'Failed to fetch loan payouts', error: error.message });
@@ -98,21 +134,21 @@ const getPaymentConfirmations = async (req: AuthenticatedRequest, res: Response)
   }
 
   try {
-    const confirmations: PaymentConfirmation[] = await prisma.paymentConfirmation.findMany({
+    const confirmations = await prisma.paymentConfirmation.findMany({
       where: {
-        paymentBatch: {
+        PaymentBatch: {
           tenantId,
         },
       },
       include: {
-        paymentBatch: {
+        PaymentBatch: {
           select: {
             id: true,
             reference: true,
             paymentMethod: true,
             remarks: true,
             receivedAt: true,
-            organization: {
+            Organization: {
               select: {
                 id: true,
                 name: true,
@@ -120,15 +156,16 @@ const getPaymentConfirmations = async (req: AuthenticatedRequest, res: Response)
             },
           },
         },
-        loanPayout: {
+        LoanPayout: {
           select: {
             id: true,
             amount: true,
-            loan: {
+            Loan: {
               select: {
                 amount: true,
-                user: {
+                User: {
                   select: {
+                    id: true,
                     firstName: true,
                     lastName: true,
                   },
@@ -144,16 +181,16 @@ const getPaymentConfirmations = async (req: AuthenticatedRequest, res: Response)
       confirmationId: c.id,
       amountSettled: c.amountSettled,
       settledAt: c.settledAt,
-      payoutId: c.loanPayout.id,
-      payoutAmount: c.loanPayout.amount,
-      loanAmount: c.loanPayout.loan.amount,
-      firstName: c.loanPayout.loan.user.firstName,
-      lastName: c.loanPayout.loan.user.lastName,
-      organizationName: c.paymentBatch.organization.name,
-      paymentMethod: c.paymentBatch.paymentMethod,
-      reference: c.paymentBatch.reference,
-      receivedAt: c.paymentBatch.receivedAt,
-      remarks: c.paymentBatch.remarks,
+      payoutId: c.LoanPayout.id,
+      payoutAmount: c.LoanPayout.amount,
+      loanAmount: c.LoanPayout.Loan.amount,
+      firstName: c.LoanPayout.Loan.User.firstName,
+      lastName: c.LoanPayout.Loan.User.lastName,
+      organizationName: c.PaymentBatch.Organization.name,
+      paymentMethod: c.PaymentBatch.paymentMethod,
+      reference: c.PaymentBatch.reference,
+      receivedAt: c.PaymentBatch.receivedAt,
+      remarks: c.PaymentBatch.remarks,
     }));
 
     res.status(200).json({ confirmations: formatted });
@@ -176,15 +213,15 @@ const getPaymentBatches = async (req: AuthenticatedRequest, res: Response): Prom
     const limit = parseInt(req.query.limit as string) || 20;
     const skip = (page - 1) * limit;
 
-    const [batches, total]: [PaymentBatch[], number] = await Promise.all([
+    const [batches, total] = await Promise.all([
       prisma.paymentBatch.findMany({
         where: { tenantId },
         skip,
         take: limit,
         orderBy: { receivedAt: 'desc' },
         include: {
-          organization: { select: { id: true, name: true } },
-          confirmations: { select: { id: true } },
+          Organization: { select: { id: true, name: true } },
+          PaymentConfirmation: { select: { id: true } },
         },
       }),
       prisma.paymentBatch.count({ where: { tenantId } }),
@@ -193,13 +230,13 @@ const getPaymentBatches = async (req: AuthenticatedRequest, res: Response): Prom
     // Format response
     const formatted = batches.map((b) => ({
       id: b.id,
-      organizationName: b.organization.name,
+      organizationName: b.Organization.name,
       totalAmount: b.totalAmount,
       paymentMethod: b.paymentMethod,
       reference: b.reference,
       remarks: b.remarks,
       receivedAt: b.receivedAt,
-      confirmationCount: b.confirmations.length,
+      confirmationCount: b.PaymentConfirmation.length,
     }));
 
     res.status(200).json({
@@ -239,7 +276,7 @@ const fetchPaymentById = async (req: AuthenticatedRequest, res: Response): Promi
         tenantId,
       },
       include: {
-        loan: {
+        Loan: {
           select: {
             id: true,
             amount: true,
@@ -251,7 +288,7 @@ const fetchPaymentById = async (req: AuthenticatedRequest, res: Response): Promi
             disbursedAt: true,
            
 
-            user: {
+            User: {
               select: {
                 firstName: true,
                 lastName: true,
@@ -261,7 +298,7 @@ const fetchPaymentById = async (req: AuthenticatedRequest, res: Response): Promi
 
               },
             },
-            organization: {
+            Organization: {
               select: {
                 id: true,
                 name: true,
@@ -269,29 +306,29 @@ const fetchPaymentById = async (req: AuthenticatedRequest, res: Response): Promi
             },
           },
         },
-        approvedBy: {
+        User: {
           select: {
             firstName: true,
             lastName: true,
           },
         },
-        confirmation: {
-          select: {
-            id: true,
-            amountSettled: true,
-            settledAt: true,
-            paymentBatch: {
-              select: {
-                id: true,
-                reference: true,
-                paymentMethod: true,
-                totalAmount: true,
-                receivedAt: true,
-                remarks: true,
+        PaymentConfirmation: {
+            select: {
+              id: true,
+              amountSettled: true,
+              settledAt: true,
+              PaymentBatch: {
+                select: {
+                  id: true,
+                  reference: true,
+                  paymentMethod: true,
+                  totalAmount: true,
+                  receivedAt: true,
+                  remarks: true,
+                },
               },
             },
           },
-        },
       },
     });
 
@@ -312,43 +349,43 @@ const fetchPaymentById = async (req: AuthenticatedRequest, res: Response): Promi
       createdAt: payout.createdAt,
       updatedAt: payout.updatedAt,
       loan: {
-         id: payout.loan.id,
-    amount: payout.loan.amount,
-    tenantId: payout.loan.tenantId,
-    userId: payout.loan.userId,
-    status: payout.loan.status,
-    interestRate: payout.loan.interestRate,
-    createdAt: payout.loan.createdAt,
-    disbursedAt: payout.loan.disbursedAt,
+         id: payout.Loan.id,
+    amount: payout.Loan.amount,
+    tenantId: payout.Loan.tenantId,
+    userId: payout.Loan.userId,
+    status: payout.Loan.status,
+    interestRate: payout.Loan.interestRate,
+    createdAt: payout.Loan.createdAt,
+    disbursedAt: payout.Loan.disbursedAt,
 
     user: {
-      firstName: payout.loan.user.firstName,
-      lastName: payout.loan.user.lastName,
-      phoneNumber: payout.loan.user.phoneNumber,
+      firstName: payout.Loan.User.firstName,
+      lastName: payout.Loan.User.lastName,
+      phoneNumber: payout.Loan.User.phoneNumber,
     },
         organization: {
-          id: payout.loan.organization.id,
-          name: payout.loan.organization.name,
+          id: payout.Loan.Organization.id,
+          name: payout.Loan.Organization.name,
         },
       },
-      approvedBy: payout.approvedBy
+      user: payout.User
         ? {
-            firstName: payout.approvedBy.firstName,
-            lastName: payout.approvedBy.lastName,
+            firstName: payout.User.firstName,
+            lastName: payout.User.lastName,
           }
         : null,
-      confirmation: payout.confirmation
+      confirmation: payout.PaymentConfirmation
         ? {
-            id: payout.confirmation.id,
-            amountSettled: payout.confirmation.amountSettled,
-            settledAt: payout.confirmation.settledAt,
+            id: payout.PaymentConfirmation.id,
+            amountSettled: payout.PaymentConfirmation.amountSettled,
+            settledAt: payout.PaymentConfirmation.settledAt,
             paymentBatch: {
-              id: payout.confirmation.paymentBatch.id,
-              reference: payout.confirmation.paymentBatch.reference,
-              paymentMethod: payout.confirmation.paymentBatch.paymentMethod,
-              totalAmount: payout.confirmation.paymentBatch.totalAmount,
-              receivedAt: payout.confirmation.paymentBatch.receivedAt,
-              remarks: payout.confirmation.paymentBatch.remarks,
+              id: payout.PaymentConfirmation.PaymentBatch.id,
+              reference: payout.PaymentConfirmation.PaymentBatch.reference,
+              paymentMethod: payout.PaymentConfirmation.PaymentBatch.paymentMethod,
+              totalAmount: payout.PaymentConfirmation.PaymentBatch.totalAmount,
+              receivedAt: payout.PaymentConfirmation.PaymentBatch.receivedAt,
+              remarks: payout.PaymentConfirmation.PaymentBatch.remarks,
             },
           }
         : null,
@@ -384,8 +421,8 @@ const searchPaymentsByName = async (req: AuthenticatedRequest, res: Response): P
       prisma.loanPayout.findMany({
         where: {
           tenantId,
-          loan: {
-            user: {
+          Loan: {
+            User: {
               firstName: { contains: name, mode: 'insensitive' },
             },
           },
@@ -394,18 +431,18 @@ const searchPaymentsByName = async (req: AuthenticatedRequest, res: Response): P
         take: parseInt(limit),
         orderBy: { createdAt: 'desc' },
         include: {
-          loan: {
+          Loan: {
             select: {
               id: true,
               amount: true,
-              user: {
+              User: {
                 select: {
                   firstName: true,
                   lastName: true,
                   phoneNumber: true,
                 },
               },
-              organization: {
+              Organization: {
                 select: {
                   id: true,
                   name: true,
@@ -413,18 +450,18 @@ const searchPaymentsByName = async (req: AuthenticatedRequest, res: Response): P
               },
             },
           },
-          approvedBy: {
+          User: {
             select: {
               firstName: true,
               lastName: true,
             },
           },
-          confirmation: {
+          PaymentConfirmation: {
             select: {
               id: true,
               amountSettled: true,
               settledAt: true,
-              paymentBatch: {
+              PaymentBatch: {
                 select: {
                   id: true,
                   reference: true,
@@ -441,8 +478,8 @@ const searchPaymentsByName = async (req: AuthenticatedRequest, res: Response): P
       prisma.loanPayout.count({
         where: {
           tenantId,
-          loan: {
-            user: {
+          Loan: {
+            User: {
               firstName: { contains: name, mode: 'insensitive' },
             },
           },
@@ -451,37 +488,82 @@ const searchPaymentsByName = async (req: AuthenticatedRequest, res: Response): P
     ]);
 
     // Format the response to match the LoanPayout type
-  const formattedPayouts: LoanPayout[] = payouts.map((payout) => ({
+
+const formattedPayouts: LoanPayoutSearchByName[] = payouts.map((payout) => ({
   id: payout.id,
   loanId: payout.loanId,
   amount: payout.amount,
-  method: payout.method,
-  transactionId: payout.transactionId,
+  method: payout.method || null,
+  transactionId: payout.transactionId || null,
   status: payout.status,
   tenantId: payout.tenantId,
   createdAt: payout.createdAt,
   updatedAt: payout.updatedAt,
-  loan: {
-    id: payout.loan.id,
-    tenantId: payout.loan.tenantId,
-    userId: payout.loan.userId,
-    amount: payout.loan.amount,
-    interestRate: payout.loan.interestRate,
-    status: payout.loan.status,
-    createdAt: payout.loan.createdAt,
-    user: {
-      firstName: payout.loan.user.firstName,
-      lastName: payout.loan.user.lastName,
-      phoneNumber: payout.loan.user.phoneNumber,
-    },
-    organization: {
-      id: payout.loan.organization.id,
-      name: payout.loan.organization.name,
-    },
-  },
-  approvedBy: payout.approvedBy,
-  confirmation: payout.confirmation,
+
+  loan: payout.loan
+    ? {
+        id: payout.loan.id,
+        tenantId: payout.loan.tenantId,
+        userId: payout.loan.userId,
+        amount: payout.loan.amount,
+        interestRate: payout.loan.interestRate,
+        status: payout.loan.status,
+        createdAt: payout.loan.createdAt,
+        user: payout.loan.user
+          ? {
+              firstName: payout.loan.user.firstName,
+              lastName: payout.loan.user.lastName,
+              phoneNumber: payout.loan.user.phoneNumber,
+            }
+          : null,
+        organization: payout.loan.organization
+          ? {
+              id: payout.loan.organization.id,
+              name: payout.loan.organization.name,
+            }
+          : null,
+        approvedBy: payout.user
+          ? {
+              
+              firstName: payout.user.firstName,
+              lastName: payout.user.lastName,
+             
+          }
+          : null,
+      }
+    : null,
+
+  user: payout.user
+    ? {
+        firstName: payout.user.firstName,
+        lastName: payout.user.lastName,
+      }
+    : null,
+
+ 
+
+  confirmation: payout.confirmation
+    ? {
+        id: payout.confirmation.id,
+        amountSettled: payout.confirmation.amountSettled,
+        settledAt: payout.confirmation.settledAt,
+        paymentBatch: payout.confirmation.paymentBatch
+          ? {
+              id: payout.confirmation.paymentBatch.id,
+              reference: payout.confirmation.paymentBatch.reference,
+              paymentMethod:
+                payout.confirmation.paymentBatch.paymentMethod,
+              totalAmount:
+                payout.confirmation.paymentBatch.totalAmount,
+              receivedAt:
+                payout.confirmation.paymentBatch.receivedAt,
+              remarks: payout.confirmation.paymentBatch.remarks,
+            }
+          : null,
+      }
+    : null,
 }));
+
 
     res.json({ payments: formattedPayouts, total });
   } catch (error: any) {
@@ -516,7 +598,7 @@ const searchTransactionById = async (req: AuthenticatedRequest, res: Response): 
         tenantId,
       },
       include: {
-        loan: {
+        Loan: {
           select: {
             id: true,
             amount: true,
@@ -527,14 +609,14 @@ const searchTransactionById = async (req: AuthenticatedRequest, res: Response): 
             tenantId: true,
             userId: true,
             
-            user: {
+            User: {
               select: {
                 firstName: true,
                 lastName: true,
                 phoneNumber: true,
               },
             },
-            organization: {
+            Organization: {
               select: {
                 id: true,
                 name: true,
@@ -542,18 +624,18 @@ const searchTransactionById = async (req: AuthenticatedRequest, res: Response): 
             },
           },
         },
-        approvedBy: {
+        User: {
           select: {
             firstName: true,
             lastName: true,
           },
         },
-        confirmation: {
+        PaymentConfirmation: {
           select: {
             id: true,
             amountSettled: true,
             settledAt: true,
-            paymentBatch: {
+            PaymentBatch: {
               select: {
                 id: true,
                 reference: true,
@@ -573,61 +655,60 @@ const searchTransactionById = async (req: AuthenticatedRequest, res: Response): 
       return;
     }
 
-    // Format the response to match the LoanPayout type
-    const formattedPayout: LoanPayout = {
-      id: loanPayout.id,
-      loanId: loanPayout.loanId,
-      amount: loanPayout.amount,
-      method: loanPayout.method,
-      transactionId: loanPayout.transactionId,
-      status: loanPayout.status,
-      tenantId: loanPayout.tenantId,
-      createdAt: loanPayout.createdAt,
-      updatedAt: loanPayout.updatedAt,
-  
-      loan: {
-  id: loanPayout.loan.id,
-  userId: loanPayout.loan.userId,
-  //organizationId: loanPayout.loan.organization.id,
-  tenantId: loanPayout.loan.tenantId,
-  amount: loanPayout.loan.amount,
-  interestRate: loanPayout.loan.interestRate,
-  status: loanPayout.loan.status,
-  createdAt: loanPayout.loan.createdAt,
-  user: {
-    firstName: loanPayout.loan.user.firstName,
-    lastName: loanPayout.loan.user.lastName,
-    phoneNumber: loanPayout.loan.user.phoneNumber,
+// Format the response to match the LoanPayout type
+const formattedPayout: LoanPayout = {
+  id: loanPayout.id,
+  loanId: loanPayout.loanId,
+  amount: loanPayout.amount,
+  method: loanPayout.method,
+  transactionId: loanPayout.transactionId,
+  status: loanPayout.status,
+  tenantId: loanPayout.tenantId,
+  createdAt: loanPayout.createdAt,
+  updatedAt: loanPayout.updatedAt,
+  loan: {
+    id: loanPayout.Loan.id,
+    amount: loanPayout.Loan.amount,
+    interestRate: loanPayout.Loan.interestRate,
+    status: loanPayout.Loan.status,
+    createdAt: loanPayout.Loan.createdAt,
+    disbursedAt: loanPayout.Loan.disbursedAt,
+    tenantId: loanPayout.Loan.tenantId,
+    userId: loanPayout.Loan.userId,
+    user: {
+      firstName: loanPayout.Loan.User.firstName,
+      lastName: loanPayout.Loan.User.lastName,
+      phoneNumber: loanPayout.Loan.User.phoneNumber,
+    },
+    organization: {
+      id: loanPayout.Loan.Organization.id,
+      name: loanPayout.Loan.Organization.name,
+    },
   },
-  organization: {
-    id: loanPayout.loan.organization.id,
-    name: loanPayout.loan.organization.name,
-  },
-},
-      approvedBy: loanPayout.approvedBy
-        ? {
-            firstName: loanPayout.approvedBy.firstName,
-            lastName: loanPayout.approvedBy.lastName,
-          }
-        : null,
-      confirmation: loanPayout.confirmation
-        ? {
-            id: loanPayout.confirmation.id,
-            amountSettled: loanPayout.confirmation.amountSettled,
-            settledAt: loanPayout.confirmation.settledAt,
-            paymentBatch: {
-              id: loanPayout.confirmation.paymentBatch.id,
-              reference: loanPayout.confirmation.paymentBatch.reference,
-              paymentMethod: loanPayout.confirmation.paymentBatch.paymentMethod,
-              totalAmount: loanPayout.confirmation.paymentBatch.totalAmount,
-              receivedAt: loanPayout.confirmation.paymentBatch.receivedAt,
-              remarks: loanPayout.confirmation.paymentBatch.remarks,
-            },
-          }
-        : null,
-    };
+  user: loanPayout.approvedById && loanPayout.User
+    ? {
+        firstName: loanPayout.User.firstName,
+        lastName: loanPayout.User.lastName,
+      }
+    : null,
+  confirmation: loanPayout.PaymentConfirmation
+    ? {
+        id: loanPayout.PaymentConfirmation.id,
+        amountSettled: loanPayout.PaymentConfirmation.amountSettled,
+        settledAt: loanPayout.PaymentConfirmation.settledAt,
+        paymentBatch: {
+          id: loanPayout.PaymentConfirmation.PaymentBatch.id,
+          reference: loanPayout.PaymentConfirmation.PaymentBatch.reference,
+          paymentMethod: loanPayout.PaymentConfirmation.PaymentBatch.paymentMethod,
+          totalAmount: loanPayout.PaymentConfirmation.PaymentBatch.totalAmount,
+          receivedAt: loanPayout.PaymentConfirmation.PaymentBatch.receivedAt,
+          remarks: loanPayout.PaymentConfirmation.PaymentBatch.remarks,
+        },
+      }
+    : null,
+};
 
-    res.json({ transaction: formattedPayout });
+res.json({ transaction: formattedPayout });
   } catch (error: any) {
     console.error('Error searching transaction:', error);
     res.status(500).json({ error: 'Something went wrong' });
@@ -717,8 +798,8 @@ export const searchC2BMpesaTransactions = async (
       take: size,
       orderBy: { TransTime: "desc" },
       include: {
-        mpesaConfig: { select: { b2cShortCode: true } },
-        tenant: { select: { id: true } },
+        MPESAConfig: { select: { b2cShortCode: true } },
+        Tenant: { select: { id: true } },
       },
     });
 

@@ -38,6 +38,8 @@ const configureTenantSettings = async (tenantId: number): Promise<ConfigureTenan
         data: {
           tenantId,
           ...smsConfigData, // Hardcoded values
+          createdAt: new Date(),
+          updatedAt: new Date(),
         },
       });
     } else {

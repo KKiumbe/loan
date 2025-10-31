@@ -33,7 +33,7 @@ export const generateEmployeesPerOrganization = async (req: AuthenticatedRequest
     console.time("⏳ Fetch Employees");
     const employees = await prisma.employee.findMany({
       where: { tenantId },
-      include: { organization: true },
+      include: { Organization: true },
       orderBy: { organizationId: 'asc' },
     });
 
@@ -50,7 +50,7 @@ export const generateEmployeesPerOrganization = async (req: AuthenticatedRequest
     const grouped: Record<string, typeof employees> = {};
 
 for (const emp of employees) {
-  const orgName = emp.organization?.name?.trim() || `Org-${emp.organizationId}`; // fallback
+  const orgName = emp.Organization?.name?.trim() || `Org-${emp.organizationId}`; // fallback
   if (!grouped[orgName]) grouped[orgName] = [];
   grouped[orgName].push(emp);
 }

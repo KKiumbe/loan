@@ -132,6 +132,8 @@ const prisma = new PrismaClient();
             utilityAccountBalance: utilityBalance !== null ? parseFloat(String(utilityBalance)) : null,
             workingAccountBalance: workingBalance !== null ? parseFloat(String(workingBalance)) : null,
             tenantId: loan.tenantId,
+            createdAt: new Date(),
+            updatedAt: new Date(),
           },
         });
 
@@ -303,7 +305,12 @@ const parseMpesaBalance = (balanceString: string) => {
       workingAccountBalance: mmfBalance,
       utilityAccountBalance: utilityBalance,
       mmfBalance,
-      tenantId, // ✅ tie to tenant
+      updatedAt: new Date(),
+      Tenant: {
+        connect: {
+          id: tenantId,
+        },
+      },
     },
   });
 
@@ -381,6 +388,7 @@ const handleC2BResults = async (
     // ✅ 3. Save M-Pesa transaction
     const savedTransaction = await prisma.mPESAC2BTransactions.create({
       data: {
+        id: paymentInfo.TransID,
         TransID: paymentInfo.TransID,
         TransTime: paymentInfo.TransTime,
         ShortCode: paymentInfo.ShortCode,
@@ -388,8 +396,19 @@ const handleC2BResults = async (
         BillRefNumber: paymentInfo.ref,
         MSISDN: paymentInfo.phone,
         FirstName: paymentInfo.FirstName,
-        tenantId,
         processed: false,
+        updatedAt: new Date(),
+       
+        Tenant: {
+          connect: {
+            id: tenantId,
+          },
+        },
+        MPESAConfig: {
+          connect: {
+            b2cShortCode: paymentInfo.ShortCode,
+          },
+        }
       },
     });
 

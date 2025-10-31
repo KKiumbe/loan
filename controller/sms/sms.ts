@@ -197,6 +197,7 @@ export const sendSMS = async (
         mobile: sanitizedPhoneNumber,
         message,
         status: SMSStatus.PENDING,
+        updatedAt: new Date(),
       },
     });
     console.log(`SMS record created: ${JSON.stringify(smsRecord)}`);
@@ -288,13 +289,15 @@ export const sendSms = async (tenantId: number, messages: SMSMessage[]): Promise
         response = { data: { status: 'FAILED', message: 'Bulk SMS failed' } } as AxiosResponse<SMSResponse>;
       }
 
+      const now = new Date();
       const smsLogs = batch.map((sms) => ({
         clientsmsid: uuidv4(),
         tenantId,
         mobile: sms.mobile,
         message: sms.message,
         status: response.data.status === 'FAILED' ? SMSStatus.FAILED : SMSStatus.SENT,
-        createdAt: new Date(),
+        createdAt: now,
+        updatedAt: now,
       }));
 
       await prisma.sMS.createMany({ data: smsLogs });

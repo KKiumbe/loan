@@ -7,195 +7,337 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-model Tenant {
-  id            Int            @id @default(autoincrement())
-  name          String
-
-  status                 TenantStatus        @default(ACTIVE)
-  subscriptionPlan       String
-  monthlyCharge          Float
-
-  updatedAt              DateTime            @updatedAt
-  email                  String?
-  phoneNumber            String?
-  alternativePhoneNumber String?
-  county                 String?
-  town                   String?
-  address                String?
-  building               String?
-  street                 String?
-  website                String?
-  logoUrl                String?
-  allowedUsers           Int @default(1)       
-  organizations Organization[]
-  users         User[]
-  loans         Loan[]
-  repayments    ConsolidatedRepayment[]
-  mpesaConfig   MPESAConfig[]
-  smsConfig     SMSConfig[]
-  auditLogs     AuditLog[]
-  createdAt     DateTime       @default(now())
-
-
-  Employee Employee[]
-
-  SMS SMS[]
-
-  PaymentBatch PaymentBatch[]
-
-  LoanPayout LoanPayout[]
-
-  MPesaBalance MPesaBalance[]
-
-  TransactionCostBand TransactionCostBand[]
-
-  B2BTransfer B2BTransfer[]
-
-  MPESAC2BTransactions MPESAC2BTransactions[]
+model AuditLog {
+  id        Int      @id @default(autoincrement())
+  tenantId  Int
+  userId    Int
+  action    String
+  resource  String
+  details   Json
+  createdAt DateTime @default(now())
+  Tenant    Tenant   @relation(fields: [tenantId], references: [id])
+  User      User     @relation(fields: [userId], references: [id])
 }
 
-enum TenantStatus {
-  ACTIVE
-  DISABLED
+model B2BTransfer {
+  id                       Int       @id @default(autoincrement())
+  tenantId                 Int
+  amount                   Float
+  partyA                   String
+  partyB                   String
+  commandID                String
+  remarks                  String?
+  occasion                 String?
+  conversationID           String?
+  originatorConversationID String?   @unique
+  transactionID            String?
+  resultCode               Int?
+  resultDesc               String?
+  status                   B2BStatus @default(PENDING)
+  createdAt                DateTime  @default(now())
+  updatedAt                DateTime
+  Tenant                   Tenant    @relation(fields: [tenantId], references: [id])
 }
 
-
-
-model Organization {
-  id                Int            @id @default(autoincrement())
-  name              String
-  tenantId          Int
-  tenant            Tenant         @relation(fields: [tenantId], references: [id])
-  approvalSteps     Int            @default(1)
-  loanLimitMultiplier Float        @default(1.0)
-  users             User[]
-  loans             Loan[]
-  repayments        ConsolidatedRepayment[]
-  createdAt         DateTime       @default(now())
-  updatedAt         DateTime       @updatedAt
-  interestRate        Float                  @default(0.1) // 10% monthly interest rate
-  dailyInterestRate  Float    @default(0.01)  // e.g. 1% per day
-  baseInterestRate   Float    @default(0.10)  // e.g. minimum 10%
-  interestRateType   InterestRateType @default(MONTHLY)
-  status             OrganizationStus @default(ACTIVE)
-  creditBalance       Float                 @default(0.0)   // Organization’s wallet balance
-
-  Employee Employee[]
-
-  PaymentBatch PaymentBatch[]
-  isGlobalLenderOrg    Boolean        @default(false)
-}
-
- enum OrganizationStus {
-ACTIVE
-SUSPENDED
-PENDING
- }
-enum InterestRateType {
-  MONTHLY
-  DAILY
-}
-
-model User {
-  id              Int            @id @default(autoincrement())
-  firstName       String
-  lastName        String
-  phoneNumber     String         @unique
-  email           String  ?       @unique
-  password        String
-  tenantId        Int
-  gender             String?
-  county             String?
-  town               String?
-
-  role               String[]
-
-  createdBy          Int?
-  status             UserStatus          @default(ACTIVE)
-  mfaEnabled         Boolean             @default(false)
-
-  createdAt          DateTime            @default(now())
-  updatedAt          DateTime            @updatedAt
-  lastLogin          DateTime?
-  loginCount         Int                 @default(0)
-  otpAttempts        Int                 @default(0)
-  resetCode          String?
-  resetCodeExpiresAt DateTime?
-  tenant          Tenant         @relation(fields: [tenantId], references: [id])
-  organizationId   Int            @default(0)
-
-
-  organization    Organization?   @relation(fields: [organizationId], references: [id])
-  tenantName      String?
- 
-  employeeId      Int?           @unique
-  employee        Employee?      @relation(fields: [employeeId], references: [id])
-  loans           Loan[] 
-  auditLogs       AuditLog[]
-
-
-  LoanPayout LoanPayout[]
-
-  ConsolidatedRepayment ConsolidatedRepayment[]
-}
-enum UserStatus {
-  ACTIVE
-  DISABLED
+model ConsolidatedRepayment {
+  id             Int          @id @default(autoincrement())
+  organizationId Int
+  totalAmount    Float?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime
+  paidAt         DateTime?
+  tenantId       Int
+  status         String?
+  amount         Float
+  userId         Int
+  Organization   Organization @relation(fields: [organizationId], references: [id])
+  Tenant         Tenant       @relation(fields: [tenantId], references: [id])
+  User           User         @relation(fields: [userId], references: [id])
+  Loan           Loan[]
 }
 
 model Employee {
-  id                  Int            @id @default(autoincrement())
-  phoneNumber         String         @unique
-  idNumber            String         @unique
-  firstName           String
-
-  lastName            String
-
-  grossSalary         Float
-  jobId               String?
+  id                   Int          @id @default(autoincrement())
+  phoneNumber          String       @unique
+  idNumber             String       @unique
+  firstName            String
+  lastName             String
+  grossSalary          Float
+  jobId                String?
   secondaryPhoneNumber String?
-  tenantId            Int
-  tenant              Tenant         @relation(fields: [tenantId], references: [id])
-  organizationId      Int
-  organization        Organization   @relation(fields: [organizationId], references: [id])
-  user                User?
-  createdAt           DateTime       @default(now())
-  updatedAt           DateTime       @updatedAt
+  tenantId             Int
+  organizationId       Int
+  createdAt            DateTime     @default(now())
+  updatedAt            DateTime
+  Organization         Organization @relation(fields: [organizationId], references: [id])
+  Tenant               Tenant       @relation(fields: [tenantId], references: [id])
+  User                 User?
 }
 
-
-
-model  Loan {
-  id                       Int            @id @default(autoincrement())
-  userId                   Int
-  user                     User           @relation(fields: [userId], references: [id] )
+model Loan {
+  id                       Int                    @id @default(autoincrement())
   organizationId           Int
-  organization             Organization   @relation(fields: [organizationId], references: [id])
   amount                   Float
-  repaidAmount              Float  @default(0)
-  interestRate                 Float  
-  interest                  Float @default(0)
-  duration                 Int            @default(30) // 30 days
-  status                   LoanStatus     @default(PENDING)
-  loanType                 LoanType       @default(MONTHLY)
-  createdAt                DateTime       @default(now())
-  updatedAt                DateTime       @updatedAt
-  disbursedAt              DateTime?
+  createdAt                DateTime               @default(now())
+  updatedAt                DateTime
+  userId                   Int
   tenantId                 Int
-  tenant                   Tenant         @relation(fields: [tenantId], references: [id])
-  consolidatedRepaymentId  Int?           // Foreign key, nullable
-  approvalCount            Int            @default(0)
-  consolidatedRepayment    ConsolidatedRepayment? @relation(fields: [consolidatedRepaymentId], references: [id])
-  firstApproverId          Int?           // User ID of first approver
-  secondApproverId         Int?           // User ID of second approver
-  thirdApproverId          Int?           // User ID of third approver
-  mpesaTransactionId       String?        // M-Pesa transaction ID
-  mpesaStatus              String?        // M-Pesa transaction status
-  originatorConversationID String?        // New: OriginatorConversationID for B2C payment
-  dueDate                  DateTime       // Calculated as createdAt + 30 days
-  totalRepayable           Float          // amount + (amount * interestRate)
-  transactionCharge Float    @default(0)
+  approvalCount            Int                    @default(0)
+  consolidatedRepaymentId  Int?
+  dueDate                  DateTime
+  duration                 Int                    @default(30)
+  firstApproverId          Int?
+  interestRate             Float
+  mpesaStatus              String?
+  mpesaTransactionId       String?
+  secondApproverId         Int?
+  thirdApproverId          Int?
+  totalRepayable           Float
+  status                   LoanStatus             @default(PENDING)
+  disbursedAt              DateTime?
+  originatorConversationID String?
+  interest                 Float                  @default(0)
+  loanType                 LoanType               @default(MONTHLY)
+  transactionCharge        Float                  @default(0)
+  repaidAmount             Float                  @default(0)
+  ConsolidatedRepayment    ConsolidatedRepayment? @relation(fields: [consolidatedRepaymentId], references: [id])
+  Organization             Organization           @relation(fields: [organizationId], references: [id])
+  Tenant                   Tenant                 @relation(fields: [tenantId], references: [id])
+  User                     User                   @relation(fields: [userId], references: [id])
   LoanPayout               LoanPayout[]
+}
+
+model LoanPayout {
+  id                  Int                  @id @default(autoincrement())
+  loanId              Int
+  amount              Float
+  method              String?
+  transactionId       String?
+  status              PayoutStatus         @default(PENDING)
+  approvedById        Int?
+  tenantId            Int
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime
+  amountRepaid        Float                @default(0)
+  User                User?                @relation(fields: [approvedById], references: [id])
+  Loan                Loan                 @relation(fields: [loanId], references: [id])
+  Tenant              Tenant               @relation(fields: [tenantId], references: [id])
+  PaymentConfirmation PaymentConfirmation?
+}
+
+model MPESAC2BTransactions {
+  id            String      @id
+  tenantId      Int
+  TransID       String      @unique
+  TransTime     DateTime
+  ShortCode     String
+  TransAmount   Float
+  BillRefNumber String
+  MSISDN        String
+  FirstName     String
+  processed     Boolean     @default(false)
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime
+  MPESAConfig   MPESAConfig @relation(fields: [ShortCode], references: [b2cShortCode], onDelete: Cascade)
+  Tenant        Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+}
+
+model MPESAConfig {
+  tenantId             Int                    @unique
+  b2cShortCode         String                 @unique
+  initiatorName        String
+  securityCredential   String
+  consumerKey          String
+  consumerSecret       String
+  name                 String?
+  createdAt            DateTime               @default(now())
+  updatedAt            DateTime
+  MPESAC2BTransactions MPESAC2BTransactions[]
+  Tenant               Tenant                 @relation(fields: [tenantId], references: [id])
+}
+
+model MPesaBalance {
+  id                       Int      @id @default(autoincrement())
+  resultType               Int
+  resultCode               Int
+  resultDesc               String
+  originatorConversationID String   @unique
+  conversationID           String
+  transactionID            String
+  workingAccountBalance    Float?
+  utilityAccountBalance    Float?
+  tenantId                 Int
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime
+  mmfBalance               Float    @default(0)
+  Tenant                   Tenant   @relation(fields: [tenantId], references: [id])
+}
+
+model Organization {
+  id                    Int                     @id @default(autoincrement())
+  name                  String
+  approvalSteps         Int                     @default(1)
+  loanLimitMultiplier   Float                   @default(1.0)
+  createdAt             DateTime                @default(now())
+  updatedAt             DateTime
+  tenantId              Int
+  interestRate          Float                   @default(0.1)
+  baseInterestRate      Float                   @default(0.10)
+  dailyInterestRate     Float                   @default(0.01)
+  interestRateType      InterestRateType        @default(MONTHLY)
+  status                OrganizationStus        @default(ACTIVE)
+  creditBalance         Float                   @default(0.0)
+  isGlobalLenderOrg     Boolean                 @default(false)
+  ConsolidatedRepayment ConsolidatedRepayment[]
+  Employee              Employee[]
+  Loan                  Loan[]
+  Tenant                Tenant                  @relation(fields: [tenantId], references: [id])
+  PaymentBatch          PaymentBatch[]
+  User                  User[]
+}
+
+model PaymentBatch {
+  id                  Int                   @id @default(autoincrement())
+  tenantId            Int
+  organizationId      Int
+  totalAmount         Float
+  receivedAt          DateTime              @default(now())
+  paymentMethod       String
+  reference           String?
+  remarks             String?
+  createdAt           DateTime              @default(now())
+  updatedAt           DateTime
+  Organization        Organization          @relation(fields: [organizationId], references: [id])
+  Tenant              Tenant                @relation(fields: [tenantId], references: [id])
+  PaymentConfirmation PaymentConfirmation[]
+}
+
+model PaymentConfirmation {
+  id             Int          @id @default(autoincrement())
+  paymentBatchId Int
+  loanPayoutId   Int          @unique
+  amountSettled  Float
+  settledAt      DateTime     @default(now())
+  LoanPayout     LoanPayout   @relation(fields: [loanPayoutId], references: [id])
+  PaymentBatch   PaymentBatch @relation(fields: [paymentBatchId], references: [id])
+}
+
+model SMS {
+  id          Int       @id @default(autoincrement())
+  tenantId    Int
+  clientsmsid String    @unique
+  mobile      String
+  message     String
+  status      SMSStatus
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime
+  Tenant      Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+}
+
+model SMSConfig {
+  id                         Int      @id @default(autoincrement())
+  partnerId                  String
+  apiKey                     String
+  shortCode                  String
+  customerSupportPhoneNumber String
+  createdAt                  DateTime @default(now())
+  updatedAt                  DateTime
+  tenantId                   Int      @unique
+  Tenant                     Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+}
+
+model Tenant {
+  id                     Int                     @id @default(autoincrement())
+  name                   String
+  subscriptionPlan       String
+  monthlyCharge          Float
+  createdAt              DateTime                @default(now())
+  updatedAt              DateTime
+  address                String?
+  allowedUsers           Int                     @default(1)
+  alternativePhoneNumber String?
+  building               String?
+  county                 String?
+  email                  String?
+  logoUrl                String?
+  phoneNumber            String?
+  street                 String?
+  town                   String?
+  website                String?
+  status                 TenantStatus            @default(ACTIVE)
+  AuditLog               AuditLog[]
+  B2BTransfer            B2BTransfer[]
+  ConsolidatedRepayment  ConsolidatedRepayment[]
+  Employee               Employee[]
+  Loan                   Loan[]
+  LoanPayout             LoanPayout[]
+  MPESAC2BTransactions   MPESAC2BTransactions[]
+  MPESAConfig            MPESAConfig?
+  MPesaBalance           MPesaBalance[]
+  Organization           Organization[]
+  PaymentBatch           PaymentBatch[]
+  SMS                    SMS[]
+  SMSConfig              SMSConfig?
+  TransactionCostBand    TransactionCostBand[]
+  User                   User[]
+}
+
+model TransactionCostBand {
+  id        Int    @id @default(autoincrement())
+  tenantId  Int
+  minAmount Float
+  maxAmount Float
+  cost      Float
+  Tenant    Tenant @relation(fields: [tenantId], references: [id])
+
+  @@unique([tenantId, minAmount, maxAmount])
+  @@index([tenantId])
+}
+
+model User {
+  id                    Int                     @id @default(autoincrement())
+  organizationId        Int                     @default(0)
+  firstName             String
+  lastName              String
+  phoneNumber           String                  @unique
+  email                 String?                 @unique
+  county                String?
+  town                  String?
+  gender                String?
+  password              String
+  tenantName            String?
+  createdAt             DateTime                @default(now())
+  updatedAt             DateTime
+  lastLogin             DateTime?
+  loginCount            Int                     @default(0)
+  role                  String[]
+  tenantId              Int
+  createdBy             Int?
+  employeeId            Int?                    @unique
+  mfaEnabled            Boolean                 @default(false)
+  otpAttempts           Int                     @default(0)
+  resetCode             String?
+  resetCodeExpiresAt    DateTime?
+  status                UserStatus              @default(ACTIVE)
+  AuditLog              AuditLog[]
+  ConsolidatedRepayment ConsolidatedRepayment[]
+  Loan                  Loan[]
+  LoanPayout            LoanPayout[]
+  Employee              Employee?               @relation(fields: [employeeId], references: [id])
+  Organization          Organization            @relation(fields: [organizationId], references: [id])
+  Tenant                Tenant                  @relation(fields: [tenantId], references: [id])
+}
+
+enum B2BStatus {
+  PENDING
+  PROCESSING
+  SUCCESS
+  FAILED
+}
+
+enum InterestRateType {
+  MONTHLY
+  DAILY
 }
 
 enum LoanStatus {
@@ -212,188 +354,18 @@ enum LoanType {
   MONTHLY
 }
 
-model PaymentBatch {
-  id             Int           @id @default(autoincrement())
-  tenantId       Int
-  tenant         Tenant        @relation(fields: [tenantId], references: [id])
-  organizationId Int
-  organization   Organization  @relation(fields: [organizationId], references: [id])
-  totalAmount    Float
-  receivedAt     DateTime      @default(now())
-  paymentMethod  String        // e.g., 'BANK_TRANSFER', 'MPESA', etc.
-  reference      String?       // MPESA Code, Cheque No, etc.
-  remarks        String?
-  createdAt      DateTime      @default(now())
-  updatedAt      DateTime      @updatedAt
-
-  confirmations  PaymentConfirmation[]
+enum OrganizationStus {
+  ACTIVE
+  SUSPENDED
+  PENDING
 }
 
-  model LoanPayout {
-    id             Int                @id @default(autoincrement())
-    loanId         Int
-    loan           Loan               @relation(fields: [loanId], references: [id])
-    amount         Float
-    method         String?            // MPESA, BANK_TRANSFER, CASH, etc.
-    transactionId  String?            // M-PESA code or Bank reference
-    status         PayoutStatus       @default(PENDING) // Tracks disbursement state
-    approvedById   Int?               // Who approved the payout (User)
-    approvedBy     User?              @relation(fields: [approvedById], references: [id])
-    tenantId       Int
-    tenant         Tenant             @relation(fields: [tenantId], references: [id])
-    createdAt      DateTime           @default(now())
-    updatedAt      DateTime           @updatedAt
-    amountRepaid  Float              @default(0)
-
-    confirmation   PaymentConfirmation?
-  }
-
-enum PayoutStatus { 
+enum PayoutStatus {
   PENDING
   DISBURSED
   FAILED
   REPAID
   PPAID
-}
-
-
-
-model PaymentConfirmation {
-  id              Int            @id @default(autoincrement())
-  paymentBatchId  Int
-  loanPayoutId    Int @unique
-
-  paymentBatch    PaymentBatch   @relation(fields: [paymentBatchId], references: [id])
-  loanPayout      LoanPayout     @relation(fields: [loanPayoutId], references: [id])
-  amountSettled   Float
-  settledAt       DateTime       @default(now())
-}
-
-
-model MPESAC2BTransactions {
-  id            String      @id @default(uuid())
-  tenantId      Int
-  TransID       String      @unique
-  TransTime     DateTime
-  ShortCode     String
-  TransAmount   Float
-  BillRefNumber String
-  MSISDN        String
-  FirstName     String
-  processed     Boolean     @default(false)
-  createdAt     DateTime    @default(now())
-  updatedAt     DateTime    @updatedAt
-  mpesaConfig   MPESAConfig @relation(fields: [ShortCode], references: [b2cShortCode], onDelete: Cascade)
-  tenant        Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-}
-
-model MPesaBalance {
-  id                    Int       @id @default(autoincrement())
-  resultType            Int
-  resultCode            Int
-  resultDesc            String
-originatorConversationID String @unique
- 
-  conversationID        String
-  transactionID         String
-  workingAccountBalance Float? // Working Account available balance
-  utilityAccountBalance Float? // Utility Account available balance
-  mmfBalance            Float @default(0)
- 
-  tenantId              Int
-  tenant                Tenant    @relation(fields: [tenantId], references: [id])
-  createdAt             DateTime  @default(now())
-  updatedAt             DateTime  @updatedAt
-}
-
-
-
-model TransactionCostBand {
-  id          Int     @id @default(autoincrement())
-  tenantId    Int
-  minAmount   Float   // inclusive
-  maxAmount   Float   // inclusive
-  cost        Float
-
-  tenant Tenant @relation(fields: [tenantId], references: [id])
-
-  @@index([tenantId])
-  @@unique([tenantId, minAmount, maxAmount])
-}
-
-
-
-model ConsolidatedRepayment {
-  id             Int      @id @default(autoincrement())
-  userId         Int
-  organizationId Int
-  tenantId       Int
-  amount         Float
-  totalAmount    Float?   // Optional if not always present
-  paidAt         DateTime?
-  status         String?  // Optional if not always present
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-  user           User     @relation(fields: [userId], references: [id])
-  organization   Organization @relation(fields: [organizationId], references: [id])
-  tenant         Tenant   @relation(fields: [tenantId], references: [id])
-  loans          Loan[]   @relation
-}
-
-
-
-
-model MPESAConfig {
-  tenantId           Int      @unique
-  tenant             Tenant   @relation(fields: [tenantId], references: [id])
-  b2cShortCode       String @unique
- 
-  initiatorName      String
-  securityCredential String
-  consumerKey        String
-  consumerSecret     String
-  name               String?  // Optional reference name
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
-
-  MPESAC2BTransactions MPESAC2BTransactions[]
-}
-
-model SMSConfig {
-  id                         Int      @id @default(autoincrement())
-  tenantId                   Int      @unique
-  partnerId                  String
-  apiKey                     String
-  shortCode                  String 
-  customerSupportPhoneNumber String
-  createdAt                  DateTime @default(now())
-  updatedAt                  DateTime @updatedAt
-  tenant                     Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-}
-
-model AuditLog {
-  id          Int      @id @default(autoincrement())
-  tenantId    Int
-  tenant      Tenant   @relation(fields: [tenantId], references: [id])
-  userId      Int
-  user        User     @relation(fields: [userId], references: [id])
-  action      String
-  resource    String
-  details     Json
-  createdAt   DateTime @default(now())
-}
-
-
-model SMS {
-  id          Int        @id @default(autoincrement())
-  tenantId    Int
-  tenant      Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  clientsmsid String     @unique
-  mobile      String
-  message     String
-  status      SMSStatus
-  createdAt   DateTime   @default(now())
-  updatedAt   DateTime   @updatedAt
 }
 
 enum SMSStatus {
@@ -403,36 +375,12 @@ enum SMSStatus {
   DELIVERED
 }
 
-
-model B2BTransfer {
-  id                      Int       @id @default(autoincrement())
-  tenantId                Int
-  tenant                  Tenant    @relation(fields: [tenantId], references: [id])
-
-  amount                  Float
-  partyA                  String    // Working account shortcode
-  partyB                  String    // Utility account shortcode
-  commandID               String    // e.g. BusinessTransferFromMMFToUtility
-  remarks                 String?
-  occasion                String?
-
-  // Response data from API
-  conversationID          String?
-  originatorConversationID String?  @unique
-  transactionID           String?   // once completed
-
-  resultCode              Int?
-  resultDesc              String?
-
-  status                  B2BStatus @default(PENDING)
-
-  createdAt               DateTime  @default(now())
-  updatedAt               DateTime  @updatedAt
+enum TenantStatus {
+  ACTIVE
+  DISABLED
 }
 
-enum B2BStatus {
-  PENDING
-  PROCESSING
-  SUCCESS
-  FAILED
+enum UserStatus {
+  ACTIVE
+  DISABLED
 }

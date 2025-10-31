@@ -123,7 +123,7 @@ const createRepayment = async (
       where: {
         tenantId,
         status: { in: ['DISBURSED', 'PPAID'] },
-        loan: {
+        Loan: {
           organizationId,
           status: { in: ['DISBURSED', 'PPAID'] }, // Include partially paid loans
         },
@@ -136,14 +136,14 @@ const createRepayment = async (
         status: true,
         createdAt: true,
         updatedAt: true,
-        loan: {
+        Loan: {
           select: {
             id: true,
             organizationId: true,
             totalRepayable: true,
             repaidAmount: true,
             status: true,
-            user: {
+            User: {
               select: {
                 id: true,
                 firstName: true,
@@ -151,7 +151,7 @@ const createRepayment = async (
                 phoneNumber: true,
               },
             },
-            organization: {
+            Organization: {
               select: {
                 id: true,
                 name: true,
@@ -174,7 +174,7 @@ const createRepayment = async (
 
     // Calculate total repayable amount
     const totalRepayable = loanPayouts.reduce(
-      (sum, payout) => sum + (payout.loan.totalRepayable - (payout.loan.repaidAmount || 0)),
+      (sum, payout) => sum + (payout.Loan.totalRepayable - (payout.Loan.repaidAmount || 0)),
       0
     );
     // if (totalAmount < totalRepayable) {
@@ -197,6 +197,7 @@ const createRepayment = async (
           paymentMethod: method,
           reference: reference || `BATCH-${Date.now()}`,
           remarks: remarks || undefined,
+          updatedAt: new Date(),
         },
       });
 
@@ -206,7 +207,7 @@ const createRepayment = async (
       for (const payout of loanPayouts) {
         if (remainingAmount <= 0) break;
 
-        const outstanding = payout.loan.totalRepayable - (payout.loan.repaidAmount || 0);
+        const outstanding = payout.Loan.totalRepayable - (payout.Loan.repaidAmount || 0);
         if (outstanding <= 0) continue;
 
         const payAmount = Math.min(outstanding, remainingAmount);
@@ -262,7 +263,7 @@ const createRepayment = async (
 
         // Update LoanPayout
         const newPayoutAmountRepaid = (payout.amountRepaid || 0) + payAmount;
-        const payoutStatus = newPayoutAmountRepaid >= payout.loan.totalRepayable ? 'REPAID' : 'PPAID';
+        const payoutStatus = newPayoutAmountRepaid >= payout.Loan.totalRepayable ? 'REPAID' : 'PPAID';
         await tx.loanPayout.update({
           where: { id: payout.id },
           data: {
@@ -273,8 +274,8 @@ const createRepayment = async (
         });
 
         // Update Loan
-        const newLoanRepaidAmount = (payout.loan.repaidAmount || 0) + payAmount;
-        const loanStatus = newLoanRepaidAmount >= payout.loan.totalRepayable ? 'REPAID' : 'PPAID';
+        const newLoanRepaidAmount = (payout.Loan.repaidAmount || 0) + payAmount;
+        const loanStatus = newLoanRepaidAmount >= payout.Loan.totalRepayable ? 'REPAID' : 'PPAID';
         await tx.loan.update({
           where: { id: payout.loanId },
           data: {
@@ -321,11 +322,11 @@ const createRepayment = async (
         const repayment = repayments.find(r => r.loanPayoutId === payout.id.toString());
         if (!repayment) continue;
 
-        const remainingLoanAmount = payout.loan.totalRepayable - ((payout.loan.repaidAmount || 0) + repayment.amountSettled);
-        const smsPhone = payout.loan.user.phoneNumber.startsWith('0')
-          ? '254' + payout.loan.user.phoneNumber.slice(1)
-          : payout.loan.user.phoneNumber;
-        const smsMessage = `Dear ${payout.loan.user.firstName} ${payout.loan.user.lastName}, your loan repayment of KES ${repayment.amountSettled.toFixed(2)} has been processed. Remaining balance: KES ${remainingLoanAmount.toFixed(2)}. Ref: ${reference || paymentBatch.reference}.`;
+        const remainingLoanAmount = payout.Loan.totalRepayable - ((payout.Loan.repaidAmount || 0) + repayment.amountSettled);
+        const smsPhone = payout.Loan.User.phoneNumber.startsWith('0')
+          ? '254' + payout.Loan.User.phoneNumber.slice(1)
+          : payout.Loan.User.phoneNumber;
+        const smsMessage = `Dear ${payout.Loan.User.firstName} ${payout.Loan.User.lastName}, your loan repayment of KES ${repayment.amountSettled.toFixed(2)} has been processed. Remaining balance: KES ${remainingLoanAmount.toFixed(2)}. Ref: ${reference || paymentBatch.reference}.`;
 
         try {
           //await sendSMS(tenantId, smsPhone, smsMessage);

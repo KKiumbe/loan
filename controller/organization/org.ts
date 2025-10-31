@@ -59,13 +59,14 @@ export const createBorrowerOrganization = async (
         interestRate: interestRateType === 'MONTHLY' ? processedInterestRate : 0.1,
         dailyInterestRate: interestRateType === 'DAILY' ? processedDailyRate : 0.01,
         baseInterestRate: interestRateType === 'DAILY' ? processedBaseRate : 0.1,
+        updatedAt: new Date(),
       },
     });
 
     await prisma.auditLog.create({
       data: {
-        tenant: { connect: { id: tenantId } },
-        user: { connect: { id: userId } },
+        Tenant: { connect: { id: tenantId } },
+        User: { connect: { id: userId } },
         action: 'CREATE_BORROWER_ORGANIZATION',
         resource: 'Organization',
         details: {
@@ -157,7 +158,7 @@ export const searchOrganizations = async (
         orderBy: { name: 'asc' },
         include: {
           _count: {
-            select: { Employee: true, loans: true, PaymentBatch: true },
+            select: { Employee: true, Loan: true, PaymentBatch: true },
           },
         },
       }),
@@ -176,7 +177,7 @@ export const searchOrganizations = async (
       approvalSteps: o.approvalSteps,
       interestRate: o.interestRate ?? null,
       employeeCount: o._count.Employee ?? null, // Fixed: Use _count.Employee
-      loanCount: o._count.loans ?? null,
+      loanCount: o._count.Loan ?? null,
       batchCount: o._count.PaymentBatch ?? null,
       createdAt: o.createdAt,
     }));
@@ -326,7 +327,7 @@ export const getBorrowerOrganizations = async (
 
     const organizations: Organization[] = await prisma.organization.findMany({
       where: { tenantId: queryTenantId || userTenantId },
-      include: { tenant: true },
+      include: { Tenant: true },
     });
 
     console.log(`Fetched ${organizations.length} Borrower Organizations for tenantId ${queryTenantId || userTenantId}`);
@@ -385,45 +386,49 @@ export const deleteBorrowerOrganization = async (
   }
 };
 
-// Get organizations with stats
+
+
 export const getOrganizations = async (
   req: AuthenticatedRequest,
   res: Response
 ): Promise<void> => {
-  const tenantId: number | undefined = req.user?.tenantId;
-
   try {
+    const tenantId = req.user?.tenantId;
+
     if (!tenantId) {
-      res.status(400).json({ message: 'Tenant ID is required' });
+      res.status(400).json({ message: "Tenant ID is required" });
       return;
     }
 
-    const organizations: (Organization & {
-      _count: { Employee: number; loans: number };
-      loans: Pick<Loan, 'amount' | 'status'>[];
-    })[] = await prisma.organization.findMany({
+    const organizations = await prisma.organization.findMany({
       where: { tenantId },
       include: {
         _count: {
           select: {
             Employee: true,
-            loans: true,
+            Loan: true,
           },
         },
-        loans: {
+        Loan: {
           select: {
             amount: true,
             status: true,
           },
         },
       },
-      orderBy: { createdAt: 'desc' },
+      orderBy: { createdAt: "desc" },
     });
 
-    const data: OrganizationStatsResponse[] = organizations.map((org) => {
-      const totalLoanAmount: number = org.loans.reduce((sum, loan) => sum + loan.amount, 0);
-      const approvedLoanAmount: number = org.loans
-        .filter((loan) => loan.status === 'APPROVED' || loan.status === 'DISBURSED')
+    const data = organizations.map((org) => {
+      const totalLoanAmount = org.Loan.reduce(
+        (sum, loan) => sum + loan.amount,
+        0
+      );
+
+      const approvedLoanAmount = org.Loan
+        .filter(
+          (loan) => loan.status === "APPROVED" || loan.status === "DISBURSED"
+        )
         .reduce((sum, loan) => sum + loan.amount, 0);
 
       return {
@@ -432,17 +437,24 @@ export const getOrganizations = async (
         approvalSteps: org.approvalSteps,
         interestRate: org.interestRate,
         employeeCount: org._count.Employee,
-        loanCount: org._count.loans,
+        loanCount: org._count.Loan,
         totalLoanAmount,
         approvedLoanAmount,
         createdAt: org.createdAt,
       };
     });
 
-    res.status(200).json(data);
-  } catch (error: any) {
-    console.error('Error fetching organizations:', error);
-    res.status(500).json({ message: 'Failed to fetch organization stats' });
+    res.status(200).json({
+      success: true,
+      message: "Organizations fetched successfully",
+      data,
+    });
+  } catch (error) {
+    console.error("Error fetching organizations:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to fetch organization stats",
+    });
   }
 };
 
@@ -472,8 +484,8 @@ export const getOrganizationById = async (
     const organization = await prisma.organization.findFirst({
       where: { id: orgId, tenantId },
       include: {
-        tenant: true,
-        users: true,
+        Tenant: true,
+        User: true,
         Employee: true,
         PaymentBatch: true,
       },
@@ -667,7 +679,7 @@ export const getOrganizationAdmins = async (
       return;
     }
 
-    const admins: OrganizationriolizedAdminsResponse[] = await prisma.user.findMany({
+    const rawAdmins = await prisma.user.findMany({
       where: {
         tenantId,
         role: {
@@ -680,7 +692,7 @@ export const getOrganizationAdmins = async (
         lastName: true,
         email: true,
         phoneNumber: true,
-        organization: {
+        Organization: {
           select: {
             id: true,
             name: true,
@@ -689,6 +701,16 @@ export const getOrganizationAdmins = async (
         createdAt: true,
       },
     });
+
+    const admins: OrganizationriolizedAdminsResponse[] = rawAdmins.map(a => ({
+      id: a.id,
+      firstName: a.firstName,
+      lastName: a.lastName,
+      email: a.email,
+      phoneNumber: a.phoneNumber,
+      organization: a.Organization ? { id: a.Organization.id, name: a.Organization.name } : null,
+      createdAt: a.createdAt,
+    }));
 
     res.status(200).json(admins);
   } catch (error: any) {

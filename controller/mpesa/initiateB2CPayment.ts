@@ -196,7 +196,9 @@ const { mpesaConfig } = settings;
           utilityAccountBalance: utility !== null ? parseFloat(utility) : null,
           workingAccountBalance: working !== null ? parseFloat(working) : null,
           tenantId,
+          updatedAt: new Date(),
         },
+
       });
 
       await tx.auditLog.create({
@@ -230,6 +232,7 @@ const { mpesaConfig } = settings;
             utilityAccountBalance: null,
             workingAccountBalance: null,
             tenantId:tenantId!,
+            updatedAt: new Date(),
 
            
           },

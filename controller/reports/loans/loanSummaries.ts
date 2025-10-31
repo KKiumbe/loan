@@ -36,7 +36,7 @@ export const generateLoanSummaryReport = async (req: AuthenticatedRequest, res: 
           lte: endDate,
         },
       },
-      include: { organization: true },
+      include: { Organization: true },
     });
 
     if (!loans.length) return res.status(404).json({ message: 'No loans found for selected month' });
@@ -54,7 +54,7 @@ export const generateLoanSummaryReport = async (req: AuthenticatedRequest, res: 
     >();
 
     for (const loan of loans) {
-      const orgName = loan.organization?.name || `Org-${loan.organizationId}`;
+      const orgName = loan.Organization?.name || `Org-${loan.organizationId}`;
       if (!grouped.has(orgName)) {
         grouped.set(orgName, {
           totalLoans: 0,

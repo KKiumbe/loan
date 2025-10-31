@@ -52,8 +52,8 @@ const processMpesaRepayments = async (): Promise<void> => {
         processed: false,
       },
       include: {
-        tenant: true,
-        mpesaConfig: true,
+        Tenant: true,
+        MPESAConfig: true, // Include MPESAConfig to access securityCredential and MpesaConfig: true,
       },
     });
 
@@ -119,7 +119,7 @@ const processMpesaRepayments = async (): Promise<void> => {
           where: {
             tenantId,
             status: { in: ['DISBURSED', 'PPAID'] },
-            loan: {
+            Loan: {
               userId: loanee.id,
               status: { in: ['DISBURSED', 'PPAID'] },
             },
@@ -130,14 +130,14 @@ const processMpesaRepayments = async (): Promise<void> => {
             amount: true,
             amountRepaid: true,
             status: true,
-            loan: {
+            Loan: {
               select: {
                 id: true,
                 organizationId: true,
                 totalRepayable: true,
                 repaidAmount: true,
                 status: true,
-                user: {
+                User: {
                   select: {
                     id: true,
                     firstName: true,
@@ -208,7 +208,7 @@ const processMpesaRepayments = async (): Promise<void> => {
           },
           select: {
             id: true,
-            user: { select: { id: true } },
+            User: { select: { id: true } },
           },
         });
 
@@ -221,9 +221,9 @@ const processMpesaRepayments = async (): Promise<void> => {
           where: {
             tenantId,
             status: { in: ['DISBURSED', 'PPAID'] },
-            loan: {
+            Loan: {
               organizationId: orgId,
-              userId: { in: employees.map((emp) => emp.user?.id).filter((id): id is number => id !== null) },
+              userId: { in: employees.map((emp) => emp.User?.id).filter((id): id is number => id !== null) },
               status: { in: ['DISBURSED', 'PPAID'] },
             },
           },
@@ -233,14 +233,14 @@ const processMpesaRepayments = async (): Promise<void> => {
             amount: true,
             amountRepaid: true,
             status: true,
-            loan: {
+            Loan: {
               select: {
                 id: true,
                 organizationId: true,
                 totalRepayable: true,
                 repaidAmount: true,
                 status: true,
-                user: {
+                User: {
                   select: {
                     id: true,
                     firstName: true,
@@ -279,12 +279,13 @@ const processMpesaRepayments = async (): Promise<void> => {
         async (tx) => {
           const paymentBatch = await tx.paymentBatch.create({
             data: {
-              tenant: { connect: { id: tenantId } },
-              organization: { connect: { id: organizationId! } },
+              Tenant: { connect: { id: tenantId } },
+              Organization: { connect: { id: organizationId! } },
               totalAmount: TransAmount,
               paymentMethod: 'MPESA',
               reference: TransID,
               remarks: repaymentDescription,
+              updatedAt: new Date(),
             },
           });
 

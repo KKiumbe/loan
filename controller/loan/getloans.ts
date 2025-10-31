@@ -101,70 +101,69 @@ export const calculateLoanDetails = async (
 
 
 
+
+
 type MinimalLoan = {
   id: number;
   amount: number;
   tenantId: number;
   disbursedAt: Date | null;
-  user: { id: number; firstName: string; phoneNumber: string , lastName: string};
+  user: { id: number; firstName: string; lastName: string; phoneNumber: string };
   organization: { id: number; name: string };
 };
 
-
-
-
-
 export const getLoans = async (
   req: AuthenticatedRequest,
-  res: Response<ApiResponse<GetLoans[]> | ErrorResponse>,
-
+  res: Response<ApiResponse<MinimalLoan[]> | ErrorResponse>
 ): Promise<void> => {
   const { id: userId, tenantId, role, firstName, lastName } = req.user!;
 
   try {
+    // 🔒 Permission check
     if (!role.some((r) => ROLE_PERMISSIONS[r as keyof typeof ROLE_PERMISSIONS]?.loan?.includes('read'))) {
-     res.status(403).json({ message: 'Unauthorized to view loans' });
+      res.status(403).json({ message: 'Unauthorized to view loans' });
       return;
     }
 
     let loans: MinimalLoan[] = [];
 
+    // 🧑‍💼 Employee
     if (role.includes('EMPLOYEE')) {
+      const prismaLoans = await prisma.loan.findMany({
+        where: { userId, tenantId },
+        include: {
+          User: { select: { id: true, firstName: true, lastName: true, phoneNumber: true } },
+          Organization: { select: { id: true, name: true } },
+        },
+      });
 
-      loans = await prisma.loan.findMany({
-  where: { userId, tenantId },
-  include: {
-    user: {
-      select: {
-        id: true,
-        firstName: true,
-        lastName: true,
-        phoneNumber: true,
-      },
-    },
-    organization: {
-      select: {
-        id: true,
-        name: true,
-      },
-    },
-  },
-});
-   
-    } else if (role.includes('ORG_ADMIN')) {
+      loans = prismaLoans.map((loan) => ({
+        id: loan.id,
+        amount: loan.amount,
+        tenantId: loan.tenantId,
+        disbursedAt: loan.disbursedAt,
+        user: loan.User,
+        organization: loan.Organization,
+      }));
+    }
+
+    // 🏢 Org Admin
+    else if (role.includes('ORG_ADMIN')) {
       const employee = await prisma.employee.findFirst({
-        where: { id: tenantId },
+        where: { id: userId },
         select: { organizationId: true },
       });
+
       if (!employee) {
-       res.status(404).json({ message: 'Employee not found' });
+        res.status(404).json({ message: 'Employee not found' });
         return;
       }
-      loans = await prisma.loan.findMany({
+
+      const prismaLoans = await prisma.loan.findMany({
         where: { organizationId: employee.organizationId, tenantId },
         include: {
-          user: { select: { id: true, firstName: true, lastName: true, phoneNumber: true } },
-          organization: {
+          User: { select: { id: true, firstName: true, lastName: true, phoneNumber: true } },
+          Organization: {
             select: {
               id: true,
               name: true,
@@ -173,18 +172,27 @@ export const getLoans = async (
               interestRate: true,
             },
           },
-          consolidatedRepayment: true,
-          
-          
-          
+          ConsolidatedRepayment: true,
         },
       });
-    } else if (role.includes('ADMIN')) {
-      loans = await prisma.loan.findMany({
+
+      loans = prismaLoans.map((loan) => ({
+        id: loan.id,
+        amount: loan.amount,
+        tenantId: loan.tenantId,
+        disbursedAt: loan.disbursedAt,
+        user: loan.User,
+        organization: loan.Organization,
+      }));
+    }
+
+    // 👑 Admin
+    else if (role.includes('ADMIN')) {
+      const prismaLoans = await prisma.loan.findMany({
         where: { tenantId },
         include: {
-          user: { select: { id: true, firstName: true, lastName: true, phoneNumber: true } },
-          organization: {
+          User: { select: { id: true, firstName: true, lastName: true, phoneNumber: true } },
+          Organization: {
             select: {
               id: true,
               name: true,
@@ -193,18 +201,31 @@ export const getLoans = async (
               interestRate: true,
             },
           },
-          consolidatedRepayment: true,
+          ConsolidatedRepayment: true,
         },
       });
-    } else {
-       res.status(403).json({ message: 'Unauthorized to view loans' });
+
+      loans = prismaLoans.map((loan) => ({
+        id: loan.id,
+        amount: loan.amount,
+        tenantId: loan.tenantId,
+        disbursedAt: loan.disbursedAt,
+        user: loan.User,
+        organization: loan.Organization,
+      }));
+    }
+
+    // ❌ No valid role
+    else {
+      res.status(403).json({ message: 'Unauthorized to view loans' });
       return;
     }
 
+    // 🪵 Log audit
     await prisma.auditLog.create({
       data: {
-        tenant: { connect: { id: tenantId } },
-        user: { connect: { id: userId } },
+        Tenant: { connect: { id: tenantId } },
+        User: { connect: { id: userId } },
         action: 'READ',
         resource: 'LOAN',
         details: JSON.stringify({
@@ -214,17 +235,26 @@ export const getLoans = async (
       },
     });
 
-   res.status(200).json({ message: 'Loans retrieved successfully' });
-    return;
-
+    // ✅ Return result
+    res.status(200).json({
+      message: 'Loans retrieved successfully',
+      data: loans.map((loan) => ({
+        ...loan,
+        organization: loan.organization,
+        user: loan.user,
+      })),
+    });
   } catch (error: unknown) {
     console.error('Error fetching loans:', error);
-     res.status(500).json({ message: 'Internal server error', error: (error as Error).message });
-      return;
+    res.status(500).json({
+      message: 'Internal server error',
+      error: (error as Error).message,
+    });
   } finally {
     await prisma.$disconnect();
   }
 };
+
 
 // Get a specific loan by ID
 export const getLoanById = async (
@@ -249,9 +279,9 @@ export const getLoanById = async (
     const loan = await prisma.loan.findUnique({
       where: { id: parseInt(id) },
       include: {
-        user:true,
-        organization:true,
-        consolidatedRepayment:true
+        User:true,
+        Organization:true,
+        ConsolidatedRepayment:true
       
           },
       
@@ -281,8 +311,8 @@ export const getLoanById = async (
 
     await prisma.auditLog.create({
       data: {
-        tenant: { connect: { id: tenantId } },
-        user: { connect: { id:  userId} },
+        Tenant: { connect: { id: tenantId } },
+        User: { connect: { id:  userId} },
         action: 'READ',
         resource: 'LOAN',
         details: JSON.stringify({ loanId: loan.id }),
@@ -293,7 +323,13 @@ export const getLoanById = async (
       success: true,
       error: null,
       message: 'Loan retrieved successfully', 
-      data: loan });
+      data: {
+        ...loan,
+        user: loan.User,
+        organization: loan.Organization,
+        consolidatedRepayment: loan.ConsolidatedRepayment,
+      } 
+    });
     return;
   } catch (error: unknown) {
     console.error('Error fetching loan:', error);
@@ -326,17 +362,25 @@ export const getPendingLoanRequests = async (
   const loans = await prisma.loan.findMany({
   where: { tenantId, status: 'PENDING' },
   include: {
-    user: true,
-    organization: true,
-    consolidatedRepayment: true,
+    User: true,
+    Organization: true,
+    ConsolidatedRepayment: true,
   },
 });
+
+  // Map Prisma results to Loan type
+  const mappedLoans: Loan[] = loans.map((loan) => ({
+    ...loan,
+    user: loan.User,
+    organization: loan.Organization,
+    consolidatedRepayment: loan.ConsolidatedRepayment,
+  }));
 
      res.status(200).json({
       success: true,
       error: null,
-      message: loans.length === 0 ? 'No pending loans found' : 'Pending loans retrieved successfully',
-      data: loans,
+      message: mappedLoans.length === 0 ? 'No pending loans found' : 'Pending loans retrieved successfully',
+      data: mappedLoans,
       
     });
   } catch (error: unknown) {
@@ -449,7 +493,7 @@ export const getPendingLoans = async (
         tenantId,
       },
       include: {
-        user: {
+        User: {
           select: {
             id: true,
             firstName: true,
@@ -457,7 +501,7 @@ export const getPendingLoans = async (
             phoneNumber: true,
           },
         },
-        organization: {
+        Organization: {
           select: {
             id: true,
             name: true,
@@ -474,7 +518,11 @@ export const getPendingLoans = async (
 
     res.status(200).json({
       message: 'Pending loans retrieved successfully',
-      data: loans,
+      data: loans.map((loan) => ({
+        ...loan,
+        organization: loan.Organization,
+        user: loan.User,
+      })),
     });
   } catch (error: unknown) {
     console.error('Error fetching pending loans:', error);
@@ -503,27 +551,33 @@ type LoanWithOrg = Loan & { organization: Organization };
 const loans = await prisma.loan.findMany({
   where: { userId },
   include: {
-    user: true,
-    organization: true,
-    consolidatedRepayment: {
+    User: true,
+    Organization: true,
+    ConsolidatedRepayment: {
       select: {
         id: true,
         organizationId: true,
         tenantId: true,
-
-       
       },
     },
   },
-}) as LoanWithOrg[];
+});
 
-    const grouped = {
-      pending: loans.filter((loan) => loan.status === 'PENDING' || loan.status === 'APPROVED'),
-      disbursed: loans.filter((loan) => loan.status === 'DISBURSED'),
-      rejected: loans.filter((loan) => loan.status === 'REJECTED'),
-    };
+// Map Prisma results to Loan type
+const mappedLoans: Loan[] = loans.map((loan) => ({
+  ...loan,
+  user: loan.User,
+  organization: loan.Organization,
+  consolidatedRepayment: loan.ConsolidatedRepayment,
+}));
 
-    res.status(200).json({ message: 'User loans retrieved successfully', data: grouped });
+const grouped: Record<string, Loan[]> = {
+  pending: mappedLoans.filter((loan) => loan.status === 'PENDING' || loan.status === 'APPROVED'),
+  disbursed: mappedLoans.filter((loan) => loan.status === 'DISBURSED'),
+  rejected: mappedLoans.filter((loan) => loan.status === 'REJECTED'),
+};
+
+res.status(200).json({ message: 'User loans retrieved successfully', data: grouped });
   } catch (error: unknown) {
     console.error('Error fetching user loans:', error);
     res.status(500).json({ message: 'Could not retrieve loans', error: (error as Error).message });
@@ -619,31 +673,31 @@ export const getAllLoansWithDetails = async (
       where: { tenantId }, // 🔐 Multi-tenant filter
       orderBy: { createdAt: 'desc' },
       include: {
-        user: {
+        User: {
           select: {
             id: true,
             firstName: true,
             lastName: true,
             phoneNumber: true,
             email: true,
-            employee: {
+            Employee: {
               select: {
                 id: true,
                 jobId: true,
-                organization: {
+                Organization: {
                   select: { id: true, name: true }
                 }
               }
             }
           },
         },
-        organization: {
+        Organization: {
           select: {
             id: true,
             name: true,
           },
         },
-        consolidatedRepayment: {
+        ConsolidatedRepayment: {
           select: {
             id: true,
            
@@ -711,7 +765,7 @@ export const getLoansByOrganization = async (
         organizationId: orgId,
       },
       include: {
-        user: {
+        User: {
           select: {
             id: true,
             firstName: true,
@@ -813,7 +867,7 @@ export const getLoansByStatus = async (
         tenantId,
       },
       include: {
-        user: {
+        User: {
           select: {
             id: true,
             firstName: true,
@@ -822,7 +876,7 @@ export const getLoansByStatus = async (
             email: true,
           },
         },
-        organization: {
+        Organization: {
           select: {
             id: true,
             name: true,

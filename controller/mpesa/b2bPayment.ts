@@ -101,6 +101,7 @@ export const initiateB2BTransfer = async (
         originatorConversationID: response.OriginatorConversationID,
         resultDesc: response.ResponseDescription,
         status: "PENDING", // ✅ explicitly set pending
+        updatedAt: new Date(),
       },
     });
 

@@ -44,7 +44,7 @@ export const registerUser = async (
     if (employeeId) {
       employee = await prisma.employee.findFirst({
         where: { id: employeeId, tenantId },
-        select: { id: true, phoneNumber: true, idNumber: true, firstName: true, lastName: true ,organization: { select: { id: true, name: true } } },
+        select: { id: true, phoneNumber: true, idNumber: true, firstName: true, lastName: true ,Organization: { select: { id: true, name: true } } },
       });
     } 
 
@@ -58,7 +58,7 @@ export const registerUser = async (
 
     
     const userExists = await prisma.user.findFirst({
-      where: { employee:{
+      where: { Employee:{
         id: employee.id
       } },
     });
@@ -89,16 +89,17 @@ export const registerUser = async (
         email: null,
         phoneNumber: employee.phoneNumber,
         password: hashedPassword,
-        employee: { connect: { id: employee.id } },
+        Employee: { connect: { id: employee.id } },
         role: { set: [defaultRole] },
         createdBy: req.user!.id || null,
         lastLogin: new Date(),
         status: 'ACTIVE',
-        organization: { connect: { id: employee.organization.id } },
+        Organization: { connect: { id: employee.Organization.id } },
         tenantName: tenant.name || null,
-        tenant: {
+        Tenant: {
           connect: { id: tenantId },
         },
+        updatedAt: new Date(),
       },
     });
 
@@ -168,6 +169,8 @@ export const registerDeletedUser = async (
             tenantId,
             status: "ACTIVE",
             isGlobalLenderOrg: true,
+            updatedAt: new Date(),
+            Tenant: { connect: { id: tenantId } },
           },
         });
       }
@@ -179,6 +182,8 @@ export const registerDeletedUser = async (
             name: organizationName,
             tenantId,
             status: "ACTIVE",
+            updatedAt: new Date(),
+            Tenant: { connect: { id: tenantId } },
           },
         });
       } else {
@@ -204,6 +209,7 @@ export const registerDeletedUser = async (
         organizationId: organization.id,
         role: Array.isArray(role) ? role : [role || "ADMIN"],
         createdBy: req.user?.id || null,
+        updatedAt: new Date(),
       },
     });
 
@@ -280,6 +286,7 @@ export const createOrgAdmin = async (
         tenantName: tenant.name,
         role: ['ORG_ADMIN'],
         status: 'ACTIVE',
+        updatedAt: new Date(),
       },
     });
 

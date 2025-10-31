@@ -427,9 +427,9 @@ const fetchUser = async (req: AuthenticatedRequest & { params: { userId: string 
     town: true,
     role: true,
     organizationId: true,
-    organization: true,
+    Organization: true,
     employeeId: true,
-    employee: true,
+    Employee: true,
     
     status: true,
     createdAt: true,

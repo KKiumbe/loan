@@ -193,7 +193,7 @@ export const signin = async (req: { body: SignInRequestBody }, res: any) => {
         employeeId:     true,
         email:          true,
         tenantId:       true,
-        tenant: {
+        Tenant: {
           select: { id: true, name: true },
         },
       },
@@ -221,8 +221,8 @@ export const signin = async (req: { body: SignInRequestBody }, res: any) => {
     // Log login action
     await prisma.auditLog.create({
       data: {
-        tenant:  { connect: { id: user.tenantId } },
-        user:    { connect: { id: user.id } },
+        Tenant:  { connect: { id: user.tenantId } },
+        User:    { connect: { id: user.id } },
         action:   'LOGIN',
         resource: 'user',
         details:  { message: `User ${user.firstName} logged in` },
@@ -245,7 +245,7 @@ export const signin = async (req: { body: SignInRequestBody }, res: any) => {
         organizationId: user.organizationId,
         employeeId:     user.employeeId,
         tenantId:       user.tenantId,
-        tenantName:     user.tenant.name,
+        tenantName:     user.Tenant.name,
       },
       process.env.JWT_SECRET,
       { expiresIn: '1d' }

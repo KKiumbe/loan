@@ -23,7 +23,7 @@ async function checkUserAuthorization(req: AuthenticatedRequest, loan: Loan) {
   if (role.includes('ORG_ADMIN')) {
     const employee = await prisma.employee.findFirst({
       where: { id: userId },
-      select: { organizationId: true ,organization:true, },
+      select: { organizationId: true ,Organization: true},
     });
     if (!employee || loan.organizationId !== employee.organizationId) {
       throw { status: 403, message: 'Unauthorized to approve this loan' };
@@ -46,6 +46,7 @@ async function performDisbursement(loan: Loan, userId: number): Promise<{ payout
       status: PayoutStatus.PENDING,
       approvedById: userId,
       tenantId: loan.tenantId,
+      updatedAt: new Date(),
     },
   });
 
@@ -117,8 +118,8 @@ const phoneNumber = phone;
 async function sendDisbursementFailureAudit(loan: Loan, userId: number, reason: string) {
   await prisma.auditLog.create({
     data: {
-      tenant: { connect: { id: loan.tenantId } },
-      user: { connect: { id: userId } },
+      Tenant: { connect: { id: loan.tenantId } },
+      User: { connect: { id: userId } },
       action: 'DISBURSEMENT_FAILED',
       resource: 'LOAN',
       details: JSON.stringify({ loanId: loan.id, amount: loan.amount, reason }),
@@ -135,6 +136,8 @@ async function notifyUserDisbursementFailure(loan: Loan, reason: string) {
   );
 }
 
+
+
 async function approveStep(loan: Loan, userId: number): Promise<Loan> {
   const newCount = loan.approvalCount + 1;
   let updateData: any = { approvalCount: newCount };
@@ -145,19 +148,26 @@ async function approveStep(loan: Loan, userId: number): Promise<Loan> {
   if (newCount === 1) updateData.firstApproverId = userId;
   if (newCount === 2) updateData.secondApproverId = userId;
 
-  return prisma.loan.update({
+  const updated = await prisma.loan.update({
     where: { id: loan.id },
     data: updateData,
     include: {
-      user: { select: { id: true, firstName: true, phoneNumber: true, lastName: true } },
-      organization: {
-        select: { id: true, name: true, approvalSteps: true, loanLimitMultiplier: true, interestRate: true },
-      },
-      consolidatedRepayment: true,
+      User: true,
+      Organization: true,
+      ConsolidatedRepayment: true,
       LoanPayout: true,
     },
   });
+
+  return {
+    ...updated,
+    user: updated.User,
+    organization: updated.Organization,
+    consolidatedRepayment: updated.ConsolidatedRepayment,
+    LoanPayout: updated.LoanPayout,
+  };
 }
+
 
 
 export const approveLoan = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
@@ -170,10 +180,10 @@ export const approveLoan = async (req: AuthenticatedRequest, res: Response): Pro
     const loan = await prisma.loan.findUnique({
       where: { id: parseInt(id) },
       include: {
-        user: { select: { id: true, firstName: true, phoneNumber: true, lastName: true ,} },
-        tenant: { select: { id: true, name: true } },
-        organization: { select: { id: true, name: true, approvalSteps: true, loanLimitMultiplier: true, interestRate: true , interestRateType: true,dailyInterestRate: true,} },
-        consolidatedRepayment: true,
+        User: { select: { id: true, firstName: true, phoneNumber: true, lastName: true ,} },
+        Tenant: { select: { id: true, name: true } },
+        Organization: { select: { id: true, name: true, approvalSteps: true, loanLimitMultiplier: true, interestRate: true , interestRateType: true,dailyInterestRate: true,} },
+        ConsolidatedRepayment: true,
         LoanPayout: true,
       },
     });
@@ -181,8 +191,21 @@ export const approveLoan = async (req: AuthenticatedRequest, res: Response): Pro
     if (!loan) throw { status: 404, message: 'Loan not found' };
     if (loan.status !== 'PENDING') throw { status: 400, message: 'Loan is not in PENDING status' };
 
-    await checkUserAuthorization(req, loan);
-    const updatedLoan = await approveStep(loan, userId);
+    // Map Prisma result to expected Loan type
+    const loanForAuth = {
+      ...loan,
+      user: loan.User,
+      organization: loan.Organization,
+      consolidatedRepayment: loan.ConsolidatedRepayment,
+    };
+    await checkUserAuthorization(req, loanForAuth);
+    const loanForApproveStep = {
+      ...loan,
+      user: loan.User,
+      organization: loan.Organization,
+      consolidatedRepayment: loan.ConsolidatedRepayment,
+    };
+    const updatedLoan = await approveStep(loanForApproveStep, userId);
 
     let payout: LoanPayout | undefined;
     let result: MpesaResponse | undefined;
@@ -194,9 +217,9 @@ export const approveLoan = async (req: AuthenticatedRequest, res: Response): Pro
 
 
   const interestDescription =
-    loan.organization?.interestRateType === 'DAILY'
-      ? `at a daily interest of ${(loan.organization.dailyInterestRate * 100).toFixed(2)}% per day`
-      : `at a monthly interest of ${(loan.organization.interestRate * 100).toFixed(2)}%`;
+    loan.Organization?.interestRateType === 'DAILY'
+      ? `at a daily interest of ${(loan.Organization.dailyInterestRate * 100).toFixed(2)}% per day`
+      : `at a monthly interest of ${(loan.Organization.interestRate * 100).toFixed(2)}%`;
 
   const dueDateFormatted = loan.dueDate.toLocaleDateString('en-KE', {
     year: 'numeric',
@@ -206,19 +229,19 @@ export const approveLoan = async (req: AuthenticatedRequest, res: Response): Pro
 
 
 
-  const message = `Dear ${loan.user.firstName}, your loan of KES ${loan.amount.toLocaleString()} at ${loan.tenant.name} has been approved and disbursement initiated ${interestDescription}. Transaction charge is KES ${loan.transactionCharge.toLocaleString()}. Due date: ${dueDateFormatted}. Total payable ${loan.totalRepayable.toLocaleString()} `;
+  const message = `Dear ${loan.User.firstName}, your loan of KES ${loan.amount.toLocaleString()} at ${loan.Tenant.name} has been approved and disbursement initiated ${interestDescription}. Transaction charge is KES ${loan.transactionCharge.toLocaleString()}. Due date: ${dueDateFormatted}. Total payable ${loan.totalRepayable.toLocaleString()} `;
 
       await sendSMS(
         loan.tenantId,
-        loan.user.phoneNumber,
+        loan.User.phoneNumber,
         message
       );
     }
 
     await prisma.auditLog.create({
       data: {
-        tenant: { connect: { id: loan.tenantId } },
-        user: { connect: { id: userId } },
+        Tenant: { connect: { id: loan.tenantId } },
+        User: { connect: { id: userId } },
         action: 'APPROVE',
         resource: 'LOAN',
         details: JSON.stringify({ loanId: loan.id, approvalCount: updatedLoan.approvalCount }),

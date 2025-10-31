@@ -62,7 +62,7 @@ export const createMPESAConfig = async (req: Request, res: Response): Promise<vo
     }
 
     const newConfig = await prisma.mPESAConfig.create({
-      data: { tenantId, b2cShortCode, initiatorName, securityCredential, consumerKey, consumerSecret },
+      data: { tenantId, b2cShortCode, initiatorName, securityCredential, consumerKey, consumerSecret, updatedAt: new Date() },
     });
 
     res.status(201).json({ success: true, message: 'M-Pesa B2C configuration created successfully.', data: newConfig });

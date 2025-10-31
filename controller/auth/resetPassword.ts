@@ -22,7 +22,7 @@ export const requestOTP = async (
   try {
     const user = await prisma.user.findUnique({
       where: { phoneNumber },
-      include: { tenant: true },
+      include: { Tenant: true },
     });
 
     // Generic response for security

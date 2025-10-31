@@ -58,9 +58,9 @@ export const generateDisbursedLoansPerOrganization = async (req: AuthenticatedRe
         },
       },
       include: {
-        user: true,
-        organization: true,
-        consolidatedRepayment: true,
+        User: true,
+        Organization: true,
+        ConsolidatedRepayment: true,
       },
       orderBy: {
         organizationId: "asc",
@@ -74,7 +74,7 @@ export const generateDisbursedLoansPerOrganization = async (req: AuthenticatedRe
     // Group by organization
     const grouped: Record<string, typeof loans> = {};
     for (const loan of loans) {
-      const orgName = loan.organization?.name || "Unknown Org";
+      const orgName = loan.Organization?.name || "Unknown Org";
       if (!grouped[orgName]) grouped[orgName] = [];
       grouped[orgName].push(loan);
     }
@@ -159,7 +159,7 @@ export const generateDisbursedLoansPerOrganization = async (req: AuthenticatedRe
 
         drawTableRow(currentY, [
           loan.id.toString(),
-          `${loan.user?.firstName || ''} ${loan.user?.lastName || ''}`,
+          `${loan.User?.firstName || ''} ${loan.User?.lastName || ''}`,
           loan.loanType,
           loan.amount.toFixed(2),
           `${(loan.interestRate * 100).toFixed(1)}%`,
@@ -258,13 +258,13 @@ export const disbursedLoansPerOrganization = async (req: AuthenticatedRequest, r
         },
       },
       include: {
-        user: true,
-        organization: true,
-        consolidatedRepayment: true,
+        User: true,
+        Organization: true,
+        ConsolidatedRepayment: true,
       },
       orderBy: [
-        { user: { firstName: "asc" } }, // Order by user's first name
-        { user: { lastName: "asc" } },  // Then by last name
+        { User: { firstName: "asc" } }, // Order by user's first name
+        { User: { lastName: "asc" } },  // Then by last name
         { id: "asc" },                  // Then by loan ID
       ],
     });
@@ -276,7 +276,7 @@ export const disbursedLoansPerOrganization = async (req: AuthenticatedRequest, r
     // Group loans by user
     const groupedByUser: Record<string, typeof loans> = {};
     for (const loan of loans) {
-      const userKey = `${loan.user?.id || 'unknown'}_${loan.user?.firstName || ''} ${loan.user?.lastName || ''}`;
+      const userKey = `${loan.User?.id || 'unknown'}_${loan.User?.firstName || ''} ${loan.User?.lastName || ''}`;
       if (!groupedByUser[userKey]) groupedByUser[userKey] = [];
       groupedByUser[userKey].push(loan);
     }
@@ -364,7 +364,7 @@ export const disbursedLoansPerOrganization = async (req: AuthenticatedRequest, r
 
         drawTableRow(currentY, [
           loan.id.toString(),
-          `${loan.user?.firstName || ''} ${loan.user?.lastName || ''}`,
+          `${loan.User?.firstName || ''} ${loan.User?.lastName || ''}`,
           loan.loanType,
           loan.amount.toFixed(2),
           `${(loan.interestRate * 100).toFixed(1)}%`,

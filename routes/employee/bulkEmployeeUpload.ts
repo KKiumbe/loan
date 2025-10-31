@@ -145,6 +145,7 @@ const bulkUploadFromCSV = async (req: AuthenticatedRequest, res: Response<APIRes
             secondaryPhoneNumber,
             tenantId: parseInt(tenantId),
             organizationId: parseInt(organizationId),
+            updatedAt: new Date(),
           },
         });
 

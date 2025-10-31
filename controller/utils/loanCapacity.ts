@@ -18,15 +18,15 @@ export const calculateBorrowCapacity = async (userId: number): Promise<LoanCapac
   // 1. Load the employee + org multiplier
   const employee = await prisma.employee.findUnique({
     where: { id: user.employeeId },
-    include: { organization: true },
+    include: { Organization: true },
   });
 
-  if (!employee || !employee.organization) {
+  if (!employee || !employee.Organization) {
     throw new Error('Employee or organization record not found');
   }
 
   // 2. Compute absolute cap
-  const maxLoanAmount = employee.grossSalary * employee.organization.loanLimitMultiplier;
+  const maxLoanAmount = employee.grossSalary * employee.Organization.loanLimitMultiplier;
 
   // 3. Bound the current calendar month
   const now = new Date();

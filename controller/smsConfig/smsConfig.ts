@@ -93,6 +93,7 @@ const createSMSConfig = async (req: AuthenticatedRequest, res: Response<APIRespo
         apiKey,
         shortCode,
         customerSupportPhoneNumber: customerSupportPhoneNumber, // Handle optional field
+        updatedAt: new Date(),
       },
     });
 

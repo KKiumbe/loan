@@ -106,10 +106,10 @@ const updateTenantDetails = async (req: AuthRequest, res: Response): Promise<voi
       data: {
         action: 'UPDATE_TENANT',
         resource: 'TENANT',
-        tenant: {
+        Tenant: {
           connect: { id: tenantIdInt },
         },
-        user: {
+        User: {
           connect: { id: userId },
         },
         details: {
@@ -207,11 +207,11 @@ const getTenantDetails = async (req: AuthRequest, res: Response): Promise<void> 
         updatedAt: true,
         _count: {
           select: {
-            organizations: true,
+            Organization: true,
           },
         },
-        mpesaConfig: true,
-        smsConfig: true,
+        MPESAConfig: true,
+        SMSConfig: true,
       },
     });
 
@@ -225,7 +225,7 @@ const getTenantDetails = async (req: AuthRequest, res: Response): Promise<void> 
     res.json({
       tenant: {
         ...rest,
-        organizationCount: _count.organizations,
+        organizationCount: _count.Organization,
       },
     });
   } catch (err) {

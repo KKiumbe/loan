@@ -1,5 +1,6 @@
 // src/interfaces/mpesaInterfaces.ts
 
+import { PayoutStatus } from "@prisma/client";
 import { Organization, Tenant, User } from "./loan";
 
 
@@ -115,21 +116,18 @@ export interface MpesaTransaction {
 
 
 
-// types/loansPayments.ts
-
-
 export interface LoanPayout {
   id: number;
   loanId: number;
   amount: number;
-  method: string | null | undefined; // Allow undefined to match Prisma
-  transactionId: string | null | undefined; // Allow undefined to match Prisma
-  status: string; // PayoutStatus: 'PENDING' | 'DISBURSED' | 'FAILED'
+  method: string | null | undefined;
+  transactionId: string | null | undefined;
+  status: string;
   tenantId: number;
   createdAt: Date;
   updatedAt: Date;
-  loan: Loan;
-  approvedBy: {
+  loan: Loan | null;
+  user: {
     firstName: string;
     lastName: string;
   } | null;
@@ -147,6 +145,61 @@ export interface LoanPayout {
     };
   } | null;
 }
+
+
+
+
+export interface LoanPayoutSearchByName {
+  id: number;
+  loanId: number;
+  amount: number;
+  method: string | null;
+  transactionId: string | null;
+  status: string;
+  tenantId: number;
+  createdAt: Date;
+  updatedAt: Date;
+  loan: {
+    id: number;
+    tenantId: number;
+    userId: number;
+    amount: number;
+    interestRate: number;
+    status: string;
+    createdAt: Date;
+    user: {
+      firstName: string;
+      lastName: string;
+      phoneNumber: string;
+    } | null;
+    organization: {
+      id: number;
+      name: string;
+    } | null;
+    approvedBy: {
+    
+      firstName: string;
+      lastName: string;
+      
+    } | null;
+  } | null;
+  user: { firstName: string; lastName: string } | null;
+
+  confirmation: {
+    id: number;
+    amountSettled: number;
+    settledAt: Date;
+    paymentBatch: {
+      id: number;
+      reference: string | null;
+      paymentMethod: string;
+      totalAmount: number;
+      receivedAt: Date;
+      remarks: string | null;
+    } | null;
+  } | null;
+}
+
 
 export interface PaymentBatch {
   id: number;

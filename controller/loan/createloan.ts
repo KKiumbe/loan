@@ -44,7 +44,7 @@ export const createLoan = async (
         grossSalary: true,
         phoneNumber: true,
        
-        organization: {
+        Organization: {
             select: {
               id: true,
               name: true,
@@ -61,12 +61,12 @@ export const createLoan = async (
         }
       ,
     });
-if (!employee || !employee?.organization) {
+if (!employee || !employee?.Organization) {
   res.status(400).json({ message: 'Employee or organization not found' });
   return;
 }
 
-if (employee.organization?.status !== 'ACTIVE') {
+if (employee.Organization?.status !== 'ACTIVE') {
   res.status(403).json({ message: 'Loan requests are disabled. Your organization is not active.' });
 
 
@@ -74,7 +74,7 @@ if (employee.organization?.status !== 'ACTIVE') {
 }
 
 
-    const org = employee.organization;
+    const org = employee.Organization;
     const monthlyCap = employee.grossSalary * org.loanLimitMultiplier;
     const now = new Date();
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -141,9 +141,9 @@ const transactionCharge = transactionBand?.cost ?? 0;
 
     const loan = await prisma.loan.create({
       data: {
-        user: { connect: { id: userId } },
-        organization: { connect: { id: org.id } },
-        tenant: { connect: { id: tenantId } },
+        User: { connect: { id: userId } },
+        Organization: { connect: { id: org.id } },
+        Tenant: { connect: { id: tenantId } },
         amount,
         interestRate: appliedInterestRate,
         dueDate,
@@ -151,12 +151,13 @@ const transactionCharge = transactionBand?.cost ?? 0;
         transactionCharge,
         status: org.approvalSteps === 0 ? 'APPROVED' : 'PENDING',
         approvalCount: 0,
-        loanType:theloanType
+        loanType:theloanType,
+        updatedAt: new Date(),
       },
       include: {
-        organization: { select: { id: true, name: true, approvalSteps: true, loanLimitMultiplier: true, interestRate: true , interestRateType: true, baseInterestRate: true, dailyInterestRate: true} },
-        user: { select: { id: true, firstName: true, phoneNumber: true, lastName: true } },
-        consolidatedRepayment: true,
+        Organization: { select: { id: true, name: true, approvalSteps: true, loanLimitMultiplier: true, interestRate: true , interestRateType: true, baseInterestRate: true, dailyInterestRate: true} },
+        User: { select: { id: true, firstName: true, phoneNumber: true, lastName: true } },
+        ConsolidatedRepayment: true,
         LoanPayout: true,
       },
     });
@@ -165,11 +166,12 @@ const transactionCharge = transactionBand?.cost ?? 0;
 
     await prisma.auditLog.create({
       data: {
-        tenant: { connect: { id: tenantId } },
-        user: { connect: { id: userId } },
+        Tenant: { connect: { id: tenantId } },
+        User: { connect: { id: userId } },
         action: 'CREATE',
         resource: 'LOAN',
         details: JSON.stringify({ loanId: loan.id, amount }),
+        
       },
     });
 
@@ -181,17 +183,17 @@ const transactionCharge = transactionBand?.cost ?? 0;
         tenantId: loan.tenantId,
         disbursedAt: loan.disbursedAt,
         user: {
-          id: loan.user.id,
-          firstName: loan.user.firstName,
-          phoneNumber: loan.user.phoneNumber,
-          lastName: loan.user.lastName
+          id: loan.User.id,
+          firstName: loan.User.firstName,
+          phoneNumber: loan.User.phoneNumber,
+          lastName: loan.User.lastName
         },
         organization: {
-          id: loan.organization.id,
-          name: loan.organization.name,
-          approvalSteps: loan.organization.approvalSteps,
-          loanLimitMultiplier: loan.organization.loanLimitMultiplier,
-          interestRate: loan.organization.interestRate
+          id: loan.Organization.id,
+          name: loan.Organization.name,
+          approvalSteps: loan.Organization.approvalSteps,
+          loanLimitMultiplier: loan.Organization.loanLimitMultiplier,
+          interestRate: loan.Organization.interestRate
 
           
         },
@@ -204,7 +206,12 @@ const transactionCharge = transactionBand?.cost ?? 0;
           success: false,
           message: 'Loan auto-approved but disbursement failed',
           data: {
-            loan,
+            loan: {
+              ...loan,
+              user: loan.User,
+              organization: loan.Organization,
+              consolidatedRepayment: loan.ConsolidatedRepayment,
+            },
             loanPayout,
             disbursement: null
           },
@@ -215,8 +222,8 @@ const transactionCharge = transactionBand?.cost ?? 0;
 
       await prisma.auditLog.create({
         data: {
-          tenant: { connect: { id: tenantId } },
-          user: { connect: { id: userId } },
+          Tenant: { connect: { id: tenantId } },
+          User: { connect: { id: userId } },
           action: 'AUTO_APPROVE',
           resource: 'LOAN',
           details: JSON.stringify({
@@ -259,7 +266,12 @@ const transactionCharge = transactionBand?.cost ?? 0;
         message: 'Loan auto-approved and disbursement initiated',
         success: true,
         data: {
-          loan,
+          loan: {
+            ...loan,
+            user: loan.User,
+            organization: loan.Organization,
+            consolidatedRepayment: loan.ConsolidatedRepayment,
+          },
           loanPayout,
           disbursement
         },
@@ -336,7 +348,12 @@ const notifyUsers = [...orgAdmins, ...platformAdmins].filter(
       message: 'Loan created and pending approval',
       success: true,
       data: {
-        loan,
+        loan: {
+          ...loan,
+          user: loan.User,
+          organization: loan.Organization,
+          consolidatedRepayment: loan.ConsolidatedRepayment,
+        },
         loanPayout: null,
         disbursement: null
       },
@@ -370,6 +387,7 @@ const createPayoutAndDisburse = async (
       approvedById: null,
       tenantId: loan.tenantId,
       transactionId: null,
+      updatedAt: new Date(),
     },
   });
 
@@ -385,8 +403,8 @@ const createPayoutAndDisburse = async (
 
       await prisma.auditLog.create({
         data: {
-          tenant: { connect: { id: loan.tenantId } },
-          user: { connect: { id: loan.user.id } },
+          Tenant: { connect: { id: loan.tenantId } },
+          User: { connect: { id: loan.user.id } },
           action: 'DISBURSEMENT_FAILED',
           resource: 'LOAN',
           details: JSON.stringify({ loanId: loan.id, amount: loan.amount, reason: 'Insufficient balance' }),
@@ -448,8 +466,8 @@ const createPayoutAndDisburse = async (
 
       await prisma.auditLog.create({
         data: {
-          tenant: { connect: { id: loan.tenantId } },
-          user: { connect: { id: loan.user.id } },
+          Tenant: { connect: { id: loan.tenantId } },
+          User: { connect: { id: loan.user.id } },
           action: 'DISBURSEMENT_FAILED',
           resource: 'LOAN',
           details: JSON.stringify({ loanId: loan.id, amount: loan.amount, reason: (err as Error).message }),

@@ -103,6 +103,7 @@ const createEmployee = async (req: AuthenticatedRequest, res: Response<APIRespon
         grossSalary: parseFloat(grossSalary.toString()),
         jobId, // Include optional jobId
         secondaryPhoneNumber, // Include optional secondaryPhoneNumber
+        updatedAt: new Date(), // Explicitly set updatedAt
       },
       select: {
         id: true,
@@ -123,8 +124,8 @@ const createEmployee = async (req: AuthenticatedRequest, res: Response<APIRespon
     // Log the action in audit logs
     await prisma.auditLog.create({
       data: {
-        tenant: { connect: { id: tenantId } },
-        user: { connect: { id: userId } },
+        Tenant: { connect: { id: tenantId } },
+        User: { connect: { id: userId } },
         action: 'CREATE_EMPLOYEE',
         resource: 'Employee',
         details: JSON.stringify({
@@ -136,6 +137,7 @@ const createEmployee = async (req: AuthenticatedRequest, res: Response<APIRespon
           grossSalary,
           jobId,
           secondaryPhoneNumber,
+          
         }),
       },
     });
@@ -183,16 +185,16 @@ const getEmployeeUsers = async (
     take: limit,
     orderBy: { createdAt: 'desc' },
     include: {
-      organization: { select: { id: true, name: true } },
-      tenant: { select: { name: true } },
-      user: {
+      Organization: { select: { id: true, name: true } },
+      Tenant: { select: { name: true } },
+      User: {
         select: {
           id: true,
           phoneNumber: true,
           firstName: true,
           lastName: true,
           createdAt: true,
-          loans: {
+          Loan: {
             select: {
               id: true,
               amount: true,
@@ -264,16 +266,16 @@ export const getEmployeeUsersByOrgID = async (
       take: limit,
       orderBy: { createdAt: 'desc' },
       include: {
-        organization: { select: { id: true, name: true } },
-        tenant: { select: { name: true } },
-        user: {
+        Organization: { select: { id: true, name: true } },
+        Tenant: { select: { name: true } },
+        User: {
           select: {
             id: true,
             phoneNumber: true,
             firstName: true,
             lastName: true,
             createdAt: true,
-            loans: {
+            Loan: {
               select: {
                 id: true,
                 amount: true,
@@ -333,22 +335,22 @@ const getEmployeesWithoutUserProfiles = async (
   const total = await prisma.employee.count({
     where: {
       tenantId,
-      user: null,
+      User: null,
     },
   });
 
   const employees = await prisma.employee.findMany({
     where: {
       tenantId,
-      user: null,
+      User: null,
     },
     skip: (page - 1) * limit,
     take: limit,
     orderBy: { createdAt: 'desc' },
     include: {
-      organization: { select: { id: true, name: true } },
-      tenant: { select: { name: true } },
-      user: true, // always null here
+      Organization: { select: { id: true, name: true } },
+      Tenant: { select: { name: true } },
+      User: true, // always null here
     },
   });
 
@@ -395,7 +397,7 @@ const searchEmployeeByName = async (
     // add name filter if present
     if (name?.trim()) {
       const trimmedName = name.trim();
-      where.user = {
+      where.User = {
         OR: [
           { firstName: { contains: trimmedName, mode: 'insensitive' } },
           { lastName: { contains: trimmedName, mode: 'insensitive' } },
@@ -413,16 +415,16 @@ const searchEmployeeByName = async (
     const employees = await prisma.employee.findMany({
       where,
       include: {
-        organization: { select: { id: true, name: true } },
-        tenant: { select: { name: true } },
-        user: {
+        Organization: { select: { id: true, name: true } },
+        Tenant: { select: { name: true } },
+        User: {
           select: {
             id: true,
             phoneNumber: true,
             firstName: true,
             lastName: true,
             createdAt: true,
-            loans: {
+            Loan: {
               select: {
                 id: true,
                 amount: true,
@@ -490,16 +492,16 @@ const getEmployeesByOrganization = async (
     const employees = await prisma.employee.findMany({
       where,
       include: {
-        organization: { select: { id: true, name: true } },
-        tenant: { select: { name: true } },
-        user: {
+        Organization: { select: { id: true, name: true } },
+        Tenant: { select: { name: true } },
+        User: {
           select: {
             id: true,
             phoneNumber: true,
             firstName: true,
             lastName: true,
             createdAt: true,
-            loans: {
+            Loan: {
               select: {
                 id: true,
                 amount: true,
@@ -580,16 +582,16 @@ const searchEmployeeByPhone = async (
     const employees = await prisma.employee.findMany({
       where,
       include: {
-        organization: { select: { id: true, name: true } },
-        tenant: { select: { name: true } },
-        user: {
+        Organization: { select: { id: true, name: true } },
+        Tenant: { select: { name: true } },
+        User: {
           select: {
             id: true,
             phoneNumber: true,
             firstName: true,
             lastName: true,
             createdAt: true,
-            loans: {
+            Loan: {
               select: {
                 id: true,
                 amount: true,
@@ -645,15 +647,15 @@ const updateEmployee = async (
   try {
     const user = await prisma.user.findUnique({
       where: { id: userId },
-      include: { employee: true , organization: true, tenant: true },
+      include: { Employee: true , Organization: true, Tenant: true },
     });
 
-    if (!user || !user.employee) {
+    if (!user || !user.Employee) {
       res.status(404).json({ success: false, message: 'User or employee not found', data: null });
       return;
     }
 
-    const employee = user.employee;
+    const employee = user.Employee;
 
     if (employee.tenantId !== tenantId) {
     res.status(403).json({ success: false, message: 'Unauthorized tenant access', data: null });
@@ -773,25 +775,25 @@ const getEmployeeDetails = async (req: Request, res: Response): Promise<void> =>
     const user = await prisma.user.findUnique({
       where: { id: Number(userId) },
       include: {
-        employee: {
+        Employee: {
           include: {
-            tenant: true,
-            organization: true
+            Tenant: true,
+            Organization: true
           }
         },
-        loans: {
-          include: { organization: true },
+        Loan: {
+          include: { Organization: true },
           orderBy: { createdAt: 'desc' }
         }
       }
     });
 
-    if (!user || !user.employee) {
+    if (!user || !user.Employee) {
       res.status(404).json({ message: 'User or associated employee not found.' });
       return;
     }
 
-    const loans = user.loans;
+    const loans = user.Loan;
 
     const oneYearAgo = new Date();
     oneYearAgo.setMonth(oneYearAgo.getMonth() - 12);
@@ -802,14 +804,14 @@ const getEmployeeDetails = async (req: Request, res: Response): Promise<void> =>
 
     res.json({
       employee: {
-        id: user.employee.id,
-        firstName: user.employee.firstName,
-        lastName: user.employee.lastName,
-        phoneNumber: user.employee.phoneNumber,
-        idNumber: user.employee.idNumber,
-        grossSalary: user.employee.grossSalary,
-        organization: user.employee.organization.name,
-        tenant: user.employee.tenant.name,
+        id: user.Employee.id,
+        firstName: user.Employee.firstName,
+        lastName: user.Employee.lastName,
+        phoneNumber: user.Employee.phoneNumber,
+        idNumber: user.Employee.idNumber,
+        grossSalary: user.Employee.grossSalary,
+        organization: user.Employee.Organization.name,
+        tenant: user.Employee.Tenant.name,
       },
       loanStats: {
         totalLoansTaken: loans.length,
@@ -823,7 +825,7 @@ const getEmployeeDetails = async (req: Request, res: Response): Promise<void> =>
         duration: loan.duration,
         status: loan.status,
         createdAt: loan.createdAt,
-        organization: loan.organization.name,
+        organization: loan.Organization.name,
       }))
     });
 
@@ -854,7 +856,7 @@ const softDeleteEmployeeUser = async (
     // Verify employee exists
     const employee = await prisma.employee.findFirst({
       where: { id: parseInt(employeeId), tenantId },
-      include: { user: true },
+      include: { User: true },
     });
     if (!employee) {
       res.status(404).json({ error: 'Employee not found' });
@@ -862,9 +864,9 @@ const softDeleteEmployeeUser = async (
     }
 
     // Check for dependent records
-    const dependentLoans = await prisma.loan.count({ where: { userId: employee.user?.id } });
+    const dependentLoans = await prisma.loan.count({ where: { userId: employee.User?.id } });
     const dependentRepayments = await prisma.consolidatedRepayment.count({
-      where: { userId: employee.user?.id },
+      where: { userId: employee.User?.id },
     });
     if (dependentLoans > 0 || dependentRepayments > 0) {
       res.status(400).json({
@@ -874,9 +876,9 @@ const softDeleteEmployeeUser = async (
     }
 
     // Soft delete: Update user status to DISABLED (Employee has no status field)
-    if (employee.user) {
+    if (employee.User) {
       await prisma.user.update({
-        where: { id: employee.user.id },
+        where: { id: employee.User.id },
         data: { status: 'DISABLED' },
       });
     }
@@ -884,13 +886,13 @@ const softDeleteEmployeeUser = async (
     // Log the action
     await prisma.auditLog.create({
       data: {
-        tenant: { connect: { id: tenantId } },
-        user: { connect: { id: userId } },
+        Tenant: { connect: { id: tenantId } },
+        User: { connect: { id: userId } },
         action: 'DELETE_EMPLOYEE_USER',
         resource: 'Employee',
         details: {
           employeeId,
-          userId: employee.user?.id || null,
+          userId: employee.User?.id || null,
           message: 'Employee and associated user soft deleted',
         },
       },
@@ -918,15 +920,15 @@ const hardDeleteEmployeeUser = async (
       // 1. Find the user and associated employee
       const user = await tx.user.findFirst({
         where: { id: parseInt(userId), tenantId },
-        include: { employee: true },
+        include: { Employee: true },
       });
 
-      if (!user || !user.employee) {
+      if (!user || !user.Employee) {
         res.status(404).json({ success: false, message: 'Employee user not found' });
         return;
       }
 
-      const employeeId = user.employee.id;
+      const employeeId = user.Employee.id;
 
       // 2. Delete related records that depend on the User
       // Delete ConsolidatedRepayment records
@@ -942,8 +944,8 @@ const hardDeleteEmployeeUser = async (
       // 3. Delete PaymentConfirmation records associated with LoanPayouts for this User's Loans
       await tx.paymentConfirmation.deleteMany({
         where: {
-          loanPayout: {
-            loan: {
+          LoanPayout: {
+            Loan: {
               userId: parseInt(userId),
             },
           },
@@ -953,7 +955,7 @@ const hardDeleteEmployeeUser = async (
       // 4. Delete LoanPayout records associated with Loans for this User
       await tx.loanPayout.deleteMany({
         where: {
-          loan: {
+          Loan: {
             userId: parseInt(userId),
           },
         },
