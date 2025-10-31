@@ -30,7 +30,7 @@ import loanRepayment from './routes/loanRepayment/repaymentRoute';
 import verifyToken from './middleware/verifyToken';
 
 dotenv.config();
-
+//
 const prisma = new PrismaClient();
 const app = express();
 const PORT = process.env.PORT || 3000;
