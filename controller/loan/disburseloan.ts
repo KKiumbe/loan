@@ -29,7 +29,7 @@ export const disburseLoan = async (req: AuthenticatedRequest, res: Response): Pr
 
   try {
     console.time('loanQuery');
-    const loan: LoanToDisburse | null = await prisma.loan.findUnique({
+    const prismaLoan = await prisma.loan.findUnique({
       where: { id: parseInt(id) },
       select: {
         id: true,
@@ -38,7 +38,7 @@ export const disburseLoan = async (req: AuthenticatedRequest, res: Response): Pr
         organizationId: true,
         tenantId: true,
         disbursedAt: true,
-        user: {
+        User: {
           select: {
             id: true,
             phoneNumber: true,
@@ -46,6 +46,18 @@ export const disburseLoan = async (req: AuthenticatedRequest, res: Response): Pr
         },
       },
     });
+
+    const loan: LoanToDisburse | null = prismaLoan
+      ? {
+          id: prismaLoan.id,
+          status: prismaLoan.status,
+          amount: prismaLoan.amount,
+          organizationId: prismaLoan.organizationId,
+          tenantId: prismaLoan.tenantId,
+          disbursedAt: prismaLoan.disbursedAt,
+          user: prismaLoan.User,
+        }
+      : null;
     console.timeEnd('loanQuery');
 
     if (!loan) {
@@ -130,8 +142,8 @@ const phoneNumber = phone;
     console.time('auditLogQuery');
     await prisma.auditLog.create({
       data: {
-        tenant: { connect: { id: loan.tenantId } },
-        user: { connect: { id: user.id } },
+        Tenant: { connect: { id: loan.tenantId } },
+        User: { connect: { id: user.id } },
         action: 'DISBURSE',
         resource: 'LOAN',
         details: {

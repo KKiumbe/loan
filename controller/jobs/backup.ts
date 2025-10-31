@@ -118,8 +118,8 @@ if (!role.some((r) => ROLE_PERMISSIONS[r as keyof typeof ROLE_PERMISSIONS]?.back
     // Log to audit log
     await prisma.auditLog.create({
       data: {
-        tenant: { connect: { id: tenantId } },
-        user: { connect: { id: req.user!.id } },
+        Tenant: { connect: { id: tenantId } },
+        User: { connect: { id: req.user!.id } },
         action: 'CREATE',
         resource: 'BACKUP',
         details: JSON.stringify({ backupFile, triggeredBy: 'manual' }),
